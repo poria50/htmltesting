@@ -2701,7 +2701,16 @@ const copy = {
     'timesheets.event.timesheet_returned': 'Sendt tilbake',
     'timesheets.event.timesheet_approved': 'Godkjent',
     'timesheets.event.timesheet_reopened': 'Gjenåpnet',
-    'payrollBasis.title': 'Lønnsgrunnlag fra godkjente timelister',
+    'invoicing.basisTitle': 'Fakturagrunnlag fra godkjente timelister',
+    'invoicing.markup': 'Påslag',
+    'invoicing.net': 'Netto',
+    'invoicing.vatLabel': 'MVA',
+    'invoicing.total': 'Totalpris',
+    'invoicing.priceMissing': 'Kundepris mangler',
+    'invoicing.missingMarkup': 'Påslag mangler',
+    'invoicing.missingVat': 'MVA-oppsett mangler',
+    'invoicing.missingClient': 'Klient mangler',
+  'payrollBasis.title': 'Lønnsgrunnlag fra godkjente timelister',
     'payrollBasis.ready': 'Til lønn',
     'payrollBasis.blocked': 'Lønnsgrunnlag mangler',
     'payrollBasis.pending': 'Venter på godkjent timeliste',
@@ -3335,6 +3344,15 @@ copy.en = {
   'timesheets.event.timesheet_returned': 'Sent back',
   'timesheets.event.timesheet_approved': 'Approved',
   'timesheets.event.timesheet_reopened': 'Reopened',
+  'invoicing.basisTitle': 'Invoice basis from approved timesheets',
+  'invoicing.markup': 'Markup',
+  'invoicing.net': 'Net',
+  'invoicing.vatLabel': 'VAT',
+  'invoicing.total': 'Total',
+  'invoicing.priceMissing': 'Customer price missing',
+  'invoicing.missingMarkup': 'Markup missing',
+  'invoicing.missingVat': 'VAT configuration missing',
+  'invoicing.missingClient': 'Client missing',
   'payrollBasis.title': 'Payroll basis from approved timesheets',
   'payrollBasis.ready': 'Payroll total',
   'payrollBasis.blocked': 'Payroll basis missing',
@@ -7796,6 +7814,67 @@ function shiftEconomy(shiftInput, assignmentInput = null) {
   }
 }
 
+// === Fakturagrunnlag fra godkjente timelister ===
+// Kundesiden bygger på NØYAKTIG de samme arbeidslinjene som lønnsgrunnlaget:
+// timene, tilleggene og overtiden kommer fra timesheetPayrollBasis, og dette
+// laget legger bare klientens påslag og mva oppå - samme formel som ellers.
+// Manglende kundepris og manglende lønnsoppslag er to ulike blokkeringer (§19).
+function timesheetInvoiceBasis(period = null) {
+  const work = timesheetPayrollBasis(period)
+  const lines = []
+  const priceBlocked = []
+  for (const line of work.lines) {
+    const client = line.client
+    const missing = []
+    if (client?.provision === undefined || client?.provision === null || client?.provision === '') missing.push('invoicing.missingMarkup')
+    if (client?.vat === undefined || client?.vat === null || client?.vat === '') missing.push('invoicing.missingVat')
+    if (!client) missing.push('invoicing.missingClient')
+    if (missing.length) {
+      priceBlocked.push({ timesheetId: line.timesheetId, assignmentId: line.assignmentId, slotId: line.slotId, employeeId: line.employeeId, date: line.date, employee: line.employee, client, reasons: missing })
+      continue
+    }
+    const commissionRate = (Number(client.provision) || 0) / 100
+    const vatRate = (Number(client.vat) || 0) / 100
+    const payBasis = line.total
+    const commission = payBasis * commissionRate
+    const net = payBasis + commission
+    const vat = net * vatRate
+    lines.push({ ...line, clientId: client.id, departmentId: line.department?.id ?? null, payBasis, commissionRate, commission, net, vatRate, vat, gross: net + vat })
+  }
+  const totals = lines.reduce((sum, line) => ({
+    hours: sum.hours + line.hours,
+    payBasis: sum.payBasis + line.payBasis,
+    commission: sum.commission + line.commission,
+    net: sum.net + line.net,
+    vat: sum.vat + line.vat,
+    gross: sum.gross + line.gross
+  }), { hours: 0, payBasis: 0, commission: 0, net: 0, vat: 0, gross: 0 })
+  // Manglende lønnsoppslag blokkerer også kundesummen, siden formelen bygger på
+  // lønnsgrunnlaget - men med sin egen, tydelige årsak (§43).
+  return { lines, priceBlocked, payBlocked: work.blocked, pending: work.pending, totals }
+}
+
+// Seksjonen på Fakturagrunnlag-siden (§28-§31).
+function timesheetInvoiceSection() {
+  const basis = timesheetInvoiceBasis()
+  if (!basis.lines.length && !basis.priceBlocked.length && !basis.payBlocked.length && !basis.pending.length) return ''
+  const chips = `<div class="stats-grid" style="margin-bottom:12px">
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.approvedHours')}</span><strong class="stat-value">${formatHours(basis.totals.hours)}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('invoicing.net')}</span><strong class="stat-value">${formatMoney(basis.totals.net)}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('invoicing.vatLabel')}</span><strong class="stat-value">${formatMoney(basis.totals.vat)}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('invoicing.total')}</span><strong class="stat-value">${formatMoney(basis.totals.gross)}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.priceBlocked.length + basis.payBlocked.length}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong></article>
+  </div>`
+  const rows = basis.lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}</td><td>${escapeHtml(line.actualStart)}–${escapeHtml(line.actualEnd)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(line.payBasis)}</td><td>${formatMoney(line.commission)}</td><td>${formatMoney(line.net)}</td><td>${formatMoney(line.vat)}</td><td><strong>${formatMoney(line.gross)}</strong></td><td><span class="muted">${t('payrollBasis.source')}</span></td></tr>`)
+  const blockedBanners = [
+    ...basis.priceBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('invoicing.priceMissing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${item.reasons.map(key => t(key)).join(' · ')}${item.client ? ` · ${relationLink('client-detail', item.client.id, item.client.name)}` : ''}</span></div>`),
+    ...basis.payBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}</span></div>`)
+  ].join('')
+  const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'comp.invoicing.payBasis', 'invoicing.markup', 'invoicing.net', 'invoicing.vatLabel', 'invoicing.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('invoicing.basisTitle')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedBanners}${table_}</article>`
+}
+
 function economyReport(form) {
   const lines = economyLines(form)
   const client = record('clients', form.clientId) ?? collection('clients')[0] ?? null
@@ -7901,7 +7980,7 @@ function renderInvoicing() {
   ]
   const setup = `<article class="card"><div class="card-header"><h2>${t('comp.invoicing.reportSetup')}</h2><span class="muted">${escapeHtml(client?.name ?? '')} · ${t('comp.invoicing.orgNumber')} ${escapeHtml(client?.org ?? '')}</span></div><div class="grid cols-2">${reportSelect('clientId', t('rel.client'), clientOptions())}${periodFields()}<div class="field"><label>${t('comp.invoicing.commissionRate')}</label><input value="${formatPercent(report.commissionRate * 100)}" readonly></div><div class="field"><label>${t('comp.invoicing.vatRate')}</label><input value="${formatPercent(report.vatRate * 100)}" readonly></div></div>${departmentChips()}</article>`
   const table = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${detailed ? t('comp.invoicing.shiftList') : t('comp.invoicing.perDepartment')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-invoicing-detail"${detailed ? ' checked' : ''}><span>${t('comp.invoicing.showShifts')}</span></label></div>${detailed ? shiftReportTable(report) : departmentReportTable(report)}</article>`
-  return `<section class="page">${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc', button('comp.invoicing.exportCsv', 'export-report', 'secondary', 'file'))}${setup}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
+  return `<section class="page">${timesheetInvoiceSection()}${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc', button('comp.invoicing.exportCsv', 'export-report', 'secondary', 'file'))}${setup}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
 }
 
 // === Lønnsgrunnlag ===
@@ -7920,12 +7999,17 @@ function shiftApproved(iso, form) {
 // Historisk låst calculationSnapshot vinner fortsatt, og den eldre genererte
 // rapporten består urørt for de låste fixture-tallene. Fakturering byttes ikke.
 
-// Én sentral kilde (§24): aktive, godkjente timelister med siste godkjenning.
-function approvedPayrollTimesheets(period = null) {
+// Én nøytral, delt kilde for godkjent arbeid: brukes av både lønn og
+// fakturering. Én arbeidssannhet - to økonomiske perspektiver (§11-§12).
+function approvedWorkTimesheets(period = null) {
   return collection('slotTimesheets')
     .filter(item => !item.voided && !item.superseded && item.status === 'approved' && (item.approvalVersions ?? []).length)
     .map(item => ({ timesheet: item, snapshot: item.approvalVersions[item.approvalVersions.length - 1] }))
     .filter(({ snapshot }) => !period || ((!period.startDate || snapshot.plannedDate >= period.startDate) && (!period.endDate || snapshot.plannedDate <= period.endDate)))
+}
+
+function approvedPayrollTimesheets(period = null) {
+  return approvedWorkTimesheets(period)
 }
 
 function pendingPayrollTimesheets() {
@@ -10991,6 +11075,7 @@ window.__workmaticPreview = {
   migrateNumericSlotIds: data => migrateNumericSlotIds(data),
   migrateSlotTimesheets: data => migrateSlotTimesheets(data),
   payrollBasis: (period = null) => JSON.parse(JSON.stringify(timesheetPayrollBasis(period))),
+  invoiceBasis: (period = null) => JSON.parse(JSON.stringify(timesheetInvoiceBasis(period))),
   slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
   slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
   timesheetDeviation: id => { const t = collection('slotTimesheets').find(item => item.id === id); return t ? JSON.parse(JSON.stringify(timesheetDeviation(t))) : null },
