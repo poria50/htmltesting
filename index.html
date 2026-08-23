@@ -2676,6 +2676,31 @@ const copy = {
     'staffing.event.assignment_confirmed': 'Tildeling bekreftet',
     'staffing.event.direct_assignment': 'Tildelt direkte',
     'departments.workedHere': 'Ansatte som har jobbet her',
+    'timesheets.submit': 'Lever timeliste',
+    'timesheets.approve': 'Godkjenn timeliste',
+    'timesheets.sendBack': 'Send tilbake',
+    'timesheets.sendBackTitle': 'Send tilbake timeliste',
+    'timesheets.comment': 'Kommentar',
+    'timesheets.approver': 'Godkjenner',
+    'timesheets.noApprover': 'Ingen godkjenner konfigurert',
+    'timesheets.reopen': 'Gjenåpne timeliste',
+    'timesheets.reopenTitle': 'Gjenåpne timeliste',
+    'timesheets.reopenWarning': 'Denne timelisten er godkjent og låst. Gjenåpning bevarer tidligere godkjenning og registreres i historikken.',
+    'timesheets.reason': 'Begrunnelse',
+    'timesheets.locked': 'Timelisten er låst',
+    'timesheets.history': 'Godkjenningshistorikk',
+    'timesheets.approvedBy': 'Godkjent av',
+    'timesheets.version': 'Versjon {number}',
+    'timesheets.actualRequired': 'Faktisk start, slutt og pause må være registrert før levering.',
+    'timesheets.deviationNoteRequired': 'Avvik fra planlagt tid krever en forklaring.',
+    'timesheets.replaceBlocked': 'Timelisten er i godkjenningsløpet og kan ikke flyttes. Løs timelisten først.',
+    'timesheets.returned': 'Timelisten er sendt tilbake.',
+    'timesheets.reopened': 'Timelisten er gjenåpnet.',
+    'timesheets.event.timesheet_saved': 'Timeliste lagret',
+    'timesheets.event.timesheet_submitted': 'Timeliste levert',
+    'timesheets.event.timesheet_returned': 'Sendt tilbake',
+    'timesheets.event.timesheet_approved': 'Godkjent',
+    'timesheets.event.timesheet_reopened': 'Gjenåpnet',
     'timesheets.one': 'Timeliste',
     'timesheets.perShift': 'Timelister per vakt',
     'timesheets.planned': 'Planlagt',
@@ -3275,6 +3300,31 @@ copy.en = {
   'staffing.event.assignment_confirmed': 'Assignment confirmed',
   'staffing.event.direct_assignment': 'Assigned directly',
   'departments.workedHere': 'Employees who have worked here',
+  'timesheets.submit': 'Submit timesheet',
+  'timesheets.approve': 'Approve timesheet',
+  'timesheets.sendBack': 'Send back',
+  'timesheets.sendBackTitle': 'Send back timesheet',
+  'timesheets.comment': 'Comment',
+  'timesheets.approver': 'Approver',
+  'timesheets.noApprover': 'No approver configured',
+  'timesheets.reopen': 'Reopen timesheet',
+  'timesheets.reopenTitle': 'Reopen timesheet',
+  'timesheets.reopenWarning': 'This timesheet is approved and locked. Reopening preserves the previous approval and is recorded in the history.',
+  'timesheets.reason': 'Reason',
+  'timesheets.locked': 'Timesheet is locked',
+  'timesheets.history': 'Approval history',
+  'timesheets.approvedBy': 'Approved by',
+  'timesheets.version': 'Version {number}',
+  'timesheets.actualRequired': 'Actual start, end and break must be registered before submission.',
+  'timesheets.deviationNoteRequired': 'A deviation from the planned time requires an explanation.',
+  'timesheets.replaceBlocked': 'The timesheet is in the approval flow and cannot be moved. Resolve the timesheet first.',
+  'timesheets.returned': 'The timesheet was sent back.',
+  'timesheets.reopened': 'The timesheet was reopened.',
+  'timesheets.event.timesheet_saved': 'Timesheet saved',
+  'timesheets.event.timesheet_submitted': 'Timesheet submitted',
+  'timesheets.event.timesheet_returned': 'Sent back',
+  'timesheets.event.timesheet_approved': 'Approved',
+  'timesheets.event.timesheet_reopened': 'Reopened',
   'timesheets.one': 'Timesheet',
   'timesheets.perShift': 'Timesheets per shift',
   'timesheets.planned': 'Planned',
@@ -6987,6 +7037,32 @@ function renderShiftTemplates() {
 // Planlagt tid kommer fra vakten; faktisk tid registreres på timelisten og
 // muterer aldri det planlagte. Lønn/fakturering leser IKKE disse ennå.
 
+// === Livsløpet til slot-timelisten ===
+// not_submitted -> submitted -> approved, eller tilbake via needs_correction.
+// Godkjent er låst; gjenåpning er en eksplisitt, begrunnet, historisk handling.
+// Lønn og fakturering leser fortsatt sine gamle kilder - det byttes i fase 3.
+
+// Pilotregel for godkjenner: avdelingens leder først, ellers klientens første
+// aktive kontakt. Aldri utledet fra den ansatte. Finnes ingen, sies det tydelig.
+function timesheetApprover(assignment) {
+  const department = record('departments', assignment?.departmentId)
+  const manager = String(department?.manager ?? '').trim()
+  if (manager) return { name: manager, source: 'department' }
+  const contact = collection('contacts').find(item => item.clientId === assignment?.clientId && item.status !== 'inactive')
+  if (contact) return { name: contact.name, source: 'client' }
+  return null
+}
+
+// Normal redigering er bare mulig før innsending og under korrigering.
+function timesheetEditable(timesheet) {
+  return !timesheet.voided && !timesheet.superseded && ['not_submitted', 'needs_correction'].includes(timesheet.status)
+}
+
+// Append-only hendelseslogg på timelisten - én kanonisk kilde (§20).
+function logTimesheetEvent(timesheet, event) {
+  timesheet.events = [...(timesheet.events ?? []), { id: nextNumericSlotId(), at: new Date().toISOString(), ...event }]
+}
+
 function timesheetForSlot(assignmentId, slotId) {
   return collection('slotTimesheets').find(item => item.assignmentId === assignmentId && String(item.slotId) === String(slotId) && !item.voided && !item.superseded) ?? null
 }
@@ -7139,10 +7215,11 @@ function slotTimesheetTable() {
     const employee = record('employees', item.employeeId)
     const deviation = timesheetDeviation(item)
     const actualText = item.actualStart || item.actualEnd ? `${escapeHtml(item.actualStart || '—')}–${escapeHtml(item.actualEnd || '—')}` : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`
-    return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
+    const approver = timesheetApprover(assignment)
+    return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approver ? escapeHtml(approver.name) : `<span class="tag warning">${t('timesheets.noApprover')}</span>`}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
   })
   if (!rows.length) return ''
-  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'], rows)}</article>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)}</article>`
 }
 
 function renderTimesheets() {
@@ -8736,32 +8813,86 @@ function slotRequestDialog() {
   return modalShell(t('staffing.sendRequest'), escapeHtml(assignment.assignmentNumber ?? ''), 'envelope', body, footer, 'medium')
 }
 
-// Timelisten for én bemanningsplass: planlagt og faktisk side ved side.
-// Planlagt tid er vaktens og er skrivebeskyttet; avviket beregnes deterministisk.
+// Timelisten for én bemanningsplass, med hele livsløpet: redigerbar før
+// levering og under korrigering; låst når den er levert eller godkjent.
+// Godkjenneren og kilden vises alltid - og «ingen konfigurert» sies tydelig.
 function slotTimesheetDialog() {
   const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
   if (!timesheet) return ''
   const assignment = record('assignments', timesheet.assignmentId)
   const employee = record('employees', timesheet.employeeId)
-  const preview = { ...timesheet, actualStart: String(draftValue('actualStart', '')), actualEnd: String(draftValue('actualEnd', '')), actualBreakMinutes: draftValue('actualBreakMinutes', '') === '' ? null : Number(draftValue('actualBreakMinutes', 0)) }
-  const deviation = timesheetDeviation(preview)
+  const editable = timesheetEditable(timesheet)
+  const approver = timesheetApprover(assignment)
+
   const planned = `<article class="card"><h3>${t('timesheets.planned')}</h3><dl class="detail-list">
     <div><dt>${t('financial.workDate')}</dt><dd>${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}</dd></div>
     <div><dt>${t('comp.forms.startTime')}</dt><dd>${escapeHtml(timesheet.plannedStart)}</dd></div>
-    <div><dt>${t('comp.forms.endTime')}</dt><dd>${escapeHtml(timesheet.plannedEnd)}${timesheet.endNextDay ? ` (+1)` : ''}</dd></div>
+    <div><dt>${t('comp.forms.endTime')}</dt><dd>${escapeHtml(timesheet.plannedEnd)}${timesheet.endNextDay ? ' (+1)' : ''}</dd></div>
     <div><dt>${t('timesheets.breakShort')}</dt><dd>${formatNumber(timesheet.plannedBreakMinutes, 0)} min</dd></div>
   </dl></article>`
-  const actual = `<article class="card"><h3>${t('timesheets.actual')}</h3>
-    ${bound('actualStart', t('timesheets.actualStart'), { type: 'time' })}
-    ${bound('actualEnd', t('timesheets.actualEnd'), { type: 'time' })}
-    ${bound('actualBreakMinutes', t('timesheets.actualBreak'), { type: 'number', help: 'min' })}
-  </article>`
-  const deviationRow = deviation.any
-    ? `<div class="banner warning">${icon('bell')}<span><strong>${t('timesheets.deviation')}:</strong> ${deviationLabel(deviation)}</span></div><div class="field field-wide">${bound('deviationNote', t('timesheets.deviationNote'))}</div>`
+
+  let actual
+  let deviationRow = ''
+  if (editable) {
+    const preview = { ...timesheet, actualStart: String(draftValue('actualStart', '')), actualEnd: String(draftValue('actualEnd', '')), actualBreakMinutes: draftValue('actualBreakMinutes', '') === '' ? null : Number(draftValue('actualBreakMinutes', 0)) }
+    const deviation = timesheetDeviation(preview)
+    actual = `<article class="card"><h3>${t('timesheets.actual')}</h3>
+      ${bound('actualStart', t('timesheets.actualStart'), { type: 'time' })}
+      ${bound('actualEnd', t('timesheets.actualEnd'), { type: 'time' })}
+      ${bound('actualBreakMinutes', t('timesheets.actualBreak'), { type: 'number', help: 'min' })}
+    </article>`
+    deviationRow = deviation.any
+      ? `<div class="banner warning">${icon('bell')}<span><strong>${t('timesheets.deviation')}:</strong> ${deviationLabel(deviation)}</span></div><div class="field field-wide">${bound('deviationNote', t('timesheets.deviationNote'))}</div>`
+      : ''
+  } else {
+    const deviation = timesheetDeviation(timesheet)
+    actual = `<article class="card"><h3>${t('timesheets.actual')}</h3><dl class="detail-list">
+      <div><dt>${t('timesheets.actualStart')}</dt><dd>${escapeHtml(timesheet.actualStart || '—')}</dd></div>
+      <div><dt>${t('timesheets.actualEnd')}</dt><dd>${escapeHtml(timesheet.actualEnd || '—')}</dd></div>
+      <div><dt>${t('timesheets.actualBreak')}</dt><dd>${timesheet.actualBreakMinutes === null ? '—' : `${formatNumber(timesheet.actualBreakMinutes, 0)} min`}</dd></div>
+      ${deviation.any ? `<div><dt>${t('timesheets.deviation')}</dt><dd>${deviationLabel(deviation)}</dd></div>` : ''}
+      ${timesheet.deviationNote ? `<div><dt>${t('timesheets.deviationNote')}</dt><dd>${escapeHtml(timesheet.deviationNote)}</dd></div>` : ''}
+    </dl></article>`
+  }
+
+  const approverLine = approver
+    ? `<div class="summary-line"><span>${t('timesheets.approver')}</span><strong>${escapeHtml(approver.name)} · ${t(approver.source === 'department' ? 'rel.department' : 'rel.client')}</strong></div>`
+    : `<div class="banner warning">${icon('bell')}<span>${t('timesheets.noApprover')}</span></div>`
+  const lockBanner = timesheet.status === 'approved'
+    ? `<div class="banner">${icon('bell')}<span>${t('timesheets.locked')} · ${t('timesheets.approvedBy')} ${escapeHtml(timesheet.approvedBy ?? '')}</span></div>`
     : ''
-  const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${escapeHtml(assignment?.assignmentNumber ?? '')}</p><div class="grid cols-2">${planned}${actual}</div>${deviationRow}`
-  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="save-slot-timesheet">${t('common.save')}</button></div>`
-  return modalShell(t('timesheets.one'), t(`timesheets.status.${timesheet.status}`), 'file', body, footer, 'medium')
+  const correctionBanner = timesheet.status === 'needs_correction' && (timesheet.correctionComment || timesheet.reopenReason)
+    ? `<div class="banner warning">${icon('bell')}<span><strong>${t('timesheets.status.needs_correction')}:</strong> ${escapeHtml(timesheet.correctionComment || timesheet.reopenReason)}</span></div>`
+    : ''
+
+  const historyRows = [...(timesheet.events ?? [])].reverse().map(event => `<div class="file-row"><div class="file-name"><strong>${t(`timesheets.event.${event.type}`)}</strong><span>${escapeHtml([event.actor, event.comment, event.reason].filter(Boolean).join(' · '))}</span></div></div>`).join('')
+  const versions = (timesheet.approvalVersions ?? []).map((version, index) => `<div class="file-row"><div class="file-name"><strong>${t('timesheets.version', { number: index + 1 })}</strong><span>${t('timesheets.approvedBy')} ${escapeHtml(version.approvedBy)} · ${escapeHtml(version.actualStart)}–${escapeHtml(version.actualEnd)}</span></div></div>`).join('')
+  const history = historyRows || versions
+    ? `<article class="card" style="margin-top:12px"><h3>${t('timesheets.history')}</h3>${versions}${historyRows}</article>`
+    : ''
+
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${escapeHtml(assignment?.assignmentNumber ?? '')} · ${lab(record('departments', assignment?.departmentId)?.name ?? '')}</p>${lockBanner}${correctionBanner}${approverLine}<div class="grid cols-2">${planned}${actual}</div>${deviationRow}${history}`
+
+  // Handlingene følger statusen: lever, godkjenn/send tilbake, eller gjenåpne.
+  let actions = ''
+  if (editable) actions = `<button class="button secondary" data-action="save-slot-timesheet">${t('common.save')}</button><button class="button" data-action="submit-slot-timesheet">${t('timesheets.submit')}</button>`
+  else if (timesheet.status === 'submitted') actions = `<button class="button secondary" data-action="open-return-timesheet">${t('timesheets.sendBack')}</button><button class="button" data-action="approve-slot-timesheet">${t('timesheets.approve')}</button>`
+  else if (timesheet.status === 'approved') actions = `<button class="button secondary danger" data-action="open-reopen-timesheet">${t('timesheets.reopen')}</button>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${actions}</div>`
+  return modalShell(t('timesheets.one'), t(`timesheets.status.${timesheet.status}`), 'file', body, footer, 'large')
+}
+
+// Send tilbake og gjenåpne: begge krever tekst, begge bevarer alt (§15, §22).
+function returnTimesheetDialog() {
+  const body = `${formError()}<div class="field field-wide">${bound('correctionComment', t('timesheets.comment'), { required: true })}</div>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-return-timesheet">${t('timesheets.sendBack')}</button></div>`
+  return modalShell(t('timesheets.sendBackTitle'), t('page.timesheets.desc'), 'file', body, footer, 'small')
+}
+
+function reopenTimesheetDialog() {
+  const body = `${formError()}<div class="banner warning">${icon('bell')}<span>${t('timesheets.reopenWarning')}</span></div><div class="field field-wide">${bound('reopenReason', t('timesheets.reason'), { required: true })}</div>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-reopen-timesheet">${t('timesheets.reopen')}</button></div>`
+  return modalShell(t('timesheets.reopenTitle'), t('page.timesheets.desc'), 'file', body, footer, 'small')
 }
 
 function cancelAssignmentDialog() {
@@ -8981,6 +9112,8 @@ const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
   'slot-timesheet': slotTimesheetDialog,
+  'return-timesheet': returnTimesheetDialog,
+  'reopen-timesheet': reopenTimesheetDialog,
   'direct-assign': directAssignDialog,
   'slot-request': slotRequestDialog,
   premium: premiumDialog,
@@ -9448,6 +9581,8 @@ function actionHandlers(target = null) {
       const assignment = record('assignments', target?.dataset?.id)
       const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
       if (!assignment || !slot) return
+      // En kansellert vakt skal ikke få en ny, aktiv timeliste generert (§29).
+      if (assignment.status === 'cancelled') return
       const timesheet = ensureTimesheetForSlot(assignment, slot)
       state.slotAction = { assignmentId: assignment.id, slotId: slot.id, timesheetId: timesheet.id }
       // Faktisk tid forhåndsutfylles med planlagt som redigerbart forslag (§11) -
@@ -9459,15 +9594,107 @@ function actionHandlers(target = null) {
         deviationNote: timesheet.deviationNote ?? ''
       }, timesheet.id)
     },
+    // Kladden skrives til timelisten - bare når den er redigerbar (§6, §11).
     'save-slot-timesheet': () => {
       const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
-      if (!timesheet) return
+      if (!timesheet || !timesheetEditable(timesheet)) return
+      logTimesheetEvent(timesheet, { type: 'timesheet_saved', actor: 'demo-admin' })
       timesheet.actualStart = String(state.draft.actualStart ?? '')
       timesheet.actualEnd = String(state.draft.actualEnd ?? '')
       timesheet.actualBreakMinutes = state.draft.actualBreakMinutes === '' ? null : Number(state.draft.actualBreakMinutes)
       timesheet.deviationNote = String(state.draft.deviationNote ?? '').trim()
       state.slotAction = null
       persist(); closeDialog(); showToast('crud.updated', { name: record('employees', timesheet.employeeId)?.name ?? '' })
+    },
+    // Levering: faktisk tid må være registrert, og avvik krever forklaring.
+    // Innsendingen lagrer kladden i samme steg - brukeren leverer eksplisitt.
+    'submit-slot-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      if (!timesheet || !timesheetEditable(timesheet)) return
+      const actualStart = String(state.draft.actualStart ?? timesheet.actualStart ?? '')
+      const actualEnd = String(state.draft.actualEnd ?? timesheet.actualEnd ?? '')
+      const actualBreak = state.draft.actualBreakMinutes ?? timesheet.actualBreakMinutes
+      if (!actualStart || !actualEnd || actualBreak === null || actualBreak === '') {
+        state.formError = 'timesheets.actualRequired'; render(); return
+      }
+      const candidate = { ...timesheet, actualStart, actualEnd, actualBreakMinutes: Number(actualBreak) }
+      const note = String(state.draft.deviationNote ?? timesheet.deviationNote ?? '').trim()
+      if (timesheetDeviation(candidate).any && !note) {
+        state.formError = 'timesheets.deviationNoteRequired'; render(); return
+      }
+      Object.assign(timesheet, { actualStart, actualEnd, actualBreakMinutes: Number(actualBreak), deviationNote: note })
+      timesheet.status = 'submitted'
+      timesheet.submittedAt = new Date().toISOString()
+      timesheet.submittedBy = 'demo-admin'
+      logTimesheetEvent(timesheet, { type: 'timesheet_submitted', actor: 'demo-admin', employeeId: timesheet.employeeId, assignmentId: timesheet.assignmentId, slotId: timesheet.slotId })
+      persist(); closeDialog(); showToast('timesheets.submitted')
+    },
+    // Godkjenning låser timelisten og fryser et uforanderlig arbeidsøyeblikk.
+    // Lønnsberegningen røres ikke: dette er tid, ikke penger (§12, §40).
+    'approve-slot-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      if (!timesheet || timesheet.status !== 'submitted' || timesheet.voided || timesheet.superseded) return
+      const assignment = record('assignments', timesheet.assignmentId)
+      const approver = timesheetApprover(assignment)
+      timesheet.status = 'approved'
+      timesheet.approvedAt = new Date().toISOString()
+      timesheet.approvedBy = approver?.name ?? 'demo-admin'
+      const snapshot = {
+        plannedDate: timesheet.plannedDate,
+        plannedStart: timesheet.plannedStart,
+        plannedEnd: timesheet.plannedEnd,
+        plannedBreakMinutes: timesheet.plannedBreakMinutes,
+        actualStart: timesheet.actualStart,
+        actualEnd: timesheet.actualEnd,
+        actualBreakMinutes: timesheet.actualBreakMinutes,
+        deviationNote: timesheet.deviationNote,
+        assignmentId: timesheet.assignmentId,
+        slotId: timesheet.slotId,
+        employeeId: timesheet.employeeId,
+        clientId: assignment?.clientId ?? null,
+        departmentId: assignment?.departmentId ?? null,
+        approvedAt: timesheet.approvedAt,
+        approvedBy: timesheet.approvedBy
+      }
+      // Hver godkjenning er en egen, bevart versjon (§24-§26).
+      timesheet.approvalVersions = [...(timesheet.approvalVersions ?? []), snapshot]
+      logTimesheetEvent(timesheet, { type: 'timesheet_approved', actor: timesheet.approvedBy })
+      persist(); closeDialog(); showToast('timesheets.approved')
+    },
+    'open-return-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      if (!timesheet || timesheet.status !== 'submitted') return
+      openDialog('return-timesheet', 'return', {})
+    },
+    'confirm-return-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      const comment = String(state.draft.correctionComment ?? '').trim()
+      if (!timesheet || timesheet.status !== 'submitted') return
+      if (!comment) { state.formError = 'common.required'; render(); return }
+      timesheet.status = 'needs_correction'
+      timesheet.correctionComment = comment
+      timesheet.returnedAt = new Date().toISOString()
+      timesheet.returnedBy = timesheetApprover(record('assignments', timesheet.assignmentId))?.name ?? 'demo-admin'
+      logTimesheetEvent(timesheet, { type: 'timesheet_returned', actor: timesheet.returnedBy, comment })
+      persist(); closeDialog(); showToast('timesheets.returned')
+    },
+    'open-reopen-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      if (!timesheet || timesheet.status !== 'approved') return
+      openDialog('reopen-timesheet', 'reopen', {})
+    },
+    // Gjenåpning bevarer alle tidligere godkjenninger - ingenting overskrives.
+    'confirm-reopen-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      const reason = String(state.draft.reopenReason ?? '').trim()
+      if (!timesheet || timesheet.status !== 'approved') return
+      if (!reason) { state.formError = 'common.required'; render(); return }
+      timesheet.status = 'needs_correction'
+      timesheet.reopenReason = reason
+      timesheet.reopenedAt = new Date().toISOString()
+      timesheet.reopenedBy = 'demo-admin'
+      logTimesheetEvent(timesheet, { type: 'timesheet_reopened', actor: 'demo-admin', reason })
+      persist(); closeDialog(); showToast('timesheets.reopened')
     },
     'confirm-remove-worker': () => {
       const assignment = record('assignments', state.workerAction?.assignmentId)
@@ -9499,8 +9726,12 @@ function actionHandlers(target = null) {
       const replacedSlot = slotForEmployee(assignment, previousId)
       if (!replacedSlot) return
       // En urørt timeliste følger den nye eieren; en med aktivitet bevares som
-      // avløst historikk, og den nye tildelingen får sin egen (§16-§17).
+      // avløst historikk. Er timelisten i et aktivt godkjenningsløp, blokkeres
+      // byttet helt: livsløpet skal aldri flyttes stille (§31).
       const activeTimesheet = timesheetForSlot(assignment.id, replacedSlot.id)
+      if (activeTimesheet && ['submitted', 'approved', 'needs_correction'].includes(activeTimesheet.status)) {
+        state.formError = 'timesheets.replaceBlocked'; render(); return
+      }
       if (activeTimesheet && timesheetHasActivity(activeTimesheet)) activeTimesheet.superseded = true
       replacedSlot.employeeId = nextId
       replacedSlot.status = 'assigned'
