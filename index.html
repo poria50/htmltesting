@@ -2242,6 +2242,147 @@ button.stat-card.stat-action:hover {
   margin-bottom: 18px;
 }
 
+/* === Runde B: kalenderprojeksjonen på Vakter === */
+.calendar-toolbar {
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.calendar-range {
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.calendar-head-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(88px, 1fr));
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--surface-500);
+}
+
+.calendar-month {
+  grid-template-columns: repeat(7, minmax(88px, 1fr));
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 96px;
+  padding: 8px;
+  border: 1px solid var(--surface-200);
+  border-radius: var(--radius);
+  background: var(--surface-50);
+}
+
+.calendar-month-day {
+  min-height: 76px;
+}
+
+.calendar-day.is-outside {
+  opacity: 0.45;
+}
+
+.calendar-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--surface-500);
+}
+
+.calendar-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid var(--surface-200);
+  border-left: 3px solid var(--info);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--surface-0);
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-entry:hover {
+  border-color: var(--primary);
+}
+
+.calendar-entry.is-staffed {
+  border-left-color: var(--primary);
+}
+
+.calendar-entry.is-completed {
+  border-left-color: var(--surface-400);
+}
+
+.calendar-entry.is-cancelled {
+  border-left-color: var(--danger);
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.calendar-entry span {
+  color: var(--surface-500);
+}
+
+.calendar-day-empty {
+  font-size: 12px;
+}
+
+.calendar-overflow {
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .calendar-grid,
+  .calendar-head-row {
+    grid-template-columns: repeat(7, minmax(96px, 1fr));
+  }
+
+  .calendar-week,
+  .calendar-month,
+  .calendar-head-row {
+    overflow-x: auto;
+  }
+}
+
+/* Vaktfiltrene ligger kompakt på én (brytende) rad på desktop; mobilreglene
+   over gjør dem fullbredde under 720px. */
+.toolbar select[data-shift-filter],
+.toolbar select[data-filter="status"],
+.toolbar input[data-shift-filter] {
+  width: auto;
+  min-width: 150px;
+  flex: 0 1 auto;
+}
+
+.toolbar input[type="date"][data-shift-filter] {
+  min-width: 128px;
+  min-height: var(--control-height);
+  padding: 9px 11px;
+  border: 1px solid var(--surface-300);
+  border-radius: 6px;
+  background: var(--surface-0);
+  color: inherit;
+  font: inherit;
+}
+
 </style>
   </head>
   <body>
@@ -2323,11 +2464,18 @@ const state = {
   compareAgainstId: null,
   // Varselpanelet i topplinjen: bare åpen/lukket. Lest-status bor i lageret.
   notificationsOpen: false,
-  // Eksplisitt filteroverlevering fra dashboardets handlingskort: hvilken
-  // plass-status Vakter-listen skal vise, og hvilken timelistestatus
-  // Timelister-tabellen skal vise. Tom streng betyr «alle».
-  staffingSlotFilter: '',
+  // Eksplisitt filteroverlevering fra dashboardets timelistekort. Tom = alle.
   slotTimesheetFilter: '',
+  // Vakter er ÉN arbeidsflate med to projeksjoner over samme filtrerte utvalg:
+  // Liste (standard) og Kalender. Ren UI-tilstand - ingen egen vaktkopi.
+  shiftView: 'list',
+  calendarMode: 'week',
+  // Ankerdato for synlig uke/måned; tom streng betyr i dag.
+  calendarAnchor: '',
+  // Den delte filtermodellen for Vakter: periode, klient, avdeling, rolle og
+  // bemanningssituasjon. Status filtreres via det generiske statusfilteret
+  // (state.filters.status, deriverte verdier) - én kilde, ikke to.
+  shiftFilters: { fromDate: '', toDate: '', clientId: '', departmentId: '', role: '', staffing: '' },
   // Revisjonsloggen: periode, modul, hendelsestype og utfører.
   auditFilters: { entityType: 'all', eventType: 'all', actor: 'all', startDate: '', endDate: '' }
 }
@@ -2436,6 +2584,27 @@ const copy = {
     'staffing.missing.end': 'Sluttid må fylles ut',
     'staffing.missing.role': 'Rolle må velges',
     'staffing.missing.slots': 'Antall bemanningsplasser må være et positivt heltall',
+    'shifts.view.list': 'Liste',
+    'shifts.view.calendar': 'Kalender',
+    'calendar.week': 'Uke',
+    'calendar.month': 'Måned',
+    'calendar.prev': 'Forrige',
+    'calendar.next': 'Neste',
+    'calendar.weekLabel': 'Uke {week}',
+    'calendar.emptyRange': 'Ingen vakter i synlig periode',
+    'calendar.more': '+{count} flere',
+    'shifts.filter.from': 'Periode fra',
+    'shifts.filter.to': 'Periode til',
+    'shifts.filter.allClients': 'Alle klienter',
+    'shifts.filter.allDepartments': 'Alle avdelinger',
+    'shifts.filter.allRoles': 'Alle roller',
+    'shifts.filter.staffingSituation': 'Bemanningssituasjon',
+    'shifts.filter.allSituations': 'Alle bemanningssituasjoner',
+    'staffing.sitOpen': 'Ledige plasser',
+    'staffing.sitFull': 'Fullt bemannet',
+    'staffing.sitRequested': 'Avventer svar',
+    'shifts.clearFilters': 'Fjern filtre',
+    'shifts.emptyFiltered': 'Ingen vakter i valgt periode og filter.',
     'common.create': 'Opprett',
     'common.edit': 'Rediger',
     'common.view': 'Vis',
@@ -3256,6 +3425,27 @@ copy.en = {
   'staffing.missing.end': 'An end time is required',
   'staffing.missing.role': 'A role must be selected',
   'staffing.missing.slots': 'The number of staffing slots must be a positive whole number',
+  'shifts.view.list': 'List',
+  'shifts.view.calendar': 'Calendar',
+  'calendar.week': 'Week',
+  'calendar.month': 'Month',
+  'calendar.prev': 'Previous',
+  'calendar.next': 'Next',
+  'calendar.weekLabel': 'Week {week}',
+  'calendar.emptyRange': 'No shifts in the visible range',
+  'calendar.more': '+{count} more',
+  'shifts.filter.from': 'Period from',
+  'shifts.filter.to': 'Period to',
+  'shifts.filter.allClients': 'All clients',
+  'shifts.filter.allDepartments': 'All departments',
+  'shifts.filter.allRoles': 'All roles',
+  'shifts.filter.staffingSituation': 'Staffing situation',
+  'shifts.filter.allSituations': 'All staffing situations',
+  'staffing.sitOpen': 'Open slots',
+  'staffing.sitFull': 'Fully staffed',
+  'staffing.sitRequested': 'Awaiting reply',
+  'shifts.clearFilters': 'Clear filters',
+  'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
   'common.create': 'Create', 'common.edit': 'Edit', 'common.view': 'View', 'common.save': 'Save',
   'common.cancel': 'Cancel', 'common.back': 'Back', 'common.next': 'Next',
   'common.finish': 'Complete demo', 'common.search': 'Search', 'common.filter': 'Filter',
@@ -6760,35 +6950,98 @@ function assignedEmployeesCell(assignment) {
   return `${relationLink('employee-detail', team[0].id, team[0].name)}${extra}`
 }
 
-// Etiketten for et aktivt plass-statusfilter fra dashboardet.
-function slotFilterLabelKey(filter) {
-  return filter === 'open' ? 'staffing.slotOpen'
-    : filter === 'requested' ? 'staffing.awaitingResponse'
-    : filter === 'awaiting_confirmation' ? 'staffing.awaitingConfirmation'
-    : 'staffing.pendingReconfirmation'
+// === Vakter: én arbeidsflate, to projeksjoner (Liste og Kalender) ===
+// Begge leser det samme filtrerte utvalget fra filteredAssignments (§2, §5).
+
+// Den delte filterraden: periode, klient, avdeling, rolle og bemanningssituasjon.
+// Status ligger i det generiske statusfilteret ved siden av (samme toolbar).
+function shiftFilterControls() {
+  const filters = state.shiftFilters
+  const clients = collection('clients').filter(item => item.status !== 'archived')
+  const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  const departments = collection('departments').filter(item => item.status !== 'archived' && (!filters.clientId || item.clientId === filters.clientId))
+  const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
+  const roles = [...new Set([...collection('assignments').map(item => item.role).filter(Boolean), 'environment_worker', 'healthcare_worker'])]
+  const roleChoices = roles.map(role => `<option value="${escapeHtml(role)}"${filters.role === role ? ' selected' : ''}>${escapeHtml(taxonomy(role))}</option>`).join('')
+  const situations = [['open', 'staffing.sitOpen'], ['full', 'staffing.sitFull'], ['requested', 'staffing.sitRequested'], ['awaiting_confirmation', 'staffing.awaitingConfirmation'], ['pending_reconfirmation', 'staffing.pendingReconfirmation']]
+  const situationChoices = situations.map(([value, key]) => `<option value="${value}"${filters.staffing === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  return `<input type="date" data-shift-filter="fromDate" value="${escapeHtml(filters.fromDate)}" aria-label="${t('shifts.filter.from')}">
+    <input type="date" data-shift-filter="toDate" value="${escapeHtml(filters.toDate)}" aria-label="${t('shifts.filter.to')}">
+    <select data-shift-filter="clientId" aria-label="${t('rel.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('shifts.filter.allClients')}</option>${clientChoices}</select>
+    <select data-shift-filter="departmentId" aria-label="${t('rel.department')}"><option value=""${filters.departmentId ? '' : ' selected'}>${t('shifts.filter.allDepartments')}</option>${departmentChoices}</select>
+    <select data-shift-filter="role" aria-label="${t('staffing.role')}"><option value=""${filters.role ? '' : ' selected'}>${t('shifts.filter.allRoles')}</option>${roleChoices}</select>
+    <select data-shift-filter="staffing" aria-label="${t('shifts.filter.staffingSituation')}"><option value=""${filters.staffing ? '' : ' selected'}>${t('shifts.filter.allSituations')}</option>${situationChoices}</select>
+    <button type="button" class="button ghost small" data-action="clear-shift-filters">${t('shifts.clearFilters')}</button>`
 }
 
-function renderStaffing() {
-  // Dashboardkortet leverer et eksplisitt plass-statusfilter: listen viser da
-  // nøyaktig vaktene som har en plass i den statusen (§12-§13).
-  const slotFilter = state.staffingSlotFilter
-  const visible = filterList('assignments', ['assignmentNumber', 'name'])
-    .filter(item => !slotFilter || (item.status !== 'cancelled' && staffingSlotsFor(item).some(slot => slot.status !== 'cancelled' && slotMatchesFilter(slot, slotFilter))))
-  const filterBanner = slotFilter
-    ? `<div class="banner info">${icon('bell')}<span>${t('staffing.slotFilterActive')}: <strong>${t(slotFilterLabelKey(slotFilter))}</strong> (${visible.length})</span><button type="button" class="button ghost small" data-action="clear-slot-filter">${t('staffing.clearFilter')}</button></div>`
-    : ''
+// Listevisningen (§21): Dato, Tid, Klient, Avdeling, Rolle, Bemanning,
+// Tildelte ansatte, Status, Handlinger. Vakt-ID står som undertekst på datoen.
+function shiftListTable(visible) {
   const rows = visible.map(item => {
     const client = record('clients', item.clientId)
     const department = record('departments', item.departmentId)
-    const template = record('shiftTemplates', item.shiftTemplateId)
-    const assigned = item.employeeIds?.length ?? 0
-    const schedule = item.date ? `${formatDate(item.date)} · ${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}` : item.from && item.to ? formatDateRange(item.from, item.to) : ''
-    // Bemanningsgraden («X av Y bemannet») vises alltid adskilt fra den
-    // deriverte vaktstatusen (§27-§28).
-    const need = `<div class="file-name"><strong>${formatNumber(item.slots, 0)}</strong><span>${staffedOfLabel(item)}</span></div>`
-    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${template ? escapeHtml(template.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${schedule}</td><td>${need}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
+    const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(item.assignmentNumber ?? '')}</span></div>`
+    // «X av Y bemannet» adskilt fra status; behovet («Antall ansatte») som undertekst (§22, §25).
+    const staffing = `<div class="file-name"><strong>${staffedOfLabel(item)}</strong><span>${t('staffing.slots')}: ${formatNumber(item.slots, 0)}</span></div>`
+    return `<tr><td>${dateCell}</td><td>${item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.role ? escapeHtml(taxonomy(item.role)) : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
-  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${filterBanner}${searchToolbar()}${dataTable('assignments', ['staffing.assignmentId', 'staffing.client', 'rel.department', 'shiftTemplates.template', 'assignment.date', 'staffing.slots', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)}</section>`
+  if (!rows.length) return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shifts.emptyFiltered')}</h3></div>`
+  return dataTable('assignments', ['common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.role', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
+}
+
+// Én kalenderoppføring: klikk åpner den eksisterende vaktdetaljen (§31).
+// Semantisk knapp med full tilgjengelig etikett (§51). Ingen drag-and-drop (§32).
+function calendarEntry(item, compact = false) {
+  const client = record('clients', item.clientId)
+  const department = record('departments', item.departmentId)
+  const place = department ? label(department.name) : client?.name ?? ''
+  const status = shiftOperationalStatus(item)
+  const degree = staffedOfLabel(item)
+  const aria = `${item.date ? formatDate(item.date) : ''} ${item.startTime ?? ''}–${item.endTime ?? ''} · ${place} · ${degree} · ${t(`shifts.opStatus.${status}`)}`
+  const time = compact
+    ? `${escapeHtml(item.startTime ?? '')}${item.endNextDay ? ` <span class="muted">(${t('common.nextDay')})</span>` : ''}`
+    : timeRangeLabel(item.startTime, item.endTime, item.endNextDay)
+  return `<button type="button" class="calendar-entry is-${status}" data-route="job-detail" data-id="${item.id}" aria-label="${escapeHtml(aria)}"><strong>${time}</strong><span>${escapeHtml(place)}</span><span>${degree}</span></button>`
+}
+
+// Uke- og månedskalenderen: en enkel, egenbygd rist over det delte utvalget -
+// ingen egen kalenderdatabase, ingen kalenderbibliotek (§26-§28, §45).
+function shiftCalendar(visible) {
+  const { range, days } = calendarDays(visible)
+  const mode = state.calendarMode
+  const weekNumber = String(isoWeekKey(range.start)).split('-W')[1] ?? ''
+  const rangeLabel = mode === 'week'
+    ? `${t('calendar.weekLabel', { week: weekNumber })} · ${formatDate(range.start)}–${formatDate(range.end)}`
+    : `${monthsShort[state.locale][Number(range.monthStart.slice(5, 7)) - 1]} ${range.monthStart.slice(0, 4)}`
+  const nav = `<div class="toolbar calendar-toolbar"><div class="tabs"><button type="button" class="tab ${mode === 'week' ? 'is-active' : ''}" data-action="calendar-week">${t('calendar.week')}</button><button type="button" class="tab ${mode === 'month' ? 'is-active' : ''}" data-action="calendar-month">${t('calendar.month')}</button></div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="calendar-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="calendar-today">${t('dashboard.today')}</button><button type="button" class="button secondary small" data-action="calendar-next">${t('calendar.next')}${icon('arrow-right')}</button><strong class="calendar-range">${rangeLabel}</strong></div></div>`
+  const inRange = days.reduce((sum, day) => sum + day.entries.length, 0)
+  const emptyNote = inRange ? '' : `<div class="banner info">${icon('calendar')}<span>${t('calendar.emptyRange')}</span></div>`
+  const dayName = iso => {
+    const names = state.locale === 'nb' ? ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const [year, month, day] = iso.split('-').map(Number)
+    return names[(new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7]
+  }
+  if (mode === 'week') {
+    const columns = days.map(day => `<div class="calendar-day"><div class="calendar-day-head"><span>${dayName(day.iso)}</span><strong>${formatDayMonth(day.iso)}</strong></div>${day.entries.map(item => calendarEntry(item)).join('') || `<span class="calendar-day-empty muted">—</span>`}</div>`).join('')
+    return `<article class="card">${nav}${emptyNote}<div class="calendar-grid calendar-week">${columns}</div></article>`
+  }
+  // Måned: kompakte oppføringer, maks tre per dag + «+N flere» (§28, §50).
+  const cells = days.map(day => {
+    const inMonth = day.iso.slice(0, 7) === range.monthStart.slice(0, 7)
+    const shown = day.entries.slice(0, 3)
+    const overflow = day.entries.length - shown.length
+    return `<div class="calendar-day calendar-month-day ${inMonth ? '' : 'is-outside'}"><div class="calendar-day-head"><strong>${Number(day.iso.slice(8, 10))}</strong></div>${shown.map(item => calendarEntry(item, true)).join('')}${overflow > 0 ? `<span class="muted calendar-overflow">${t('calendar.more', { count: overflow })}</span>` : ''}</div>`
+  }).join('')
+  return `<article class="card">${nav}${emptyNote}<div class="calendar-head-row">${days.slice(0, 7).map(day => `<span>${dayName(day.iso)}</span>`).join('')}</div><div class="calendar-grid calendar-month">${cells}</div></article>`
+}
+
+function renderStaffing() {
+  // ÉN delt spørring driver begge projeksjonene (§5); å bytte visning rører
+  // aldri filtrene (§36-§37).
+  const visible = filteredAssignments()
+  const viewTabs = `<div class="tabs"><button type="button" class="tab ${state.shiftView === 'list' ? 'is-active' : ''}" data-action="shift-view-list">${t('shifts.view.list')}</button><button type="button" class="tab ${state.shiftView === 'calendar' ? 'is-active' : ''}" data-action="shift-view-calendar">${t('shifts.view.calendar')}</button></div>`
+  const content = state.shiftView === 'calendar' ? shiftCalendar(visible) : shiftListTable(visible)
+  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${viewTabs}${searchToolbar(shiftFilterControls())}${content}</section>`
 }
 
 function renderJobDetail() {
@@ -9000,6 +9253,84 @@ function slotMatchesFilter(slot, filter) {
   return slot.status === filter
 }
 
+// === Vakter: én delt spørring for Liste og Kalender ===
+// Begge projeksjonene leser NØYAKTIG samme filtrerte utvalg - ingen duplisert
+// filtrering, ingen egen kalenderkopi av vaktene (§5, §20).
+
+// Bemanningssituasjonen utledes av plassene: «Ledige plasser» er ekte ledighet
+// (open) - avventer bekreftelse/ny bekreftelse er ALDRI en vanlig tom plass
+// (§12-§17); «Fullt bemannet» følger slotIsStaffed, der pending_reconfirmation
+// fortsatt er opptatt.
+function shiftMatchesStaffing(assignment, situation) {
+  if (!situation) return true
+  const slots = staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled')
+  if (situation === 'open') return slots.some(slot => slot.status === 'open')
+  if (situation === 'requested') return slots.some(slot => Boolean(activeSlotRequest(slot)))
+  if (situation === 'awaiting_confirmation') return slots.some(slot => slot.status === 'awaiting_confirmation')
+  if (situation === 'pending_reconfirmation') return slots.some(slot => slot.status === 'pending_reconfirmation')
+  if (situation === 'full') return slots.length > 0 && slots.every(slotIsStaffed)
+  return true
+}
+
+// Perioden måles mot assignment.date; en midnattskryssende vakt hører til
+// startdatoen sin - aldri en duplikatoppføring neste dag (§8, §30).
+function filteredAssignments(filters = state.shiftFilters, now = new Date()) {
+  const query = state.filters.search.trim().toLocaleLowerCase()
+  const status = state.filters.status
+  return collection('assignments')
+    .filter(item => {
+      if (filters.clientId && item.clientId !== filters.clientId) return false
+      if (filters.departmentId && item.departmentId !== filters.departmentId) return false
+      if (filters.role && item.role !== filters.role) return false
+      if (filters.fromDate && (!item.date || item.date < filters.fromDate)) return false
+      if (filters.toDate && (!item.date || item.date > filters.toDate)) return false
+      if (status !== 'all' && shiftOperationalStatus(item, now) !== status) return false
+      if (!shiftMatchesStaffing(item, filters.staffing)) return false
+      return !query || searchable(item, ['assignmentNumber', 'name']).includes(query)
+    })
+    // Deterministisk rekkefølge i begge visningene: dato, starttid, vakt-id (§29).
+    .sort((a, b) => String(a.date ?? '9999').localeCompare(String(b.date ?? '9999'))
+      || String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''))
+      || String(a.assignmentNumber ?? a.id).localeCompare(String(b.assignmentNumber ?? b.id)))
+}
+
+// === Kalenderen: en ren presentasjon over det filtrerte utvalget ===
+// Kalendernavigasjonen flytter bare det synlige vinduet (uke/måned); den delte
+// filtermodellen - inkludert perioden - ligger UNDER og gjelder likt i begge
+// visningene (§35). Ingen drag-and-drop, ingen datomutasjon herfra (§32).
+
+function startOfWeekIso(iso) {
+  const [year, month, day] = iso.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return addDays(iso, -((date.getUTCDay() + 6) % 7))
+}
+
+function calendarAnchorDate() {
+  return state.calendarAnchor || todayIso()
+}
+
+function calendarRange() {
+  const anchor = calendarAnchorDate()
+  if (state.calendarMode === 'week') {
+    const start = startOfWeekIso(anchor)
+    return { start, end: addDays(start, 6), monthStart: null }
+  }
+  const monthStart = `${anchor.slice(0, 7)}-01`
+  const start = startOfWeekIso(monthStart)
+  return { start, end: addDays(start, 41), monthStart }
+}
+
+// Vaktene per synlig dag, deterministisk sortert. Kilden er ALLTID det delte
+// filtrerte utvalget - kalenderen har ingen egen spørring.
+function calendarDays(visible) {
+  const range = calendarRange()
+  const days = []
+  for (let iso = range.start; iso <= range.end; iso = addDays(iso, 1)) {
+    days.push({ iso, entries: visible.filter(item => item.date === iso) })
+  }
+  return { range, days }
+}
+
 // KPI-ene svarer på «hva krever handling nå?» - og bruker NØYAKTIG de samme
 // hjelperne som fagsidene, så dashboardet aldri kan avvike fra kilden (§53).
 function dashboardActionCounts() {
@@ -9560,7 +9891,8 @@ function navigate(route, id = null) {
   // Varselpanelet lukkes ved navigasjon, og dashboardets plass-/timelistefilter
   // gjelder bare så lenge man står i listen bak kortet (§13).
   state.notificationsOpen = false
-  if (route !== 'staffing' && route !== 'job-detail') state.staffingSlotFilter = ''
+  // Dashboardets bemanningsfilter gjelder så lenge man står i Vakter-flaten.
+  if (route !== 'staffing' && route !== 'job-detail') state.shiftFilters.staffing = ''
   if (route !== 'timesheets') state.slotTimesheetFilter = ''
   // Statusverdiene er ruteavhengige, så et filter fra forrige side ville gitt en
   // tom liste uten forklaring.
@@ -10193,15 +10525,37 @@ function actionHandlers(target = null) {
     'dashboard-month': () => { state.dashboardTab = 'month'; render() },
     // Dashboardets handlingskort: naviger til listen bak tallet MED eksplisitt
     // filter, slik at brukeren ser nøyaktig postene bak KPI-en (§12-§13).
-    'dashboard-filter-slots': () => { state.staffingSlotFilter = String(target?.dataset?.status ?? ''); navigate('staffing') },
+    // Dashboardkortene leverer inn i den DELTE filtermodellen for Vakter (§19-§20).
+    'dashboard-filter-slots': () => { state.shiftFilters.staffing = String(target?.dataset?.status ?? ''); navigate('staffing') },
     'dashboard-filter-timesheets': () => { state.slotTimesheetFilter = String(target?.dataset?.status ?? ''); navigate('timesheets') },
     'dashboard-open-payroll': () => navigate('payroll'),
     'dashboard-open-invoicing': () => navigate('invoicing'),
     'dashboard-go-payroll': () => navigate('payroll'),
     'dashboard-go-invoicing': () => navigate('invoicing'),
     'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; navigate('timesheets') },
-    'clear-slot-filter': () => { state.staffingSlotFilter = ''; render() },
     'clear-slot-timesheet-filter': () => { state.slotTimesheetFilter = ''; render() },
+    // Vakter: to projeksjoner over samme utvalg. Bytte nullstiller aldri filtre (§36).
+    'shift-view-list': () => { state.shiftView = 'list'; render() },
+    'shift-view-calendar': () => { state.shiftView = 'calendar'; render() },
+    'calendar-week': () => { state.calendarMode = 'week'; render() },
+    'calendar-month': () => { state.calendarMode = 'month'; render() },
+    'calendar-today': () => { state.calendarAnchor = ''; render() },
+    'calendar-prev': () => {
+      const anchor = calendarAnchorDate()
+      state.calendarAnchor = state.calendarMode === 'week' ? addDays(anchor, -7) : addDays(`${anchor.slice(0, 7)}-01`, -1).slice(0, 7) + '-01'
+      render()
+    },
+    'calendar-next': () => {
+      const anchor = calendarAnchorDate()
+      state.calendarAnchor = state.calendarMode === 'week' ? addDays(anchor, 7) : addDays(`${anchor.slice(0, 7)}-28`, 5).slice(0, 7) + '-01'
+      render()
+    },
+    'clear-shift-filters': () => {
+      state.shiftFilters = { fromDate: '', toDate: '', clientId: '', departmentId: '', role: '', staffing: '' }
+      state.filters.search = ''
+      state.filters.status = 'all'
+      render()
+    },
     // Varsler: å åpne panelet, lese eller merke lest endrer ALDRI fagdata (§23).
     'toggle-notifications': () => { state.notificationsOpen = !state.notificationsOpen; render() },
     'read-all-notifications': () => {
@@ -11832,6 +12186,18 @@ document.addEventListener('change', event => {
     setTimesheetFilter(event.target.dataset.timesheetFilter, event.target.value)
     return
   }
+  // Vakters delte filtermodell (§6, §10): klientbytte nullstiller avdelingen
+  // når den valgte ikke lenger tilhører klienten.
+  if (event.target.dataset?.shiftFilter) {
+    const name = event.target.dataset.shiftFilter
+    state.shiftFilters[name] = String(event.target.value)
+    if (name === 'clientId') {
+      const department = record('departments', state.shiftFilters.departmentId)
+      if (state.shiftFilters.clientId && department && department.clientId !== state.shiftFilters.clientId) state.shiftFilters.departmentId = ''
+    }
+    render()
+    return
+  }
   // Revisjonsloggens filtre: periode, modul, hendelsestype og utfører (§35).
   if (event.target.dataset?.auditFilter) {
     state.auditFilters[event.target.dataset.auditFilter] = String(event.target.value)
@@ -11985,6 +12351,11 @@ window.__workmaticPreview = {
   dashboardCounts: () => ({ ...dashboardActionCounts() }),
   shiftStatus: (assignmentId, nowIso = null) => shiftOperationalStatus(record('assignments', assignmentId), nowIso ? new Date(nowIso) : new Date()),
   staffedCount: assignmentId => staffedSlotCount(record('assignments', assignmentId)),
+  // Vakter: den delte spørringen og kalenderprojeksjonen, for testene.
+  filteredShifts: (nowIso = null) => filteredAssignments(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()).map(item => item.id),
+  setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
+  calendarView: () => { const { range, days } = calendarDays(filteredAssignments()); return JSON.parse(JSON.stringify({ range, days: days.map(day => ({ iso: day.iso, ids: day.entries.map(item => item.id) })) })) },
+  setCalendarAnchor: iso => { state.calendarAnchor = iso; render() },
   notifications: () => JSON.parse(JSON.stringify(syncNotifications())),
   unreadNotifications: () => syncNotifications().filter(item => !item.readAt).length,
   auditEntries: () => JSON.parse(JSON.stringify(auditEntries())),
