@@ -2605,6 +2605,31 @@ const copy = {
     'staffing.sitRequested': 'Avventer svar',
     'shifts.clearFilters': 'Fjern filtre',
     'shifts.emptyFiltered': 'Ingen vakter i valgt periode og filter.',
+    'series.enable': 'Flere datoer / Gjenta vakten',
+    'series.title': 'Vaktserie',
+    'series.tag': 'Vaktserie',
+    'series.partOf': 'Del av vaktserie',
+    'series.position': '{index} av {total}',
+    'series.current': 'Denne vakten',
+    'series.repeat': 'Gjenta',
+    'series.daily': 'Daglig',
+    'series.weekly': 'Ukentlig',
+    'series.weekdays': 'Valgte ukedager',
+    'series.dates': 'Valgte datoer',
+    'series.datesHelp': 'Ekstra datoer som ÅÅÅÅ-MM-DD, adskilt med komma',
+    'series.endLabel': 'Avslutt etter',
+    'series.endDate': 'Sluttdato',
+    'series.count': 'Antall vakter',
+    'series.previewTitle': 'Forhåndsvis datoer',
+    'series.createCount': 'Opprett {count} vakter',
+    'series.createdToast': 'Opprettet {count} vakter i en vaktserie',
+    'series.scopeSingle': 'Kun denne vakten',
+    'series.scopeFuture': 'Denne og fremtidige vakter',
+    'series.noDates': 'Ingen vakter ble opprettet',
+    'series.invalidRange': 'Ugyldig datoutvalg: kontroller start, slutt og antall',
+    'series.tooMany': 'For mange vakter i én opprettelse',
+    'series.shrinkBlocked': 'Én eller flere fremtidige vakter kan ikke krympes trygt - ingen ble endret',
+    'staffing.event.series_created': 'Opprettet som del av vaktserie',
     'common.create': 'Opprett',
     'common.edit': 'Rediger',
     'common.view': 'Vis',
@@ -3161,6 +3186,7 @@ const copy = {
     'staffing.reqStatus.withdrawn': 'Trukket tilbake',
     'staffing.field.date': 'Dato',
     'staffing.field.startTime': 'Starttid',
+    'staffing.field.slots': 'Antall ansatte',
     'staffing.field.endTime': 'Sluttid',
     'staffing.field.clientId': 'Klient',
     'staffing.field.departmentId': 'Avdeling',
@@ -3446,6 +3472,31 @@ copy.en = {
   'staffing.sitRequested': 'Awaiting reply',
   'shifts.clearFilters': 'Clear filters',
   'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
+  'series.enable': 'Multiple dates / Repeat shift',
+  'series.title': 'Shift series',
+  'series.tag': 'Shift series',
+  'series.partOf': 'Part of shift series',
+  'series.position': '{index} of {total}',
+  'series.current': 'This shift',
+  'series.repeat': 'Repeat',
+  'series.daily': 'Daily',
+  'series.weekly': 'Weekly',
+  'series.weekdays': 'Selected weekdays',
+  'series.dates': 'Selected dates',
+  'series.datesHelp': 'Extra dates as YYYY-MM-DD, separated by commas',
+  'series.endLabel': 'End after',
+  'series.endDate': 'End date',
+  'series.count': 'Number of shifts',
+  'series.previewTitle': 'Preview dates',
+  'series.createCount': 'Create {count} shifts',
+  'series.createdToast': 'Created {count} shifts in a shift series',
+  'series.scopeSingle': 'This shift only',
+  'series.scopeFuture': 'This and future shifts',
+  'series.noDates': 'No shifts were created',
+  'series.invalidRange': 'Invalid date selection: check start, end and count',
+  'series.tooMany': 'Too many shifts in one creation',
+  'series.shrinkBlocked': 'One or more future shifts cannot shrink safely - none were changed',
+  'staffing.event.series_created': 'Created as part of a shift series',
   'common.create': 'Create', 'common.edit': 'Edit', 'common.view': 'View', 'common.save': 'Save',
   'common.cancel': 'Cancel', 'common.back': 'Back', 'common.next': 'Next',
   'common.finish': 'Complete demo', 'common.search': 'Search', 'common.filter': 'Filter',
@@ -3919,6 +3970,7 @@ copy.en = {
   'staffing.reqStatus.withdrawn': 'Withdrawn',
   'staffing.field.date': 'Date',
   'staffing.field.startTime': 'Start time',
+  'staffing.field.slots': 'Number of employees',
   'staffing.field.endTime': 'End time',
   'staffing.field.clientId': 'Client',
   'staffing.field.departmentId': 'Department',
@@ -6368,6 +6420,11 @@ function statusTag(status) {
   return `<span class="tag ${styles[status] || ''}">${t(labels[status] || status)}</span>`
 }
 
+// Korte ukedagsnavn per språk - delt av kalenderen og gjenta-skjemaet.
+function weekdayLabels() {
+  return state.locale === 'nb' ? ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+}
+
 // Tidsintervall med tydelig markering når vakten krysser midnatt (§29):
 // 22:00–07:00 (+1 dag).
 function timeRangeLabel(start, end, endNextDay = false) {
@@ -6980,7 +7037,7 @@ function shiftListTable(visible) {
   const rows = visible.map(item => {
     const client = record('clients', item.clientId)
     const department = record('departments', item.departmentId)
-    const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(item.assignmentNumber ?? '')}</span></div>`
+    const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(item.assignmentNumber ?? '')}${item.shiftSeriesId ? ` · ${t('series.tag')}` : ''}</span></div>`
     // «X av Y bemannet» adskilt fra status; behovet («Antall ansatte») som undertekst (§22, §25).
     const staffing = `<div class="file-name"><strong>${staffedOfLabel(item)}</strong><span>${t('staffing.slots')}: ${formatNumber(item.slots, 0)}</span></div>`
     return `<tr><td>${dateCell}</td><td>${item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.role ? escapeHtml(taxonomy(item.role)) : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
@@ -7017,9 +7074,8 @@ function shiftCalendar(visible) {
   const inRange = days.reduce((sum, day) => sum + day.entries.length, 0)
   const emptyNote = inRange ? '' : `<div class="banner info">${icon('calendar')}<span>${t('calendar.emptyRange')}</span></div>`
   const dayName = iso => {
-    const names = state.locale === 'nb' ? ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     const [year, month, day] = iso.split('-').map(Number)
-    return names[(new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7]
+    return weekdayLabels()[(new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7]
   }
   if (mode === 'week') {
     const columns = days.map(day => `<div class="calendar-day"><div class="calendar-day-head"><span>${dayName(day.iso)}</span><strong>${formatDayMonth(day.iso)}</strong></div>${day.entries.map(item => calendarEntry(item)).join('') || `<span class="calendar-day-empty muted">—</span>`}</div>`).join('')
@@ -7074,7 +7130,7 @@ function renderJobDetail() {
   const actions = cancelled
     ? button('common.back', 'back-staffing', 'secondary', 'arrow-left')
     : `${button('common.back', 'back-staffing', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-action="manage-assignment-team" data-id="${assignment.id}">${icon('users')}${t('staffing.manageTeam')}</button><button type="button" class="button" data-action="edit-assignment" data-id="${assignment.id}">${icon('edit')}${t('common.edit')}</button>${destructive}`
-  const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
+  const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div>${assignment.shiftSeriesId ? (() => { const shifts = seriesShifts(assignment.shiftSeriesId); const index = shifts.findIndex(item => item.id === assignment.id) + 1; return `<div><dt>${t('series.partOf')}</dt><dd>${t('series.position', { index, total: shifts.length })}</dd></div>` })() : ''}<div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
   const requirementsCard = `<article class="card"><h2>${t('staffing.requirementsPreferences')}</h2><dl class="detail-list"><div><dt>${t('assignment.genderPreference')}</dt><dd>${t({ female: 'assignment.genderWomen', male: 'assignment.genderMen' }[assignment.genderPreference] ?? 'assignment.genderBoth')}</dd></div><div><dt>${t('staffing.educationPreference')}</dt><dd>${t({ educated: 'assignment.educated', not_educated: 'assignment.notEducated' }[assignment.educationPreference] ?? 'assignment.educationBoth')}</dd></div></dl><h3 style="margin-top:16px">${t('staffing.roleRequirements')}</h3><dl class="detail-list"><div><dt>${t('staffing.role')}</dt><dd>${escapeHtml(taxonomy(assignment.role))}</dd></div><div><dt>${t('staffing.requiredQualification')}</dt><dd>${escapeHtml(taxonomy(assignment.requiredQualification))}</dd></div><div><dt>${t('staffing.requiredCertificates')}</dt><dd>${(assignment.requiredCertificates ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div></dl></article>`
   // Lønnskontekst, lønnsgrunnlag, tildelte ansatte og kommende vakter hører til
   // et bemannet oppdrag. Før tildeling handler kortet om jobben og om hvem som
@@ -7120,7 +7176,7 @@ function renderJobDetail() {
     return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions"><span class="tag ${tone}">${t(statusKey)}</span>${slotActions}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
-  return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
+  return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${seriesCard(assignment)}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
 }
 
 // Forespørselen til én eller flere ansatte. Teksten er forhåndsutfylt av
@@ -7580,6 +7636,145 @@ function shiftStatusTag(assignment, now = new Date()) {
 // «X av Y bemannet» vises alltid adskilt fra vaktstatusen (§28).
 function staffedOfLabel(assignment) {
   return t('staffing.staffedOf', { count: staffedSlotCount(assignment), total: staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled').length })
+}
+
+// === Vaktserie: kun grupperingsmetadata ===
+// Serien er et hjelpemiddel for oversikt, masseopprettelse og endringer. Den
+// operative sannheten er og blir den enkelte vakten: egen id, dato, plasser,
+// kø, status, timelister og økonomigrunnlag (§2). Serien har ALDRI egne
+// plasser, køer, timelister, status eller grunnlag (§59, §91).
+
+const SHIFT_SERIES_MAX = 100
+
+function shiftSeriesCollection() {
+  db.shiftSeries = db.shiftSeries ?? []
+  return db.shiftSeries
+}
+
+function seriesShifts(seriesId) {
+  return collection('assignments')
+    .filter(item => item.shiftSeriesId === seriesId)
+    .sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
+}
+
+// «Denne og fremtidige»: samme serie, dato fra og med gjeldende vakt, aldri
+// tidligere datoer, aldri kansellerte og aldri vakten selv (§24, §32, §38).
+function futureSeriesShifts(assignment) {
+  if (!assignment?.shiftSeriesId) return []
+  return seriesShifts(assignment.shiftSeriesId)
+    .filter(item => item.id !== assignment.id && String(item.date ?? '') >= String(assignment.date ?? '') && item.status !== 'cancelled')
+}
+
+// Datogenerering for Flere datoer / Gjenta vakten (§7-§8): valgte datoer,
+// daglig, ukentlig eller valgte ukedager, avgrenset av sluttdato eller antall.
+// Deterministisk, deduplisert, sortert - og hardt begrenset (§11, §41-§42).
+function seriesDates(draft) {
+  if (!draft.repeatEnabled) return { dates: draft.date ? [String(draft.date)] : [], error: null }
+  const start = String(draft.date ?? '')
+  const isIso = value => /^\d{4}-\d{2}-\d{2}$/.test(value)
+  if (!isIso(start)) return { dates: [], error: 'series.noDates' }
+  const mode = draft.repeatMode || 'weekly'
+  let dates = []
+  if (mode === 'dates') {
+    const extras = String(draft.repeatDates ?? '').split(/[\s,;]+/).filter(Boolean)
+    if (extras.some(value => !isIso(value))) return { dates: [], error: 'series.invalidRange' }
+    dates = [start, ...extras]
+  } else {
+    const endMode = draft.repeatEndMode || 'count'
+    const count = Number(draft.repeatCount)
+    const endDate = String(draft.repeatEndDate ?? '')
+    if (endMode === 'count' && (!Number.isInteger(count) || count <= 0)) return { dates: [], error: 'series.invalidRange' }
+    if (endMode === 'date' && (!isIso(endDate) || endDate < start)) return { dates: [], error: 'series.invalidRange' }
+    // Skannegrensen på ett år hindrer evige løkker; antallsgrensen håndheves under.
+    const limitDate = endMode === 'date' ? endDate : addDays(start, 366)
+    const wanted = endMode === 'count' ? count : Infinity
+    const cap = Math.min(wanted, SHIFT_SERIES_MAX + 1)
+    if (mode === 'weekdays') {
+      const chosen = new Set(WEEKDAY_FIELD_KEYS.filter(day => draft[`repeatDay-${day}`]).map(day => WEEKDAY_FIELD_KEYS.indexOf(day)))
+      if (!chosen.size) return { dates: [], error: 'series.noDates' }
+      for (let iso = start; iso <= limitDate && dates.length < cap; iso = addDays(iso, 1)) {
+        const weekday = (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7
+        if (chosen.has(weekday)) dates.push(iso)
+      }
+    } else {
+      const step = mode === 'daily' ? 1 : 7
+      for (let iso = start; iso <= limitDate && dates.length < cap; iso = addDays(iso, step)) dates.push(iso)
+    }
+  }
+  dates = [...new Set(dates)].sort()
+  if (!dates.length) return { dates: [], error: 'series.noDates' }
+  if (dates.length > SHIFT_SERIES_MAX) return { dates: [], error: 'series.tooMany' }
+  return { dates, error: null }
+}
+
+// Én endringsregistrering per vakt - identisk for enkeltlagring og
+// seriepropagering (§28-§29): hendelse, varsling og ny bekreftelse ved
+// vesentlige endringer. Aldri en serie-nivå status.
+function recordShiftChange(assignment, change) {
+  const affected = (assignment.employeeIds ?? []).filter(id => employeeSlotState(assignment, id) !== 'cancelled')
+  logAssignmentEvent(assignment, {
+    type: change.material ? 'material_change' : 'informational_change',
+    fields: [...change.materialFields, ...change.informationalFields],
+    material: change.material,
+    notified: affected
+  })
+  if (change.material) {
+    for (const employeeId of affected) {
+      setEmployeeSlotState(assignment, employeeId, 'pending_reconfirmation')
+      logAssignmentEvent(assignment, { type: 'reconfirmation_requested', employeeId, slotId: slotForEmployee(assignment, employeeId)?.id })
+    }
+  }
+}
+
+// Én kanselleringsregistrering per vakt - gjenbrukt av «Denne og fremtidige»
+// (§35-§37). Hver vakt beholder sin egen hendelse og historikk.
+function cancelShiftRecord(assignment, reason, comment) {
+  const affected = (assignment.employeeIds ?? []).filter(id => employeeSlotState(assignment, id) !== 'cancelled')
+  assignment.status = 'cancelled'
+  assignment.cancelReason = reason
+  assignment.cancelComment = comment
+  assignment.cancelledAt = new Date().toISOString()
+  for (const slot of staffingSlotsFor(assignment)) {
+    const timesheet = timesheetForSlot(assignment.id, slot.id)
+    if (timesheet) timesheet.voided = true
+    slot.status = 'cancelled'
+  }
+  syncAssignmentStaffing(assignment)
+  logAssignmentEvent(assignment, { type: 'cancelled', reason, comment, notified: affected })
+}
+
+// Lettvekts serieoversikt på vaktdetaljen (§22): datoer, status og bemanning
+// per vakt, med lenke - ingen egen planleggingsmodul. Sammendraget er avledet;
+// serien har aldri en egen status (§59).
+function seriesCard(assignment) {
+  if (!assignment.shiftSeriesId) return ''
+  const shifts = seriesShifts(assignment.shiftSeriesId)
+  if (shifts.length < 2) return ''
+  const rows = shifts.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : t('common.none')}</button>${item.id === assignment.id ? ` <span class="tag info">${t('series.current')}</span>` : ''}</td><td>${item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : ''}</td><td>${staffedOfLabel(item)}</td><td>${shiftStatusTag(item)}</td></tr>`)
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('series.title')}</h2><span class="tag info">${shifts.length}</span></div>${table(['common.date', 'shifts.time', 'staffing.staffingLabel', 'common.status'], rows)}</article>`
+}
+
+// Propagering til fremtidige serievakter: hvert felt kopieres individuelt,
+// hver vakt klassifiserer sin egen endring og håndterer sine egne plasser og
+// hendelser (§26, §28-§30). Datoen propageres ALDRI (§27, dokumentert valg).
+function propagateSeriesChange(current, changedFields) {
+  const fields = changedFields.filter(({ field }) => !['date', 'from', 'to'].includes(field))
+  for (const target of futureSeriesShifts(current)) {
+    const afterValues = {}
+    for (const { field } of fields) afterValues[field] = Array.isArray(current[field]) ? [...current[field]] : current[field]
+    // Antall plasser klassifiseres ikke av feltlistene, så det sammenlignes her.
+    const slotsDiffer = 'slots' in afterValues && Number(afterValues.slots) !== Number(target.slots)
+    const base = classifyShiftChange(target, { ...target, ...afterValues })
+    const change = slotsDiffer
+      ? { ...base, changed: true, informationalFields: [...base.informationalFields, { field: 'slots', oldValue: target.slots, newValue: Number(afterValues.slots) }] }
+      : base
+    if (!change.changed) continue
+    const staffed = assignmentHasHistory(target)
+    Object.assign(target, afterValues)
+    reconcileSlotCount(target, Number(target.slots) || 0)
+    syncAssignmentStaffing(target)
+    if (staffed) recordShiftChange(target, change)
+  }
 }
 
 // === Prioritert forespørselskø per bemanningsplass ===
@@ -10244,8 +10439,14 @@ function reopenTimesheetDialog() {
 function cancelAssignmentDialog() {
   const assignment = record('assignments', state.selected.assignment)
   const reasons = ['client_cancelled', 'wrong_entry', 'changed_need', 'other'].map(key => ({ value: key, text: t(`staffing.cancelReason.${key}`) }))
+  // Serievakt: brukeren velger omfang eksplisitt - aldri hele serien automatisk (§34).
+  const scope = (state.draft.cancelScope || 'single')
+  const futureCount = assignment?.shiftSeriesId ? futureSeriesShifts(assignment).length : 0
+  const scopeChoice = assignment?.shiftSeriesId
+    ? `<div class="form-actions" style="margin-top:8px"><label class="checkbox-row"><input type="radio" name="cancel-scope" data-field="cancelScope" value="single"${scope === 'single' ? ' checked' : ''}>${t('series.scopeSingle')}</label><label class="checkbox-row"><input type="radio" name="cancel-scope" data-field="cancelScope" value="future"${scope === 'future' ? ' checked' : ''}>${t('series.scopeFuture')} (${futureCount + 1})</label></div>`
+    : ''
   const body = `${formError()}<div class="banner warning">${icon('bell')}<span>${t('staffing.cancelWarning')}</span></div>
-    <div class="grid cols-2">${boundSelect('cancelReason', t('staffing.cancelReasonLabel'), reasons, { placeholder: t('common.select') })}${bound('cancelComment', t('common.notes'))}</div>`
+    <div class="grid cols-2">${boundSelect('cancelReason', t('staffing.cancelReasonLabel'), reasons, { placeholder: t('common.select') })}${bound('cancelComment', t('common.notes'))}</div>${scopeChoice}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-cancel-assignment">${t('staffing.cancelShift')}</button></div>`
   return modalShell(t('staffing.cancelShift'), escapeHtml(assignment?.assignmentNumber ?? ''), 'bell', body, footer, 'small')
 }
@@ -10259,8 +10460,15 @@ function changePreviewMarkup() {
   const affected = (record('assignments', state.editingId)?.employeeIds ?? []).length
   const heading = change.material ? t('staffing.materialChanges') : t('staffing.informationalChanges')
   const consequence = change.material ? t('staffing.mustReconfirm', { count: affected }) : t('staffing.willBeNotified', { count: affected })
+  // Serievakt: omfanget velges eksplisitt før bekreftelsen (§23, §25).
+  const editingRecord = record('assignments', state.editingId)
+  const scope = (state.draft.seriesScope || 'single')
+  const scopeChoice = editingRecord?.shiftSeriesId
+    ? `<div class="form-actions" style="margin-top:8px"><label class="checkbox-row"><input type="radio" name="series-scope" data-field="seriesScope" value="single"${scope === 'single' ? ' checked' : ''}>${t('series.scopeSingle')}</label><label class="checkbox-row"><input type="radio" name="series-scope" data-field="seriesScope" value="future"${scope === 'future' ? ' checked' : ''}>${t('series.scopeFuture')} (${futureSeriesShifts(editingRecord).length + 1})</label></div>`
+    : ''
   return `<article class="card" style="margin-top:12px"><div class="card-header"><h3>${heading}</h3><span class="tag ${change.material ? 'warning' : 'info'}">${consequence}</span></div>
     ${[...change.materialFields, ...change.informationalFields].map(row).join('')}
+    ${scopeChoice}
     <div class="modal-actions" style="margin-top:12px"><button type="button" class="button" data-action="confirm-assignment-change">${t('staffing.confirmChange')}</button></div></article>`
 }
 
@@ -10280,8 +10488,34 @@ function assignmentDialog() {
   const nextDay = draftValue('endNextDay') ? `<span class="tag info">${t('shiftTemplates.nextDay')}</span>` : ''
   const genderChoices = [{ value: 'female', text: t('assignment.genderWomen') }, { value: 'male', text: t('assignment.genderMen') }, { value: 'both', text: t('assignment.genderBoth') }]
   const educationChoices = [{ value: 'educated', text: t('assignment.educated') }, { value: 'not_educated', text: t('assignment.notEducated') }, { value: 'both', text: t('assignment.educationBoth') }]
-  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('staffing.templateOptional'), templates, { placeholder: t('common.none'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number', required: true })}${boundSelect('role', `${t('staffing.role')} *`, roleChoices, { placeholder: t('common.select') })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${bound('customerOrderReference', t('staffing.customerRef'))}${boundTextarea('description', t('staffing.description'))}</div></div><div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
-  return modalShell(t(editing ? 'staffing.modal.edit' : 'staffing.modal.create'), t('page.staffing.desc'), 'briefcase', `${body}${changePreviewMarkup()}`, formFooter('save-assignment'))
+  // Flere datoer / Gjenta vakten (§6-§10): av som standard, live forhåndsvisning
+  // av genererte datoer, og eksplisitt «Opprett N vakter» før noe lagres.
+  const repeatOn = Boolean(draftValue('repeatEnabled')) && !editing
+  const repeatMode = String(draftValue('repeatMode') || 'weekly')
+  const repeatPreview = repeatOn ? seriesDates(state.draft) : { dates: [], error: null }
+  const repeatModes = [
+    { value: 'daily', text: t('series.daily') }, { value: 'weekly', text: t('series.weekly') },
+    { value: 'weekdays', text: t('series.weekdays') }, { value: 'dates', text: t('series.dates') }
+  ]
+  const endModes = [{ value: 'count', text: t('series.count') }, { value: 'date', text: t('series.endDate') }]
+  const weekdayBoxes = repeatMode === 'weekdays'
+    ? `<div class="availability-grid">${WEEKDAY_FIELD_KEYS.map((day, index) => boundCheckbox(`repeatDay-${day}`, weekdayLabels()[index])).join('')}</div>`
+    : ''
+  const endControls = repeatMode === 'dates'
+    ? bound('repeatDates', t('series.dates'), { help: t('series.datesHelp') })
+    : `${boundSelect('repeatEndMode', t('series.endLabel'), endModes)}${String(draftValue('repeatEndMode') || 'count') === 'date' ? bound('repeatEndDate', t('series.endDate'), { type: 'date' }) : bound('repeatCount', t('series.count'), { type: 'number' })}`
+  const previewBlock = repeatOn
+    ? repeatPreview.error
+      ? `<div class="banner warning">${icon('bell')}<span>${t(repeatPreview.error)}</span></div>`
+      : `<article class="card" style="margin-top:8px"><div class="card-header"><h4>${t('series.previewTitle')}</h4><span class="tag info">${repeatPreview.dates.length}</span></div><p class="field-help">${repeatPreview.dates.map(formatDate).join(' · ')}</p></article>`
+    : ''
+  const repeatSection = editing ? '' : `<div class="form-section"><h3>${t('series.enable')}</h3>${boundCheckbox('repeatEnabled', t('series.enable'))}${repeatOn ? `<div class="grid cols-2" style="margin-top:8px">${boundSelect('repeatMode', t('series.repeat'), repeatModes)}${endControls}</div>${weekdayBoxes}${previewBlock}` : ''}</div>`
+  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('staffing.templateOptional'), templates, { placeholder: t('common.none'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number', required: true })}${boundSelect('role', `${t('staffing.role')} *`, roleChoices, { placeholder: t('common.select') })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${bound('customerOrderReference', t('staffing.customerRef'))}${boundTextarea('description', t('staffing.description'))}</div></div>${repeatSection}<div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
+  // Eksplisitt bekreftelse ved masseopprettelse: knappen sier hvor mange (§10).
+  const footer = repeatOn && !repeatPreview.error && repeatPreview.dates.length > 1
+    ? `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="save-assignment">${t('series.createCount', { count: repeatPreview.dates.length })}</button></div>`
+    : formFooter('save-assignment')
+  return modalShell(t(editing ? 'staffing.modal.edit' : 'staffing.modal.create'), t('page.staffing.desc'), 'briefcase', `${body}${changePreviewMarkup()}`, footer)
 }
 
 function shiftTemplateDialog() {
@@ -11377,7 +11611,9 @@ const entities = {
   },
   assignment: {
     collection: 'assignments',
-    prefix: 'a',
+    // Nye vakter får rene numeriske id-er fra den delte telleren (§4);
+    // historiske a-prefiksede id-er beholdes urørt.
+    prefix: '',
     // Oppdraget identifiseres av det genererte nummeret, ikke av et navn brukeren
     // skriver. Nummeret er alltid satt, så det er også feltet commit validerer på.
     nameField: 'assignmentNumber',
@@ -11689,14 +11925,57 @@ function crudHandlers(target) {
         const occupied = staffingSlotsFor(before).filter(slot => slot.status !== 'open').length
         if (desired < occupied) { state.formError = 'staffing.cannotShrink'; render(); return }
       }
-      const change = before ? classifyShiftChange(before, entities.assignment.fromDraft(state.draft)) : null
+      // Flere datoer / Gjenta vakten: all validering over gjelder hele settet,
+      // og opprettelsen er alt-eller-ingenting (§47-§48). Én serie, N
+      // selvstendige vakter med egne plasser - aldri delte identiteter (§13-§15).
+      if (creating && state.draft.repeatEnabled) {
+        const { dates, error } = seriesDates(state.draft)
+        if (error) { state.formError = error; render(); return }
+        // Ingen automatisk tildeling på tvers av datoer (§16).
+        delete state.draft.assignEmployeeId
+        const series = { id: nextNumericSlotId(), createdAt: new Date().toISOString(), label: '', sourceAssignmentId: null }
+        shiftSeriesCollection().push(series)
+        let first = null
+        for (const date of dates) {
+          const values = entities.assignment.fromDraft(state.draft)
+          const item = { ...values, id: nextId(''), date, employeeIds: [], shiftSeriesId: series.id, status: 'active' }
+          db.assignments.push(item)
+          reconcileSlotCount(item, Number(item.slots) || 0)
+          syncAssignmentStaffing(item)
+          logAssignmentEvent(item, { type: 'series_created', seriesId: series.id })
+          first = first ?? item
+        }
+        series.sourceAssignmentId = first?.id ?? null
+        state.formError = null
+        persist()
+        closeDialog()
+        showToast('series.createdToast', { count: dates.length })
+        render()
+        return
+      }
+      let change = before ? classifyShiftChange(before, entities.assignment.fromDraft(state.draft)) : null
+      // Antall plasser er ikke et klassifisert felt, men er serie-relevant (§51):
+      // på serievakter tas det med som et informasjonsfelt i omfangsvalget.
+      const slotsChanged = Boolean(before?.shiftSeriesId) && Number(state.draft.slots) !== Number(before.slots)
+      if (slotsChanged) {
+        change = { ...change, changed: true, informationalFields: [...change.informationalFields, { field: 'slots', oldValue: before.slots, newValue: Number(state.draft.slots) }] }
+      }
       const staffed = before ? assignmentHasHistory(before) : false
-      if (before && staffed && change.changed && !state.changeConfirmed) {
+      // Endring på en serievakt spør alltid om omfang - også ubemannet (§23).
+      if (before && (staffed || before.shiftSeriesId) && change.changed && !state.changeConfirmed) {
         // Første lagringsforsøk viser oppsummeringen; save går først etter
         // «Bekreft endring» (§33).
         state.changePreview = change
         render()
         return
+      }
+      // «Denne og fremtidige» prevalideres FØR noe muteres: kan én fremtidig
+      // vakt ikke krympes trygt, blokkeres hele massehandlingen (§49, §52).
+      const wantsFuture = Boolean(before?.shiftSeriesId) && state.draft.seriesScope === 'future' && change?.changed
+      if (wantsFuture && [...change.materialFields, ...change.informationalFields].some(item => item.field === 'slots')) {
+        const desired = Number(state.draft.slots) || 0
+        const blocked = futureSeriesShifts(before).some(target => staffingSlotsFor(target).filter(slot => slot.status !== 'open').length > desired)
+        if (blocked) { state.formError = 'series.shrinkBlocked'; state.changeConfirmed = false; state.changePreview = change; render(); return }
       }
       state.changeConfirmed = false
       state.changePreview = null
@@ -11710,19 +11989,16 @@ function crudHandlers(target) {
         persist()
       }
       if (saved && before && staffed && change.changed) {
-        const affected = (saved.employeeIds ?? []).filter(id => employeeSlotState(saved, id) !== 'cancelled')
-        logAssignmentEvent(saved, {
-          type: change.material ? 'material_change' : 'informational_change',
-          fields: [...change.materialFields, ...change.informationalFields],
-          material: change.material,
-          notified: affected
-        })
-        if (change.material) {
-          for (const employeeId of affected) {
-            setEmployeeSlotState(saved, employeeId, 'pending_reconfirmation')
-            logAssignmentEvent(saved, { type: 'reconfirmation_requested', employeeId, slotId: slotForEmployee(saved, employeeId)?.id })
-          }
-        }
+        recordShiftChange(saved, change)
+        persist()
+        render()
+      }
+      // Seriepropagering skjer KUN på eksplisitt valg - aldri automatisk (§25).
+      // Hver fremtidig vakt klassifiserer og loggfører sin egen endring, med ny
+      // bekreftelse der den er bemannet (§28-§29); datoen propageres aldri (§27).
+      if (saved && wantsFuture) {
+        propagateSeriesChange(saved, [...change.materialFields, ...change.informationalFields])
+        state.draft.seriesScope = ''
         persist()
         render()
       }
@@ -11734,21 +12010,16 @@ function crudHandlers(target) {
       if (!assignment) return
       const reason = String(state.draft.cancelReason ?? '').trim()
       if (!reason) { state.formError = 'common.required'; render(); return }
-      const affected = (assignment.employeeIds ?? []).filter(id => employeeSlotState(assignment, id) !== 'cancelled')
-      assignment.status = 'cancelled'
-      assignment.cancelReason = reason
-      assignment.cancelComment = String(state.draft.cancelComment ?? '').trim()
-      assignment.cancelledAt = new Date().toISOString()
-      // Alle plassene lukkes med identiteten i behold - ingen åpnes (§20).
-      // Timelistene deres kan aldri bli lønns-/fakturagrunnlag: de voides, men
-      // slettes ikke (§19 i timelisterunden).
-      for (const slot of staffingSlotsFor(assignment)) {
-        const timesheet = timesheetForSlot(assignment.id, slot.id)
-        if (timesheet) timesheet.voided = true
-        slot.status = 'cancelled'
+      const comment = String(state.draft.cancelComment ?? '').trim()
+      // Alle plassene lukkes med identiteten i behold; timelistene voides, men
+      // slettes aldri. Én registrering per vakt - også ved seriekansellering.
+      cancelShiftRecord(assignment, reason, comment)
+      // «Denne og fremtidige»: samme flyt anvendt individuelt på hver senere
+      // serievakt; allerede kansellerte hoppes trygt over (§34-§38). Én oppgitt
+      // årsak gjenbrukes, men hver vakt får sin egen hendelse.
+      if (assignment.shiftSeriesId && state.draft.cancelScope === 'future') {
+        for (const target of futureSeriesShifts(assignment)) cancelShiftRecord(target, reason, comment)
       }
-      syncAssignmentStaffing(assignment)
-      logAssignmentEvent(assignment, { type: 'cancelled', reason, comment: assignment.cancelComment, notified: affected })
       persist()
       closeDialog()
       showToast('crud.updated', { name: assignment.assignmentNumber ?? '' })
