@@ -2646,6 +2646,10 @@ const copy = {
     'employees.relationship': 'Relasjon',
     'employees.adminNotes': 'Interne notater',
     'employees.clientNotes': 'Klientnotater',
+    'staffing.slotLabel': 'Plass {number}',
+    'staffing.slotOpen': 'Ledig',
+    'staffing.slotAssigned': 'Tildelt',
+    'staffing.cannotShrink': 'Antall ansatte kan ikke settes lavere enn antall bemannede plasser.',
     'staffing.cancelShift': 'Kanseller vakt',
     'staffing.cancelled': 'Kansellert',
     'staffing.cancelWarning': 'Denne vakten slettes ikke. Den markeres som kansellert, og berørte ansatte varsles.',
@@ -3196,6 +3200,10 @@ copy.en = {
   'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Client notes',
   'staffing.new': 'New shift', 'staffing.client': 'Client', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
+  'staffing.slotLabel': 'Position {number}',
+  'staffing.slotOpen': 'Open',
+  'staffing.slotAssigned': 'Assigned',
+  'staffing.cannotShrink': 'The number of employees cannot be lower than the number of staffed positions.',
   'staffing.cancelShift': 'Cancel shift',
   'staffing.cancelled': 'Cancelled',
   'staffing.cancelWarning': 'This shift is not deleted. It is marked as cancelled, and affected employees are notified.',
@@ -4911,7 +4919,7 @@ function taxonomy(value) {
   return value ? t(`taxonomy.${value}`) : t('common.none')
 }
 
-let db = migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))
+let db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))
 let storageWorks = true
 
 // Migrering: en eksperimentell runde flyttet lønnstabell og regler til en egen
@@ -4979,6 +4987,28 @@ function migratePremiumRuleFamilies(data) {
       ? [{ id: nextDateId(), date: rule.date, label: '', allDay: rule.allDay !== false, start: rule.start || '', end: rule.end || '' }]
       : (data.holidays ?? []).map(holiday => ({ id: nextDateId(), date: holiday.date, label: holiday.name ?? '', allDay: true, start: '', end: '' }))
     delete rule.date
+  }
+  return data
+}
+
+// Migrering: bemanningsplassene får stabile identiteter. slots forblir
+// brukerens «Antall ansatte»; staffingSlots er de persisterte plassene med
+// deterministiske id-er. Idempotent: finnes plassene, røres ingenting.
+function migrateStaffingSlots(data) {
+  for (const assignment of data.assignments ?? []) {
+    if (Array.isArray(assignment.staffingSlots)) continue
+    const employees = assignment.employeeIds ?? []
+    const count = Math.max(Number(assignment.slots) || 0, employees.length)
+    assignment.staffingSlots = Array.from({ length: count }, (_, index) => {
+      const employeeId = employees[index] ?? null
+      const legacyState = employeeId ? assignment.employeeStates?.[employeeId] : null
+      return {
+        id: `slot-${assignment.id}-${index + 1}`,
+        status: assignment.status === 'cancelled' ? 'cancelled' : legacyState ?? (employeeId ? 'assigned' : 'open'),
+        employeeId,
+        createdAt: assignment.from || assignment.date || ''
+      }
+    })
   }
   return data
 }
@@ -5068,14 +5098,14 @@ function restore() {
     const raw = store.getItem(STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw)
-    if (parsed?.meta?.version === SEED_VERSION) db = migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed)))
+    if (parsed?.meta?.version === SEED_VERSION) db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed))))
   } catch {
     storageWorks = false
   }
 }
 
 function resetData() {
-  db = migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))
+  db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))
   const store = storage()
   try {
     store?.removeItem(STORAGE_KEY)
@@ -5174,6 +5204,9 @@ const relationCleanup = {
     collection('assignments').forEach(item => {
       if (item.employeeIds?.includes(id)) {
         item.employeeIds = item.employeeIds.filter(value => value !== id)
+        for (const slot of item.staffingSlots ?? []) {
+          if (slot.employeeId === id) { slot.employeeId = null; if (slot.status !== 'cancelled') slot.status = 'open' }
+        }
         links.push('rel.assignments')
       }
     })
@@ -6095,9 +6128,19 @@ function renderJobDetail() {
   // er ledig og passer.
   // Lønn hører til en tildelt ansatt, ikke til oppdraget. Kommende vakter er
   // fortsatt skjult, etter forrige beslutning.
-  const assigned = (assignment.employeeIds ?? []).length
-  const openPositions = Math.max(0, Number(assignment.slots || 0) - assigned)
-  const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}</article>`
+  const slotRecords = staffingSlotsFor(assignment)
+  const assigned = activeEmployeeIdsForAssignment(assignment).length
+  const openPositions = openStaffingSlots(assignment).length
+  // Én brukerrettet rad per plass: «Plass N» er presentasjonsnummer; den
+  // interne, stabile id-en vises ikke.
+  const slotRows = slotRecords.map((slot, index) => {
+    const employee = slot.employeeId ? record('employees', slot.employeeId) : null
+    const label = employee ? relationLink('employee-detail', employee.id, employee.name) : `<span class="muted">${t('staffing.slotOpen')}</span>`
+    const tone = slot.status === 'open' ? '' : slot.status === 'pending_reconfirmation' ? 'warning' : slot.status === 'cancelled' ? 'danger' : 'success'
+    const statusKey = slot.status === 'open' ? 'staffing.slotOpen' : slot.status === 'pending_reconfirmation' ? 'staffing.pendingReconfirmation' : slot.status === 'cancelled' ? 'staffing.cancelled' : 'staffing.slotAssigned'
+    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${label}</span></div><span class="tag ${tone}">${t(statusKey)}</span></div>`
+  }).join('')
+  const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
   return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${assignmentHistoryCard(assignment)}</section>`
 }
 
@@ -6458,16 +6501,113 @@ function logAssignmentEvent(assignment, event) {
   assignment.events = [...(assignment.events ?? []), { id: nextId('ev'), at: new Date().toISOString(), ...event }]
 }
 
-// Plass-status per ansatt. Aktive relasjoner er fortsatt employeeIds; kartet
-// merker den ene plassen som avventer, uten å røre resten av vakten (§10).
+// === Kanoniske bemanningsplasser ===
+// assignment.slots er brukerens «Antall ansatte»; assignment.staffingSlots er de
+// stabile identitetene til plassene. Hele livsløpet - tildeling, fjerning,
+// erstatning, ny bekreftelse - skjer INNE I SAMME plass: id-en endres aldri.
+// employeeIds og employeeStates avledes fra plassene, så eldre lesere virker
+// uendret uten å være en egen sannhet.
+
+function staffingSlotsFor(assignment) {
+  ensureStaffingSlots(assignment)
+  return assignment.staffingSlots
+}
+
+// Normalisering: bygger plassene fra slots + employeeIds + employeeStates første
+// gang, med deterministiske, persisterte id-er. Idempotent: finnes plassene,
+// røres ingenting.
+function ensureStaffingSlots(assignment) {
+  if (!assignment || Array.isArray(assignment.staffingSlots)) return assignment
+  const employees = assignment.employeeIds ?? []
+  const count = Math.max(Number(assignment.slots) || 0, employees.length)
+  assignment.staffingSlots = Array.from({ length: count }, (_, index) => {
+    const employeeId = employees[index] ?? null
+    const legacyState = employeeId ? assignment.employeeStates?.[employeeId] : null
+    return {
+      id: `slot-${assignment.id}-${index + 1}`,
+      status: assignment.status === 'cancelled' ? 'cancelled' : legacyState ?? (employeeId ? 'assigned' : 'open'),
+      employeeId,
+      createdAt: assignment.from || assignment.date || ''
+    }
+  })
+  return assignment
+}
+
+// Avledningen: employeeIds/employeeStates speiler plassene. Kalles etter hver
+// mutasjon, slik at det aldri finnes to uavhengige sannheter (§6).
+function syncAssignmentStaffing(assignment) {
+  const slots = staffingSlotsFor(assignment)
+  assignment.employeeIds = slots.filter(slot => slot.employeeId && slot.status !== 'cancelled').map(slot => slot.employeeId)
+  assignment.employeeStates = Object.fromEntries(slots
+    .filter(slot => slot.employeeId && slot.status !== 'assigned')
+    .map(slot => [slot.employeeId, slot.status]))
+  return assignment
+}
+
+function openStaffingSlots(assignment) {
+  return staffingSlotsFor(assignment).filter(slot => slot.status === 'open')
+}
+
+function slotForEmployee(assignment, employeeId) {
+  return staffingSlotsFor(assignment).find(slot => slot.employeeId === employeeId && slot.status !== 'cancelled') ?? null
+}
+
+function activeEmployeeIdsForAssignment(assignment) {
+  return staffingSlotsFor(assignment).filter(slot => slot.employeeId && slot.status !== 'cancelled').map(slot => slot.employeeId)
+}
+
+// Plass-status per ansatt, nå lest fra den kanoniske plassen.
 function employeeSlotState(assignment, employeeId) {
-  return assignment.employeeStates?.[employeeId] ?? 'assigned'
+  return slotForEmployee(assignment, employeeId)?.status ?? 'assigned'
 }
 
 function setEmployeeSlotState(assignment, employeeId, value) {
-  assignment.employeeStates = { ...(assignment.employeeStates ?? {}) }
-  if (value === null) delete assignment.employeeStates[employeeId]
-  else assignment.employeeStates[employeeId] = value
+  const slot = slotForEmployee(assignment, employeeId)
+  if (!slot) return
+  slot.status = value === null ? 'assigned' : value
+  syncAssignmentStaffing(assignment)
+}
+
+// Etter en dialoglagring kan employeeIds være endret der (Tildel ansatt-feltet).
+// Plassene avstemmes da FRA den lagrede listen: nye ansatte fyller første åpne
+// plass, fjernede ansatte åpner sin plass - identitetene er urørt.
+function reconcileSlotEmployees(assignment) {
+  const slots = staffingSlotsFor(assignment)
+  const wanted = assignment.employeeIds ?? []
+  for (const slot of slots) {
+    if (slot.employeeId && slot.status !== 'cancelled' && !wanted.includes(slot.employeeId)) {
+      slot.employeeId = null
+      slot.status = 'open'
+    }
+  }
+  for (const employeeId of wanted) {
+    if (slots.some(slot => slot.employeeId === employeeId && slot.status !== 'cancelled')) continue
+    const open = slots.find(slot => slot.status === 'open')
+    if (!open) break
+    open.employeeId = employeeId
+    open.status = 'assigned'
+  }
+}
+
+// Vokser eller krymper plasstallet uten å røre identiteter: nye plasser legges
+// til med nye id-er; krymping fjerner bare åpne plasser, uten historikk først,
+// bakerst først - og blokkeres når ingen åpen plass kan fjernes (§11-§14).
+function reconcileSlotCount(assignment, desired) {
+  const slots = staffingSlotsFor(assignment)
+  if (desired > slots.length) {
+    for (let i = slots.length; i < desired; i += 1) {
+      slots.push({ id: nextId('slot'), status: 'open', employeeId: null, createdAt: assignment.date || '' })
+    }
+    return { ok: true }
+  }
+  const historicalIds = new Set((assignment.events ?? []).map(event => event.slotId).filter(Boolean))
+  while (slots.length > desired) {
+    const removable = [...slots].reverse().find(slot => slot.status === 'open' && !historicalIds.has(slot.id))
+      ?? [...slots].reverse().find(slot => slot.status === 'open')
+    if (!removable) return { ok: false }
+    slots.splice(slots.indexOf(removable), 1)
+  }
+  return { ok: true }
 }
 
 function shiftDuration(shift) {
@@ -8699,16 +8839,19 @@ function actionHandlers(target = null) {
       const employeeId = target?.dataset?.employeeId
       if (!assignment || !employeeId) return
       setEmployeeSlotState(assignment, employeeId, null)
-      logAssignmentEvent(assignment, { type: 'reconfirmation_accepted', employeeId })
+      logAssignmentEvent(assignment, { type: 'reconfirmation_accepted', employeeId, slotId: slotForEmployee(assignment, employeeId)?.id })
       persist(); render(); showToast('crud.updated', { name: record('employees', employeeId)?.name ?? '' })
     },
     'decline-reconfirmation': () => {
       const assignment = record('assignments', target?.dataset?.id)
       const employeeId = target?.dataset?.employeeId
-      if (!assignment || !employeeId) return
-      assignment.employeeIds = (assignment.employeeIds ?? []).filter(id => id !== employeeId)
-      setEmployeeSlotState(assignment, employeeId, null)
-      logAssignmentEvent(assignment, { type: 'reconfirmation_declined', employeeId })
+      const slot = assignment && employeeId ? slotForEmployee(assignment, employeeId) : null
+      if (!slot) return
+      // Samme plass åpnes igjen: identiteten består, historikken peker på den.
+      slot.employeeId = null
+      slot.status = 'open'
+      syncAssignmentStaffing(assignment)
+      logAssignmentEvent(assignment, { type: 'reconfirmation_declined', employeeId, slotId: slot.id })
       persist(); render(); showToast('crud.updated', { name: record('employees', employeeId)?.name ?? '' })
     },
     'cancel-assignment': () => {
@@ -8719,9 +8862,13 @@ function actionHandlers(target = null) {
       const assignment = record('assignments', state.workerAction?.assignmentId)
       const employeeId = state.workerAction?.employeeId
       if (!assignment || !employeeId) return
-      assignment.employeeIds = (assignment.employeeIds ?? []).filter(id => id !== employeeId)
-      setEmployeeSlotState(assignment, employeeId, null)
-      logAssignmentEvent(assignment, { type: 'employee_removed', employeeId })
+      const slot = slotForEmployee(assignment, employeeId)
+      if (!slot) return
+      // Fjerning åpner den samme plassen - ingen ny plass, ingen historikktap.
+      slot.employeeId = null
+      slot.status = 'open'
+      syncAssignmentStaffing(assignment)
+      logAssignmentEvent(assignment, { type: 'employee_removed', employeeId, slotId: slot.id })
       state.workerAction = null
       persist()
       closeDialog()
@@ -8737,9 +8884,12 @@ function actionHandlers(target = null) {
       if (!assignment || !previousId || !next) return
       // Samme regel som dialogen viser: en overlappende vakt blokkerer byttet.
       if (employeeBusyDuring(next.id, assignment)) { state.formError = 'staffing.replaceBusy'; render(); return }
-      assignment.employeeIds = (assignment.employeeIds ?? []).map(id => (id === previousId ? nextId : id)).filter((id, index, all) => all.indexOf(id) === index)
-      setEmployeeSlotState(assignment, previousId, null)
-      logAssignmentEvent(assignment, { type: 'employee_replaced', employeeId: previousId, newEmployeeId: nextId })
+      const replacedSlot = slotForEmployee(assignment, previousId)
+      if (!replacedSlot) return
+      replacedSlot.employeeId = nextId
+      replacedSlot.status = 'assigned'
+      syncAssignmentStaffing(assignment)
+      logAssignmentEvent(assignment, { type: 'employee_replaced', employeeId: previousId, newEmployeeId: nextId, slotId: replacedSlot.id })
       state.workerAction = null
       persist()
       closeDialog()
@@ -8749,7 +8899,13 @@ function actionHandlers(target = null) {
       const assignment = record('assignments', target?.dataset?.id)
       const employeeId = target?.dataset?.employeeId
       if (!assignment || !record('employees', employeeId)) return
-      if (!assignment.employeeIds?.includes(employeeId)) assignment.employeeIds = [...(assignment.employeeIds ?? []), employeeId]
+      // Direktetildeling fyller en konkret åpen plass (§16).
+      const openSlot = slotForEmployee(assignment, employeeId) ? null : openStaffingSlots(assignment)[0]
+      if (slotForEmployee(assignment, employeeId)) return
+      if (!openSlot) return
+      openSlot.employeeId = employeeId
+      openSlot.status = 'assigned'
+      syncAssignmentStaffing(assignment)
       state.requestRecipients = state.requestRecipients.filter(id => id !== employeeId)
       persist(); render(); showToast('crud.updated', { name: record('employees', employeeId).name })
     },
@@ -9231,6 +9387,12 @@ function crudHandlers(target) {
         state.formError = 'common.required'; render(); return
       }
       const before = creating ? null : record('assignments', state.editingId)
+      // Krymping kan aldri stille slette en bemannet eller historisk plass (§13).
+      if (before) {
+        const desired = Number(state.draft.slots) || 0
+        const occupied = staffingSlotsFor(before).filter(slot => slot.status !== 'open').length
+        if (desired < occupied) { state.formError = 'staffing.cannotShrink'; render(); return }
+      }
       const change = before ? classifyShiftChange(before, entities.assignment.fromDraft(state.draft)) : null
       const staffed = before ? assignmentHasHistory(before) : false
       if (before && staffed && change.changed && !state.changeConfirmed) {
@@ -9243,6 +9405,14 @@ function crudHandlers(target) {
       state.changeConfirmed = false
       state.changePreview = null
       const saved = commit(entities.assignment.collection, entities.assignment.prefix, entities.assignment.nameField, entities.assignment.fromDraft)
+      if (saved) {
+        // Plassene følger «Antall ansatte» og dialogens tildelinger:
+        // eksisterende id-er er urørt.
+        reconcileSlotCount(saved, Number(saved.slots) || 0)
+        reconcileSlotEmployees(saved)
+        syncAssignmentStaffing(saved)
+        persist()
+      }
       if (saved && before && staffed && change.changed) {
         const affected = (saved.employeeIds ?? []).filter(id => employeeSlotState(saved, id) !== 'cancelled')
         logAssignmentEvent(saved, {
@@ -9254,7 +9424,7 @@ function crudHandlers(target) {
         if (change.material) {
           for (const employeeId of affected) {
             setEmployeeSlotState(saved, employeeId, 'pending_reconfirmation')
-            logAssignmentEvent(saved, { type: 'reconfirmation_requested', employeeId })
+            logAssignmentEvent(saved, { type: 'reconfirmation_requested', employeeId, slotId: slotForEmployee(saved, employeeId)?.id })
           }
         }
         persist()
@@ -9273,7 +9443,9 @@ function crudHandlers(target) {
       assignment.cancelReason = reason
       assignment.cancelComment = String(state.draft.cancelComment ?? '').trim()
       assignment.cancelledAt = new Date().toISOString()
-      for (const employeeId of affected) setEmployeeSlotState(assignment, employeeId, 'cancelled')
+      // Alle plassene lukkes med identiteten i behold - ingen åpnes (§20).
+      for (const slot of staffingSlotsFor(assignment)) slot.status = 'cancelled'
+      syncAssignmentStaffing(assignment)
       logAssignmentEvent(assignment, { type: 'cancelled', reason, comment: assignment.cancelComment, notified: affected })
       persist()
       closeDialog()
@@ -9823,6 +9995,8 @@ window.__workmaticPreview = {
   migrateSchemeRules: data => migrateSchemeRulesToPaySystems(data),
   migrateCompensations: data => migrateCompensationsToPaySystems(data),
   classifyShiftChange: (before, after) => JSON.parse(JSON.stringify(classifyShiftChange(before, after))),
+  staffingSlots: assignmentId => JSON.parse(JSON.stringify(staffingSlotsFor(record('assignments', assignmentId)))),
+  openSlots: assignmentId => JSON.parse(JSON.stringify(openStaffingSlots(record('assignments', assignmentId)))),
   premiumRulesFor: (paySystemId, date = null) => premiumRulesForPaySystem(paySystemId, date),
   overtimeRulesFor: (paySystemId, date = null) => overtimeRulesForPaySystem(paySystemId, date),
   overtimeRuleFor: (paySystemId, period, date = null) => overtimeFor(paySystemId, period, date),
