@@ -2550,6 +2550,7 @@ const copy = {
     'audit.to': 'Til dato',
     'audit.empty': 'Ingen hendelser i utvalget',
     'audit.system': 'System',
+    'recruitment.positionsMenu': 'Stillinger',
     'common.archived': 'Arkivert',
     'common.nextDay': '+1 dag',
     'crud.archive': 'Arkiver',
@@ -3517,6 +3518,7 @@ copy.en = {
   'audit.to': 'To date',
   'audit.empty': 'No events in the selection',
   'audit.system': 'System',
+  'recruitment.positionsMenu': 'Positions',
   'common.archived': 'Archived',
   'common.nextDay': '+1 day',
   'crud.archive': 'Archive',
@@ -5697,12 +5699,15 @@ const routes = {
 // (+ Innstillinger i egen seksjon). Avdelinger og kontaktpersoner nås gjennom
 // klientkonteksten; kandidater/rekruttering/meldinger er demo-flater som
 // fortsatt har ruter (bokmerker virker), men ikke egne toppnivåpunkter.
+// Rekruttering var skjult - aldri slettet: modulen er tilbake som toppnivå med
+// Stillinger (eksisterende recruitment-rute) og Kandidater som undermeny.
 const menu = [
   ['dashboard', 'home'], ['clients', 'users'], ['employees', 'id-card'],
   // Vakter er hovedinngangen for operativ planlegging: Vaktoversikt (den interne
   // assignment-modellen), Vaktmaler og Timelister. Bemanning/Oppdrag/Jobber er
   // ikke egne moduler; gamle ruter sendes til Vaktoversikt.
   ['shifts', 'calendar'],
+  ['recruitment', 'user-plus'],
   ['financial', 'wallet']
 ]
 
@@ -6833,10 +6838,11 @@ const shiftRoutes = new Set(['shifts', 'staffing', 'job-detail', 'timesheets', '
 
 function renderSidebar() {
   const primary = menu.map(([route, iconName]) => {
-    const active = route === 'financial' ? financeRoutes.has(state.route) : route === 'shifts' ? shiftRoutes.has(state.route) : state.route === route || state.route === `${route.replace(/s$/, '')}-detail`
+    const active = route === 'financial' ? financeRoutes.has(state.route) : route === 'shifts' ? shiftRoutes.has(state.route) : route === 'recruitment' ? ['recruitment', 'candidates', 'candidate-detail'].includes(state.route) : state.route === route || state.route === `${route.replace(/s$/, '')}-detail`
     const submenu = route === 'financial'
       ? `<ul class="nav-list nav-submenu">${financeMenu.map(([target, labelKey]) => `<li><a class="nav-link ${state.route === target ? 'is-active' : ''}" href="#${target}" data-route="${target}">${t(labelKey)}</a></li>`).join('')}</ul>`
-      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>` : ''
+      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>`
+      : route === 'recruitment' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'recruitment' ? 'is-active' : ''}" href="#recruitment" data-route="recruitment">${t('recruitment.positionsMenu')}</a></li><li><a class="nav-link ${state.route === 'candidates' || state.route === 'candidate-detail' ? 'is-active' : ''}" href="#candidates" data-route="candidates">${t('nav.candidates')}</a></li></ul>` : ''
     return `<li><a class="nav-link ${active ? 'is-active' : ''}" href="#${route}" data-route="${route}"><span class="nav-icon">${icon(iconName)}</span><span>${t(`nav.${route}`)}</span></a>${submenu}</li>`
   }).join('')
   // Revisjonsloggen er en egen, lesbar flate; resten av punktene er demo-stubber.
