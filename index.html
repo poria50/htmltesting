@@ -2241,7 +2241,7 @@ const copy = {
     'page.contacts.desc': 'Kontaktpersoner hos klientene',
     'page.candidates.desc': 'Kandidatbase og konvertering til ansatt',
     'page.employees.desc': 'Ansatte, lønn, dokumenter og personaldata',
-    'page.staffing.desc': 'Oppdrag, vakter og bemanningsbehov',
+    'page.staffing.desc': 'Opprett og planlegg konkrete vakter',
     'page.recruitment.desc': 'Stillinger, kandidater og intervjuer',
     'page.messages.desc': 'Samtaler og oppfølging',
     'page.financial.desc': 'Lønnssystem, kompensasjon, fakturagrunnlag og lønnsgrunnlag',
@@ -2320,7 +2320,7 @@ const copy = {
     'clients.tabs.compensation': 'Lønn og regler',
     'clients.tabs.contacts': 'Kontaktpersoner',
     'clients.tabs.departments': 'Avdelinger',
-    'clients.tabs.assignments': 'Oppdrag',
+    'clients.tabs.assignments': 'Vakter',
     'clients.contactPerson': 'Kontaktperson',
     // Kontaktpersonen velges blant klientens kontakter, og nye legges inn fra
     // Kontaktpersoner-fanen på klienten.
@@ -2653,17 +2653,17 @@ const copy = {
     // «Antall ansatte» er bemanningsbehovet på oppdraget, ikke antall
     // vaktforekomster, så de ledige plassene heter plasser og ikke vakter.
     'staffing.open': 'Ledige plasser',
-    'staffing.assignmentId': 'Oppdrags-ID',
+    'staffing.assignmentId': 'Vakt-ID',
     'staffing.generated': 'Genereres automatisk',
     'staffing.assignEmployee': 'Tildel ansatt',
     'staffing.searchEmployee': 'Søk etter ansatt',
     'staffing.noEmployeesFound': 'Ingen ansatte funnet',
     'staffing.unassigned': 'Ikke tildelt',
-    'staffing.detail': 'Oppdragsdetaljer',
+    'staffing.detail': 'Vaktdetaljer',
     'staffing.schedule': 'Vaktplan',
     'staffing.team': 'Tildelte ansatte',
     'staffing.manageTeam': 'Tildel ansatte',
-    'staffing.basics': 'Oppdragsinformasjon',
+    'staffing.basics': 'Vaktinformasjon',
     'staffing.roleRequirements': 'Rollekrav',
     // Krav og preferanser: kjønn og utdanning. Rolle og kvalifikasjon hører til
     // oppdragsinformasjonen, siden tariffoppslaget bruker dem.
@@ -2701,28 +2701,28 @@ const copy = {
     // oppdrag og historiske data står.
     'staffing.editWorker': 'Rediger tildeling',
     'staffing.replaceEmployee': 'Erstatt ansatt',
-    'staffing.removeFromAssignment': 'Fjern fra oppdrag',
-    'staffing.removeTitle': 'Fjern ansatt fra oppdrag?',
-    'staffing.removeBody': 'Denne ansatte vil ikke lenger være tildelt oppdraget.',
+    'staffing.removeFromAssignment': 'Fjern fra vakt',
+    'staffing.removeTitle': 'Fjern ansatt fra vakt?',
+    'staffing.removeBody': 'Denne ansatte vil ikke lenger være tildelt vakten.',
     'staffing.remove': 'Fjern',
     'staffing.replace': 'Erstatt',
     'staffing.reason': 'Årsak',
     'staffing.currentEmployee': 'Nåværende ansatt',
     'staffing.newEmployee': 'Ny ansatt',
     'staffing.historyKept': 'Registrert arbeid, timelister og lønnsgrunnlag beholdes.',
-    'staffing.hasRegisteredWork': 'Denne ansatte har registrert arbeid på oppdraget.',
+    'staffing.hasRegisteredWork': 'Denne ansatte har registrert arbeid på vakten.',
     'staffing.replaceBusy': 'Den valgte ansatte har en overlappende vakt og kan ikke tildeles.',
-    'staffing.requestBody': 'Hei,\n\nVi har et ledig oppdrag hos {client}.\n\nDato: {date}\nTid: {time}\nAvdeling: {department}\n\nEr du tilgjengelig og interessert?',
-    'staffing.noAvailable': 'Ingen ledige ansatte passer til dette oppdraget.',
+    'staffing.requestBody': 'Hei,\n\nVi har en ledig vakt hos {client}.\n\nDato: {date}\nTid: {time}\nAvdeling: {department}\n\nEr du tilgjengelig og interessert?',
+    'staffing.noAvailable': 'Ingen ledige ansatte passer til denne vakten.',
     'staffing.sendByMessage': 'Send forespørsel som melding',
     'staffing.sendByEmail': 'Send forespørsel på e-post',
     'staffing.requestSent': 'Forespørsel sendt til {count} ansatte i demoen.',
     'staffing.selectRecipients': 'Velg hvem forespørselen skal gå til.',
     'staffing.selected': '{count} valgt',
-    'staffing.payAfterAssignment': 'Lønnsgrunnlaget vises når oppdraget er tildelt.',
+    'staffing.payAfterAssignment': 'Lønnsgrunnlaget vises når vakten er tildelt.',
     'staffing.matchesPreferences': 'Passer preferansene',
     'staffing.educationPreference': 'Utdanning',
-    'staffing.role': 'Rolle på oppdraget',
+    'staffing.role': 'Rolle på vakten',
     'staffing.requiredEducation': 'Påkrevd utdanning',
     'staffing.requiredQualification': 'Påkrevd kvalifikasjon',
     'staffing.requiredCertificates': 'Påkrevde sertifikater',
@@ -2828,7 +2828,7 @@ copy.en = {
   'page.contacts.desc': 'Contact people at client organizations',
   'page.candidates.desc': 'Candidate pool and conversion to employee',
   'page.employees.desc': 'Employees, salary, documents and HR data',
-  'page.staffing.desc': 'Assignments, shifts and staffing needs',
+  'page.staffing.desc': 'Create and plan concrete shifts',
   'page.recruitment.desc': 'Positions, candidates and interviews',
   'page.messages.desc': 'Conversations and follow-up',
   'page.financial.desc': 'Pay system, compensation, invoicing and payroll',
@@ -2870,7 +2870,7 @@ copy.en = {
   'clients.tabs.compensation': 'Pay and rules',
   'clients.tabs.contacts': 'Contacts',
   'clients.tabs.departments': 'Departments',
-  'clients.tabs.assignments': 'Assignments',
+  'clients.tabs.assignments': 'Shifts',
   'clients.contactPerson': 'Contact person',
   'clients.selectContact': "Choose from the client's contacts",
   'clients.noContactsYet': 'This client has no contacts yet. Add one under Contacts.',
@@ -3150,16 +3150,16 @@ copy.en = {
   'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Client notes',
   'staffing.new': 'New shift', 'staffing.client': 'Client', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
-  'staffing.assignmentId': 'Assignment ID',
+  'staffing.assignmentId': 'Shift ID',
   'staffing.generated': 'Generated automatically',
   'staffing.assignEmployee': 'Assign employee',
   'staffing.searchEmployee': 'Search for employee',
   'staffing.noEmployeesFound': 'No employees found',
   'staffing.unassigned': 'Unassigned',
-  'staffing.detail': 'Assignment details', 'staffing.schedule': 'Shift schedule',
+  'staffing.detail': 'Shift details', 'staffing.schedule': 'Shift schedule',
   'staffing.team': 'Assigned employees', 'recruitment.new': 'New position',
   'staffing.manageTeam': 'Assign employees',
-  'staffing.basics': 'Assignment information',
+  'staffing.basics': 'Shift information',
   'staffing.roleRequirements': 'Role requirements',
   'staffing.requirementsPreferences': 'Requirements and preferences',
   'staffing.description': 'Description',
@@ -3191,28 +3191,28 @@ copy.en = {
   'staffing.missingCertificate': 'Missing certificate',
   'staffing.editWorker': 'Edit assignment',
   'staffing.replaceEmployee': 'Replace employee',
-  'staffing.removeFromAssignment': 'Remove from assignment',
-  'staffing.removeTitle': 'Remove employee from assignment?',
-  'staffing.removeBody': 'This employee will no longer be assigned to this assignment.',
+  'staffing.removeFromAssignment': 'Remove from shift',
+  'staffing.removeTitle': 'Remove employee from shift?',
+  'staffing.removeBody': 'This employee will no longer be assigned to this shift.',
   'staffing.remove': 'Remove',
   'staffing.replace': 'Replace',
   'staffing.reason': 'Reason',
   'staffing.currentEmployee': 'Current employee',
   'staffing.newEmployee': 'New employee',
   'staffing.historyKept': 'Registered work, timesheets and payroll data are kept.',
-  'staffing.hasRegisteredWork': 'This employee has registered work on this assignment.',
+  'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
   'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.',
-  'staffing.requestBody': 'Hi,\n\nWe have an available assignment at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
-  'staffing.noAvailable': 'No available employees match this assignment.',
+  'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
+  'staffing.noAvailable': 'No available employees match this shift.',
   'staffing.sendByMessage': 'Send request as message',
   'staffing.sendByEmail': 'Send request by email',
   'staffing.requestSent': 'Request sent to {count} employees in the demo.',
   'staffing.selectRecipients': 'Choose who the request should go to.',
   'staffing.selected': '{count} selected',
-  'staffing.payAfterAssignment': 'The pay basis appears once the assignment is staffed.',
+  'staffing.payAfterAssignment': 'The pay basis appears once the shift is staffed.',
   'staffing.matchesPreferences': 'Matches the preferences',
   'staffing.educationPreference': 'Education',
-  'staffing.role': 'Assignment role',
+  'staffing.role': 'Shift role',
   'staffing.requiredEducation': 'Required education',
   'staffing.requiredQualification': 'Required qualification',
   'staffing.requiredCertificates': 'Required certificates',
@@ -3433,7 +3433,7 @@ const crudCopy = {
     'rel.tariff': 'Lønnssystem',
     'rel.employees': 'Tildelte ansatte',
     'rel.contacts': 'Kontaktpersoner',
-    'rel.assignments': 'Oppdrag',
+    'rel.assignments': 'Vakter',
     'rel.positions': 'Stillinger',
     'rel.candidates': 'Kandidater',
     'rel.none': 'Ingen koblinger ennå.',
@@ -3498,7 +3498,7 @@ const crudCopy = {
     'rel.tariff': 'Pay system',
     'rel.employees': 'Assigned employees',
     'rel.contacts': 'Contact people',
-    'rel.assignments': 'Assignments',
+    'rel.assignments': 'Shifts',
     'rel.positions': 'Positions',
     'rel.candidates': 'Candidates',
     'rel.none': 'No links yet.',
@@ -4380,13 +4380,14 @@ const compCopy = {
 
 const workforceCopy = {
   nb: {
-    'nav.jobs': 'Mine oppdrag',
+    'nav.jobs': 'Mine vakter',
     'nav.shifts': 'Vakter',
     'nav.timesheets': 'Timelister',
     'page.jobs.desc': 'Dine aktive og kommende oppdrag',
     'page.shifts.desc': 'Planlegg vakter og registrer arbeidstid',
     // Vakter-området administrerer ikke lenger konkrete vakter. Overskrift og
     // beskrivelse skal si det området faktisk gjør: vaktmaler og timelister.
+    'shifts.newTitle': 'Nye vakter',
     'shifts.pageTitle': 'Vaktmaler og timelister',
     'shifts.pageDesc': 'Administrer vaktmaler og kontroller registrert arbeidstid.',
     'page.timesheets.desc': 'Kontroller og godkjenn registrert arbeidstid',
@@ -4496,11 +4497,12 @@ const workforceCopy = {
     'reports.approvalStatus': 'Godkjenningsstatus'
   },
   en: {
-    'nav.jobs': 'My jobs',
+  'nav.jobs': 'My shifts',
     'nav.shifts': 'Shifts',
     'nav.timesheets': 'Timesheets',
     'page.jobs.desc': 'Your active and upcoming jobs',
     'page.shifts.desc': 'Plan shifts and register working time',
+  'shifts.newTitle': 'New shifts',
     'shifts.pageTitle': 'Shift templates and timesheets',
     'shifts.pageDesc': 'Manage shift templates and review registered working time.',
     'page.timesheets.desc': 'Review and approve registered working time',
@@ -4625,7 +4627,7 @@ const routes = {
   'candidate-detail': ['candidates.detail', 'page.candidates.desc'],
   employees: ['nav.employees', 'page.employees.desc'],
   'employee-detail': ['employees.detail', 'page.employees.desc'],
-  staffing: ['nav.staffing', 'page.staffing.desc'],
+  staffing: ['shifts.newTitle', 'page.staffing.desc'],
   'job-detail': ['staffing.detail', 'page.staffing.desc'],
   jobs: ['nav.jobs', 'page.jobs.desc'],
   'job-details': ['jobs.detail', 'page.jobs.desc'],
@@ -4654,9 +4656,10 @@ const routes = {
 const menu = [
   ['dashboard', 'home'], ['clients', 'users'], ['departments', 'sitemap'],
   ['contacts', 'link'], ['candidates', 'user'], ['employees', 'id-card'],
-  // «Mine oppdrag» er skjult fra menyen. Ruten og visningen står, slik at
-  // eksisterende lenker og data ikke brytes.
-  ['staffing', 'briefcase'], ['shifts', 'calendar'],
+  // Vakter er hovedinngangen for operativ planlegging: Nye vakter (den interne
+  // assignment-modellen), Vaktmaler og Timelister. Bemanning/Oppdrag/Jobber er
+  // ikke lenger egne moduler; gamle ruter sendes til Nye vakter.
+  ['shifts', 'calendar'],
   ['recruitment', 'user-plus'], ['messages', 'envelope'],
   ['financial', 'wallet']
 ]
@@ -5526,14 +5529,14 @@ const financeMenu = [
 ]
 
 const financeRoutes = new Set(['financial', 'tariff-detail', 'salary-table', 'premiums', 'overtime', 'invoicing', 'payroll', 'simulation', 'calculation', 'versions', 'version-compare'])
-const shiftRoutes = new Set(['shifts', 'timesheets', 'timesheet-review', 'timesheet-day'])
+const shiftRoutes = new Set(['shifts', 'staffing', 'job-detail', 'timesheets', 'timesheet-review', 'timesheet-day'])
 
 function renderSidebar() {
   const primary = menu.map(([route, iconName]) => {
-    const active = route === 'financial' ? financeRoutes.has(state.route) : route === 'shifts' ? shiftRoutes.has(state.route) : state.route === route || state.route === `${route.replace(/s$/, '')}-detail` || (route === 'jobs' && state.route === 'job-details')
+    const active = route === 'financial' ? financeRoutes.has(state.route) : route === 'shifts' ? shiftRoutes.has(state.route) : state.route === route || state.route === `${route.replace(/s$/, '')}-detail`
     const submenu = route === 'financial'
       ? `<ul class="nav-list nav-submenu">${financeMenu.map(([target, labelKey]) => `<li><a class="nav-link ${state.route === target ? 'is-active' : ''}" href="#${target}" data-route="${target}">${t(labelKey)}</a></li>`).join('')}</ul>`
-      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>` : ''
+      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>` : ''
     return `<li><a class="nav-link ${active ? 'is-active' : ''}" href="#${route}" data-route="${route}"><span class="nav-icon">${icon(iconName)}</span><span>${t(`nav.${route}`)}</span></a>${submenu}</li>`
   }).join('')
   const settings = ['general', 'users', 'billing', 'integrations', 'audit'].map(item => `<li><button type="button" class="nav-link" data-route="settings" data-settings="${item}">${t(`nav.${item}`)}</button></li>`).join('')
@@ -7738,7 +7741,9 @@ const renderers = {
 
 // Ordningene finnes ikke lenger som produktflate. En gammel bokmerket URL skal
 // derfor havne på Lønnssystemer, ikke på en tom side.
-const retiredRoutes = { schemes: 'financial', 'scheme-detail': 'financial', compensation: 'financial' }
+// Jobber («Mine oppdrag») var en egen flate over samme assignments; nå er
+// Nye vakter den ene operative inngangen.
+const retiredRoutes = { schemes: 'financial', 'scheme-detail': 'financial', compensation: 'financial', jobs: 'staffing', 'job-details': 'staffing' }
 
 function renderView(route) {
   const target = retiredRoutes[route] ?? route
