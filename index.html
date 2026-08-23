@@ -2293,7 +2293,7 @@ const copy = {
     'dashboard.fillRate': 'Bemanningsgrad',
     'dashboard.newEmployees': 'Nye ansatte',
     'dashboard.utilization': 'Utnyttelsesgrad',
-    'dashboard.byDepartment': 'Ansatte per avdeling',
+    'dashboard.byDepartment': 'Bemanningsstatus',
     'dashboard.gender': 'Kjønnsfordeling',
     'dashboard.age': 'Aldersfordeling',
     'dashboard.schedule': 'Planlagte vakter',
@@ -2675,6 +2675,7 @@ const copy = {
     'staffing.event.request_withdrawn': 'Tilbud trukket tilbake',
     'staffing.event.assignment_confirmed': 'Tildeling bekreftet',
     'staffing.event.direct_assignment': 'Tildelt direkte',
+    'departments.workedHere': 'Ansatte som har jobbet her',
     'staffing.slotLabel': 'Plass {number}',
     'staffing.slotOpen': 'Ledig',
     'staffing.slotAssigned': 'Tildelt',
@@ -2930,7 +2931,7 @@ copy.en = {
   'dashboard.openJobs': 'Open assignments', 'dashboard.candidates': 'Active candidates',
   'dashboard.fillRate': 'Staffing rate', 'dashboard.schedule': 'Scheduled shifts',
   'dashboard.newEmployees': 'New employees', 'dashboard.utilization': 'Utilization rate',
-  'dashboard.byDepartment': 'Employees by department', 'dashboard.gender': 'Gender distribution',
+  'dashboard.byDepartment': 'Staffing status', 'dashboard.gender': 'Gender distribution',
   'dashboard.age': 'Age distribution',
   'dashboard.activity': 'Recent activity', 'dashboard.toggleLoading': 'Show loading',
   'dashboard.shift1': 'Morning shift · Solsiden care center',
@@ -3258,6 +3259,7 @@ copy.en = {
   'staffing.event.request_withdrawn': 'Offer withdrawn',
   'staffing.event.assignment_confirmed': 'Assignment confirmed',
   'staffing.event.direct_assignment': 'Assigned directly',
+  'departments.workedHere': 'Employees who have worked here',
   'staffing.slotLabel': 'Position {number}',
   'staffing.slotOpen': 'Open',
   'staffing.slotAssigned': 'Assigned',
@@ -4869,6 +4871,8 @@ function seedData() {
       { id: 'n2', name: 'Lea Ahmed', firstName: 'Lea', lastName: 'Ahmed', gender: 'form.genderFemale', address: 'Bryggeveien 21, 1337 Bærum', administrativeArea: 'demo.county.akershus', birthDate: '1993-09-24', educationType: 'demo.education.bachelor', educated: true, driverLicense: false, policeCertificateDate: '2026-05-12', availableFullTime: false, availablePartTime: true, profession: 'demo.profession.socialEducator', years: 3, available: '2026-08-15', email: 'lea.ahmed@demo.no', phone: '+47 900 11 333', status: 'pending' },
       { id: 'n3', name: 'Sander Lie', firstName: 'Sander', lastName: 'Lie', gender: 'form.genderMale', address: 'Helsegata 30, 0560 Oslo', administrativeArea: 'demo.county.oslo', birthDate: '1990-01-08', educationType: 'demo.education.skilled', educated: true, driverLicense: true, policeCertificateDate: '2026-04-20', availableFullTime: true, availablePartTime: true, profession: 'demo.profession.healthWorker', years: 7, available: '', email: 'sander.lie@demo.no', phone: '+47 900 11 444', status: 'active' }
     ],
+    // NB: employees[].departmentId er et legacy-felt. Ingen aktiv logikk leser
+    // det: arbeidskonteksten utledes av oppdrag -> bemanningsplasser.
     employees: [
       { id: 'e1', employeeNumber: 'A-1042', name: 'Maja Nilsen', firstName: 'Maja', lastName: 'Nilsen', profession: 'demo.profession.healthWorker', departmentId: 'd1', start: '2022-03-01', employmentStatus: 'active', employmentPercentage: 100, employmentType: 'permanent', birthDate: '1991-04-14', email: 'maja.nilsen@demo.no', phone: '+47 900 12 345', address: 'Parkveien 18, 0350 Oslo', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: true, certifications: ['medication', 'first_aid'], competenceTags: ['environmental_work', 'documentation'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2018-08-01', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', seniorityNotes: 'Relevant praksis er kontrollert.', field: 'demo.field.nursing', kinName: 'Lars Nilsen', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 333', availability: ['day', 'evening', 'weekend'], status: 'active', salaryHistory: [{ annualSalary: 620000, annualHoursBasis: 1860, tariffId: 't1', tariffVersionId: 'v1', salaryCellRef: 'historical-bachelor-8', effectiveDate: '2026-06-05', payrollRunDate: '2026-06-05', archived: true }] },
       { id: 'e2', employeeNumber: 'A-1088', name: 'Jonas Berg', firstName: 'Jonas', lastName: 'Berg', profession: 'demo.profession.healthWorker', departmentId: 'd2', start: '2025-06-15', employmentStatus: 'active', employmentPercentage: 80, employmentType: 'temporary', birthDate: '1988-11-02', email: 'jonas.berg@demo.no', phone: '+47 900 12 346', address: 'Fjordgata 4, 1337 Bærum', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: false, certifications: ['first_aid'], competenceTags: ['environmental_work'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '', seniorityApproved: false, seniorityApprovedBy: '', seniorityApprovalDate: '', field: 'demo.field.nursing', kinName: 'Siri Berg', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 444', availability: ['day', 'evening'], status: 'active', salaryHistory: [] },
@@ -5278,6 +5282,7 @@ const relationCleanup = {
   },
   departments: id => {
     const links = []
+    // Legacy-feltet nullstilles for kompatibilitet; ingen aktiv logikk leser det.
     collection('employees').filter(item => item.departmentId === id).forEach(item => { item.departmentId = null; links.push('nav.employees') })
     return links
   },
@@ -5319,7 +5324,7 @@ const relationPreview = {
     collection('assignments').some(item => item.clientId === id) && 'rel.assignments',
     collection('positions').some(item => item.clientId === id) && 'rel.positions'
   ],
-  departments: id => [collection('employees').some(item => item.departmentId === id) && 'nav.employees'],
+  departments: id => [collection('assignments').some(item => item.departmentId === id) && 'rel.assignments'],
   tariffs: id => [collection('employees').some(item => item.tariffId === id) && 'nav.employees'],
   employees: id => [collection('assignments').some(item => item.employeeIds?.includes(id)) && 'rel.assignments'],
   candidates: id => [collection('positions').some(item => item.candidateIds?.includes(id)) && 'rel.positions']
@@ -5782,9 +5787,26 @@ function renderDashboard() {
   ]
   const chart = (title, content, extra = '') => `<article class="card chart-card ${extra}"><h2>${title}</h2>${content}</article>`
   const donut = `<div class="donut-row"><div class="donut-chart" aria-hidden="true"></div><dl><div><dt>${t('dashboard.new')}</dt><dd>6</dd></div><div><dt>${t('dashboard.total')}</dt><dd>84</dd></div></dl></div>`
-  const byDepartment = collection('departments').map(item => ({ name: item.name, count: collection('employees').filter(employee => employee.departmentId === item.id).length }))
-  const peak = Math.max(1, ...byDepartment.map(item => item.count))
-  const departments = `<div class="bar-chart">${byDepartment.map(item => `<div><span>${lab(item.name)}</span><i style="--bar:${Math.round((item.count / peak) * 100)}%"></i><strong>${item.count}</strong></div>`).join('')}</div>`
+  // Operativ bemanningsstatus, utledet fra de kanoniske bemanningsplassene -
+  // aldri fra en permanent avdelingskobling på den ansatte.
+  const slotTallies = { open: 0, requested: 0, awaiting: 0, assigned: 0 }
+  collection('assignments').forEach(item => {
+    if (item.status === 'cancelled') return
+    for (const slot of item.staffingSlots ?? []) {
+      if (slot.status === 'open') slotTallies.open += 1
+      else if (slot.status === 'requested') slotTallies.requested += 1
+      else if (slot.status === 'awaiting_confirmation') slotTallies.awaiting += 1
+      else if (slot.status !== 'cancelled') slotTallies.assigned += 1
+    }
+  })
+  const staffingBars = [
+    ['staffing.slotOpen', slotTallies.open],
+    ['staffing.awaitingResponse', slotTallies.requested],
+    ['staffing.awaitingConfirmation', slotTallies.awaiting],
+    ['staffing.slotAssigned', slotTallies.assigned]
+  ]
+  const peak = Math.max(1, ...staffingBars.map(([, count]) => count))
+  const departments = `<div class="bar-chart">${staffingBars.map(([key, count]) => `<div><span>${t(key)}</span><i style="--bar:${Math.round((count / peak) * 100)}%"></i><strong>${count}</strong></div>`).join('')}</div>`
   const gender = `<div class="donut-row"><div class="donut-chart gender" aria-hidden="true"></div><dl><div><dt>${t('dashboard.women')}</dt><dd>${formatPercent(68, 0)}</dd></div><div><dt>${t('dashboard.men')}</dt><dd>${formatPercent(32, 0)}</dd></div></dl></div>`
   const age = `<div class="mini-columns">${[34, 62, 88, 70, 42].map((value, i) => `<div><i style="--column:${value}%"></i><span>${['20–29', '30–39', '40–49', '50–59', '60+'][i]}</span></div>`).join('')}</div>`
   const jobs = `<div class="line-chart" aria-hidden="true"><span style="--point:58%"></span><span style="--point:35%"></span><span style="--point:68%"></span><span style="--point:25%"></span><span style="--point:46%"></span></div><ul class="compact-jobs">${['dashboard.shift1', 'dashboard.shift2'].map(key => `<li>${t(key)}</li>`).join('')}</ul>`
@@ -5935,11 +5957,15 @@ function renderDepartmentDetail() {
   if (!item) return missingRecord('back-departments')
   const client = record('clients', item.clientId)
   const manager = String(item.manager ?? '').trim()
-  const employees = collection('employees').filter(employee => employee.departmentId === item.id)
+  // Ingen permanent tilhørighet: kortet viser hvem som faktisk har jobbet her
+  // (fra vaktene) og hvem som står på aktive bemanningsplasser nå.
+  const workedHere = departmentWorkHistory(item.id)
+  const activeIds = new Set(departmentAssignments(item.id).filter(a => a.status !== 'cancelled').flatMap(a => (a.staffingSlots ?? []).filter(slot => slot.employeeId && slot.status !== 'cancelled').map(slot => slot.employeeId)))
+  const employees = [...new Map([...workedHere.map(entry => [entry.employee.id, entry.employee]), ...[...activeIds].map(id => [id, record('employees', id)])]).values()].filter(Boolean)
   const actions = `${button('common.back', 'back-departments', 'secondary', 'arrow-left')}<button type="button" class="button" data-action="edit-department" data-id="${item.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-department" data-id="${item.id}">${icon('trash')}${t('common.delete')}</button>`
   const basics = `<article class="card"><h2>${t('departments.basics')}</h2><dl class="detail-list"><div><dt>${t('common.name')}</dt><dd>${lab(item.name)}</dd></div><div><dt>${t('departments.client')}</dt><dd>${client ? relationLink('client-detail', client.id, client.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.address')}</dt><dd>${escapeHtml(departmentAddress(item)) || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.postalCode')}</dt><dd>${escapeHtml(item.postalCode ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.city')}</dt><dd>${escapeHtml(item.city ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.county')}</dt><dd>${item.county ? lab(item.county) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.paySystem')}</dt><dd>${item.paySystemId ? lab(record('tariffs', item.paySystemId)?.name) : `<span class="muted">${t('clients.notConfigured')}</span>`}</dd></div><div><dt>${t('common.status')}</dt><dd>${statusTag(item.status)}</dd></div></dl></article>`
   const contactInfo = `<article class="card"><h2>${t('departments.contactInfo')}</h2><dl class="detail-list"><div><dt>${t('departments.manager')}</dt><dd>${manager ? escapeHtml(manager) : `<span class="muted">${t('departments.noManager')}</span>`}</dd></div><div><dt>${t('departments.phone')}</dt><dd>${departmentPhoneLink(item.managerPhone)}</dd></div><div><dt>${t('departments.departmentPhone')}</dt><dd>${departmentPhoneLink(item.departmentPhone)}</dd></div></dl></article>`
-  const team = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.employees')}</h2><span class="tag info">${employees.length}</span></div>${employees.length ? table(['common.name', 'employees.educationLevel', 'common.status'], employees.map(employee => `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(taxonomy(employee.education))}</td><td>${statusTag(employee.status)}</td></tr>`)) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  const team = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.workedHere')}</h2><span class="tag info">${employees.length}</span></div>${employees.length ? table(['common.name', 'employees.educationLevel', 'common.status'], employees.map(employee => `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(taxonomy(employee.education))}</td><td>${statusTag(employee.status)}</td></tr>`)) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   const tabs = [['department-overview', 'dashboard.overview'], ['department-history', 'departments.employeeHistory'], ['department-assignments', 'clients.tabs.assignments'], ['department-documents', 'clients.tabs.documents']]
   const tab = tabs.some(([name]) => name === state.activeTab) ? state.activeTab : 'department-overview'
   const tabBar = `<div class="tabs">${tabs.map(([name, key]) => `<button class="tab ${tab === name ? 'is-active' : ''}" data-tab="${name}">${t(key)}</button>`).join('')}</div>`
@@ -6040,7 +6066,11 @@ function employeeFactsComplete(employee) {
 function renderEmployeeDetail() {
   const employee = record('employees', state.selected.employee)
   if (!employee) return missingRecord('back-employees')
-  const department = record('departments', employee.departmentId)
+  // Ansatt tilhører ikke en avdeling permanent: konteksten under er avledet av
+  // aktive bemanningsplasser.
+  const currentWork = collection('assignments')
+    .filter(item => item.status !== 'cancelled' && (item.staffingSlots ?? []).some(slot => slot.employeeId === employee.id && slot.status !== 'cancelled'))
+  const department = record('departments', currentWork[0]?.departmentId)
   const onAssignments = collection('assignments').filter(item => item.employeeIds?.includes(employee.id))
   const availability = (employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')
   const fileSlug = employee.name.toLowerCase().split(/\s+/)[0] ?? 'demo'
@@ -7378,8 +7408,10 @@ function economyLines(form) {
     if (!team.length) return
 
     team.forEach((employee, memberIndex) => {
-      const department = record('departments', employee.departmentId)
-      if (departmentFilter.size && !departmentFilter.has(employee.departmentId ?? '')) return
+      // Arbeidskonteksten er kanonisk: avdelingen kommer fra oppdraget, aldri
+      // fra en permanent kobling på den ansatte.
+      const department = record('departments', assignment.departmentId)
+      if (departmentFilter.size && !departmentFilter.has(assignment.departmentId ?? '')) return
 
       // Start på oppdragets første dag, forskjøvet per ansatt, deretter ukentlig
       // til oppdraget er over. MAX_GENERATED_WEEKS er en øvre grense for hvor mange
@@ -9446,7 +9478,7 @@ const entities = {
       qualificationStatus: draft.qualificationStatus ?? 'pending',
       documentationStatus: draft.documentationStatus ?? 'pending',
       employeeNumber: draft.employeeNumber ?? '',
-      departmentId: draft.departmentId || null,
+      // Ingen permanent avdelingskobling: arbeidskonteksten utledes av vaktene.
       start: draft.start ?? '',
       employmentStatus: draft.employmentStatus ?? 'active',
       employmentPercentage: Number(draft.employmentPercentage) || 0,
