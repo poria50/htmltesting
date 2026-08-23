@@ -4919,7 +4919,7 @@ function taxonomy(value) {
   return value ? t(`taxonomy.${value}`) : t('common.none')
 }
 
-let db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))
+let db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))
 let storageWorks = true
 
 // Migrering: en eksperimentell runde flyttet lønnstabell og regler til en egen
@@ -4994,6 +4994,35 @@ function migratePremiumRuleFamilies(data) {
 // Migrering: bemanningsplassene får stabile identiteter. slots forblir
 // brukerens «Antall ansatte»; staffingSlots er de persisterte plassene med
 // deterministiske id-er. Idempotent: finnes plassene, røres ingenting.
+// Bemanningsplassene har rent numeriske id-er (kun sifre). De trekkes fra samme
+// persisterte teller som resten av butikken, så en ny plass kan aldri kollidere
+// med en historisk - telleren går bare fremover.
+function nextNumericSlotId(data = db) {
+  data.meta.nextId = (data.meta.nextId ?? 100) + 1
+  return data.meta.nextId
+}
+
+function isNumericSlotId(value) {
+  return (typeof value === 'number' && Number.isInteger(value) && value > 0) || /^\d+$/.test(String(value ?? ''))
+}
+
+// Migrering: en tidligere runde ga plassene alfanumeriske id-er (slot-a1-1).
+// Kravet er kun sifre. Gyldige numeriske id-er beholdes; alfanumeriske byttes
+// atomisk, og alle hendelsesreferanser (events[].slotId) følger med. Idempotent.
+function migrateNumericSlotIds(data) {
+  for (const assignment of data.assignments ?? []) {
+    for (const slot of assignment.staffingSlots ?? []) {
+      if (isNumericSlotId(slot.id)) continue
+      const previous = slot.id
+      slot.id = nextNumericSlotId(data)
+      for (const event of assignment.events ?? []) {
+        if (event.slotId === previous) event.slotId = slot.id
+      }
+    }
+  }
+  return data
+}
+
 function migrateStaffingSlots(data) {
   for (const assignment of data.assignments ?? []) {
     if (Array.isArray(assignment.staffingSlots)) continue
@@ -5003,7 +5032,7 @@ function migrateStaffingSlots(data) {
       const employeeId = employees[index] ?? null
       const legacyState = employeeId ? assignment.employeeStates?.[employeeId] : null
       return {
-        id: `slot-${assignment.id}-${index + 1}`,
+        id: nextNumericSlotId(data),
         status: assignment.status === 'cancelled' ? 'cancelled' : legacyState ?? (employeeId ? 'assigned' : 'open'),
         employeeId,
         createdAt: assignment.from || assignment.date || ''
@@ -5098,14 +5127,14 @@ function restore() {
     const raw = store.getItem(STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw)
-    if (parsed?.meta?.version === SEED_VERSION) db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed))))
+    if (parsed?.meta?.version === SEED_VERSION) db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed)))))
   } catch {
     storageWorks = false
   }
 }
 
 function resetData() {
-  db = migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))
+  db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))
   const store = storage()
   try {
     store?.removeItem(STORAGE_KEY)
@@ -6524,7 +6553,7 @@ function ensureStaffingSlots(assignment) {
     const employeeId = employees[index] ?? null
     const legacyState = employeeId ? assignment.employeeStates?.[employeeId] : null
     return {
-      id: `slot-${assignment.id}-${index + 1}`,
+      id: nextNumericSlotId(),
       status: assignment.status === 'cancelled' ? 'cancelled' : legacyState ?? (employeeId ? 'assigned' : 'open'),
       employeeId,
       createdAt: assignment.from || assignment.date || ''
@@ -6596,7 +6625,7 @@ function reconcileSlotCount(assignment, desired) {
   const slots = staffingSlotsFor(assignment)
   if (desired > slots.length) {
     for (let i = slots.length; i < desired; i += 1) {
-      slots.push({ id: nextId('slot'), status: 'open', employeeId: null, createdAt: assignment.date || '' })
+      slots.push({ id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: assignment.date || '' })
     }
     return { ok: true }
   }
@@ -9994,6 +10023,7 @@ window.__workmaticPreview = {
   },
   migrateSchemeRules: data => migrateSchemeRulesToPaySystems(data),
   migrateCompensations: data => migrateCompensationsToPaySystems(data),
+  migrateNumericSlotIds: data => migrateNumericSlotIds(data),
   classifyShiftChange: (before, after) => JSON.parse(JSON.stringify(classifyShiftChange(before, after))),
   staffingSlots: assignmentId => JSON.parse(JSON.stringify(staffingSlotsFor(record('assignments', assignmentId)))),
   openSlots: assignmentId => JSON.parse(JSON.stringify(openStaffingSlots(record('assignments', assignmentId)))),
