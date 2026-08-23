@@ -2383,6 +2383,21 @@ button.stat-card.stat-action:hover {
   font: inherit;
 }
 
+/* Finn ansatt: fakta/blokkeringer/advarsler i klartekst. */
+.match-row .file-name span {
+  display: block;
+}
+
+.match-line {
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 12px;
+}
+
+.match-ok { color: var(--primary-strong); }
+.match-block { color: var(--danger); }
+.match-warn { color: #b45309; }
+
 </style>
   </head>
   <body>
@@ -2556,6 +2571,25 @@ const copy = {
     'invoicing.selectClientFirst': 'Velg en klient for å filtrere på avdeling.',
     'invoicing.noDepartments': 'Denne klienten har ingen aktive avdelinger.',
     'invoicing.emptyFiltered': 'Ingen fakturagrunnlag i valgt periode og filter.',
+    'match.find': 'Finn ansatt',
+    'match.search': 'Søk ansatt',
+    'match.onlyEligible': 'Vis kun valgbare',
+    'match.onlyAvailable': 'Vis kun tilgjengelige',
+    'match.notSelectable': 'Kan ikke velges',
+    'match.inactive': 'Ansatt er ikke aktiv',
+    'match.overlap': 'Har overlappende vakt',
+    'match.noOverlap': 'Ingen overlapp',
+    'match.sameShift': 'Allerede tildelt denne vakten',
+    'match.sick': 'Registrert syk i denne perioden',
+    'match.partialSick': 'Delvis sykefravær registrert - må vurderes',
+    'match.requirementsMet': 'Krav oppfylt',
+    'match.missingQualifications': 'Mangler påkrevde kvalifikasjoner',
+    'match.availabilityUnknown': 'Tilgjengelighet ikke registrert',
+    'match.departmentShifts': 'tidligere vakter i avdelingen',
+    'match.clientShifts': 'tidligere vakter hos klienten',
+    'match.noDepartmentExperience': 'Ingen tidligere vakter i avdelingen',
+    'match.noClientExperience': 'Ingen tidligere vakter hos klienten',
+    'match.lastWorked': 'Sist jobbet',
     'common.archived': 'Arkivert',
     'common.nextDay': '+1 dag',
     'crud.archive': 'Arkiver',
@@ -3527,6 +3561,25 @@ copy.en = {
   'invoicing.selectClientFirst': 'Select a client to filter by department.',
   'invoicing.noDepartments': 'This client has no active departments.',
   'invoicing.emptyFiltered': 'No invoice basis for the selected period and filters.',
+  'match.find': 'Find employee',
+  'match.search': 'Search employee',
+  'match.onlyEligible': 'Show only selectable',
+  'match.onlyAvailable': 'Show only available',
+  'match.notSelectable': 'Cannot be selected',
+  'match.inactive': 'Employee is not active',
+  'match.overlap': 'Has an overlapping shift',
+  'match.noOverlap': 'No overlap',
+  'match.sameShift': 'Already assigned to this shift',
+  'match.sick': 'Registered sick in this period',
+  'match.partialSick': 'Partial sick leave registered - needs review',
+  'match.requirementsMet': 'Requirements met',
+  'match.missingQualifications': 'Missing mandatory qualifications',
+  'match.availabilityUnknown': 'Availability not registered',
+  'match.departmentShifts': 'previous shifts in this department',
+  'match.clientShifts': 'previous shifts for this client',
+  'match.noDepartmentExperience': 'No previous shifts in this department',
+  'match.noClientExperience': 'No previous shifts for this client',
+  'match.lastWorked': 'Last worked',
   'common.archived': 'Archived',
   'common.nextDay': '+1 day',
   'crud.archive': 'Archive',
@@ -7480,7 +7533,8 @@ function renderJobDetail() {
     let slotActions = ''
     if (assignment.status !== 'cancelled') {
       if (slot.status === 'open') {
-        slotActions = `<button type="button" class="button ghost small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.sendRequest')}</button>`
+        const matchable = shiftOperationalStatus(assignment) === 'open'
+        slotActions = `${matchable ? `<button type="button" class="button small" data-action="open-match" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('match.find')}</button>` : ''}<button type="button" class="button ghost small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.sendRequest')}</button>`
       }
       if (slot.status === 'requested' && active) {
         const candidate = record('employees', active.employeeId)
@@ -8268,6 +8322,111 @@ function sickLine(record, employee, assignment, hours, rate, amount, workedHours
   }
 }
 
+// === Finn ansatt: derivert beslutningsstøtte for én åpen bemanningsplass ===
+// Ingen score, ingen kandidatmotor, ingen persistert match (§4-§5, §47): alt
+// utledes ved rendering fra de kanoniske kildene, og handlingene gjenbruker
+// eksisterende Tildel direkte / Send forespørsel (§26-§27). Brukeren velger
+// alltid selv - systemet tildeler aldri automatisk (§43).
+
+// Erfaringsbeviset (§39-§40): godkjente kanoniske timelister (snapshotene) og
+// den historiske vaktlisten - aldri forespørsler, avslag eller kanselleringer,
+// og aldri en permanent employee.departmentId (§17, §44).
+function employeeWorkEvidence() {
+  const byEmployee = new Map()
+  const entry = (employeeId, clientId, departmentId, date) => {
+    const bucket = byEmployee.get(employeeId) ?? { clients: new Map(), departments: new Map() }
+    if (clientId) {
+      const client = bucket.clients.get(clientId) ?? { count: 0, last: '' }
+      client.count += 1
+      if (date > client.last) client.last = date
+      bucket.clients.set(clientId, client)
+    }
+    if (departmentId) {
+      const department = bucket.departments.get(departmentId) ?? { count: 0, last: '' }
+      department.count += 1
+      if (date > department.last) department.last = date
+      bucket.departments.set(departmentId, department)
+    }
+    byEmployee.set(employeeId, bucket)
+  }
+  for (const { snapshot } of approvedWorkTimesheets()) {
+    entry(snapshot.employeeId, snapshot.clientId, snapshot.departmentId, snapshot.plannedDate ?? '')
+  }
+  for (const shift of collection('shifts')) {
+    const assignment = record('assignments', shift.assignmentId || record('jobs', shift.jobId)?.assignmentId)
+    if (!assignment || !shift.employeeId) continue
+    entry(shift.employeeId, assignment.clientId, assignment.departmentId, shift.date ?? '')
+  }
+  return byEmployee
+}
+
+// Sykefravær som overlapper vaktens fysiske periode (også medleverdøgn).
+function sickLeavesOverlappingShift(employeeId, assignment) {
+  const startIso = assignment.date
+  const endIso = (shiftEndTimestamp(assignment) ?? `${assignment.date}T00:00`).slice(0, 10)
+  if (!startIso) return []
+  return sickLeavesCollection().filter(item => item.employeeId === employeeId
+    && item.validityStatus !== 'invalid'
+    && item.startDate <= endIso && item.endDate >= startIso)
+}
+
+// Én ansatt mot én konkret plass (§3-§4). Harde blokkeringer og informasjon
+// holdes strengt adskilt (§6): preferanser blir aldri stille blokkeringer.
+function employeeMatchForSlot(employee, assignment, slot, evidence) {
+  const blockers = []
+  const warnings = []
+  const facts = []
+  if (employee.status !== 'active') blockers.push('match.inactive')
+  const overlap = employeeOverlappingAssignment(employee.id, assignment)
+  const busy = employeeBusyDuring(employee.id, assignment)
+  if (overlap || busy) blockers.push('match.overlap')
+  else facts.push('match.noOverlap')
+  // Allerede aktiv på en annen plass på SAMME vakt (§9).
+  if (staffingSlotsFor(assignment).some(item => String(item.id) !== String(slot.id) && item.employeeId === employee.id && item.status !== 'cancelled')) {
+    blockers.push('match.sameShift')
+  }
+  const sickLeaves = sickLeavesOverlappingShift(employee.id, assignment)
+  if (sickLeaves.some(item => Number(item.absencePercent) >= 100)) blockers.push('match.sick')
+  else if (sickLeaves.length) warnings.push('match.partialSick')
+  const qualification = qualificationFor(employee, assignment)
+  if (!qualification.qualified) blockers.push('match.missingQualifications')
+  else facts.push('match.requirementsMet')
+  // Tilgjengelighet: eksisterende modell - registrert liste er et faktum,
+  // tom liste er «ikke registrert» (informasjon, aldri blokkering) (§10).
+  if (!(employee.availability ?? []).length) warnings.push('match.availabilityUnknown')
+  const record_ = evidence.get(employee.id) ?? { clients: new Map(), departments: new Map() }
+  const client = record_.clients.get(assignment.clientId) ?? { count: 0, last: '' }
+  const department = record_.departments.get(assignment.departmentId) ?? { count: 0, last: '' }
+  return {
+    employee,
+    eligible: blockers.length === 0,
+    blockers,
+    warnings,
+    facts,
+    qualificationBlockers: qualification.blockers,
+    available: !overlap && !busy,
+    clientExperienceCount: client.count,
+    departmentExperienceCount: department.count,
+    lastWorkedAtClient: client.last || null,
+    lastWorkedAtDepartment: department.last || null
+  }
+}
+
+// Sorteringen er dokumentert og deterministisk (§21) - ingen vektet score:
+// 1) valgbare før blokkerte, 2) tilgjengelige før ukjent tilgjengelighet,
+// 3) avdelingserfaring synkende, 4) klienterfaring synkende, 5) navn alfabetisk.
+function matchCandidatesForSlot(assignment, slot) {
+  const evidence = employeeWorkEvidence()
+  return collection('employees')
+    .filter(employee => employee.status !== 'archived')
+    .map(employee => employeeMatchForSlot(employee, assignment, slot, evidence))
+    .sort((a, b) => Number(b.eligible) - Number(a.eligible)
+      || Number(b.available) - Number(a.available)
+      || b.departmentExperienceCount - a.departmentExperienceCount
+      || b.clientExperienceCount - a.clientExperienceCount
+      || a.employee.name.localeCompare(b.employee.name))
+}
+
 // Lettvekts serieoversikt på vaktdetaljen (§22): datoer, status og bemanning
 // per vakt, med lenke - ingen egen planleggingsmodul. Sammendraget er avledet;
 // serien har aldri en egen status (§59).
@@ -8348,14 +8507,31 @@ function finalAssignmentBlocker(employee, assignment) {
   return null
 }
 
-function employeeAssignedElsewhereDuring(employeeId, assignment) {
-  if (!assignment.date) return false
-  const target = timeWindow(assignment.date, assignment.startTime, assignment.endTime)
-  return collection('assignments').some(item => {
+// Vaktens fysiske vindu som ISO-tidsstempler: shiftEndTimestamp forstår både
+// midnattskryssing (+1 dag) og medleverens flerdøgnsperiode (§8, §36) - så
+// dobbeltbookingsjekken måler ekte fysisk tilstedeværelse, aldri betalte timer.
+function assignmentTimeWindowIso(assignment) {
+  if (!assignment?.date || !assignment?.startTime) return null
+  const to = shiftEndTimestamp(assignment)
+  if (!to) return null
+  return { from: `${assignment.date}T${assignment.startTime}`, to }
+}
+
+// Den konkrete overlappende vakten (eller null) - delt av matching og den
+// endelige revalideringen, så det aldri finnes to overlappsmotorer (§28, §76).
+function employeeOverlappingAssignment(employeeId, assignment) {
+  const target = assignmentTimeWindowIso(assignment)
+  if (!target) return null
+  return collection('assignments').find(item => {
     if (item.id === assignment.id || item.status === 'cancelled' || !item.date) return false
     if (!activeEmployeeIdsForAssignment(item).includes(employeeId)) return false
-    return windowsOverlap(timeWindow(item.date, item.startTime, item.endTime), target)
-  })
+    const window = assignmentTimeWindowIso(item)
+    return window && window.from < target.to && target.from < window.to
+  }) ?? null
+}
+
+function employeeAssignedElsewhereDuring(employeeId, assignment) {
+  return Boolean(employeeOverlappingAssignment(employeeId, assignment))
 }
 
 function slotForEmployee(assignment, employeeId) {
@@ -11050,6 +11226,44 @@ function slotFunctionDialog() {
   return modalShell(t('functions.changeAction'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'small')
 }
 
+// Finn ansatt (§2, §24-§25): beslutningsstøtte for én åpen plass. Fakta,
+// blokkeringer og advarsler i klartekst - aldri en prosent, score eller
+// AI-anbefaling (§5, §69). Handlingene gjenbruker de eksisterende flytene.
+function matchEmployeesDialog() {
+  const assignment = record('assignments', state.slotAction?.assignmentId)
+  const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+  if (!assignment || !slot) return ''
+  const query = String(draftValue('matchSearch', '')).trim().toLocaleLowerCase()
+  const onlyEligible = Boolean(draftValue('matchOnlyEligible'))
+  const onlyAvailable = Boolean(draftValue('matchOnlyAvailable'))
+  const candidates = matchCandidatesForSlot(assignment, slot)
+    .filter(match => !query || match.employee.name.toLocaleLowerCase().includes(query))
+    .filter(match => !onlyEligible || match.eligible)
+    .filter(match => !onlyAvailable || match.available)
+  const context = `<p class="field-help">${escapeHtml(assignment.assignmentNumber ?? '')} · ${formatDate(assignment.date)} ${timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)}${slot.functionId ? ` · ${t('functions.label')}: ${escapeHtml(functionName(slot.functionId))}` : ''}</p>`
+  const line = (ok, text) => `<span class="match-line ${ok ? 'match-ok' : 'match-block'}">${ok ? '✓' : '✕'} ${text}</span>`
+  const rows = candidates.map(match => {
+    const employee = match.employee
+    const reasons = [
+      ...match.blockers.map(key => line(false, key === 'match.missingQualifications' && match.qualificationBlockers.length ? `${t(key)}: ${match.qualificationBlockers.map(escapeHtml).join(', ')}` : t(key))),
+      ...match.facts.map(key => line(true, t(key))),
+      ...match.warnings.map(key => `<span class="match-line match-warn">! ${t(key)}</span>`)
+    ].join('')
+    const experience = [
+      match.departmentExperienceCount ? `${match.departmentExperienceCount} ${t('match.departmentShifts')}${match.lastWorkedAtDepartment ? ` · ${t('match.lastWorked')}: ${formatDate(match.lastWorkedAtDepartment)}` : ''}` : t('match.noDepartmentExperience'),
+      match.clientExperienceCount ? `${match.clientExperienceCount} ${t('match.clientShifts')}` : t('match.noClientExperience')
+    ].map(text => `<span class="muted">${text}</span>`).join('<br>')
+    const actions = match.eligible
+      ? `<button type="button" class="button small" data-action="match-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${employee.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="match-send-request" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button>`
+      : `<span class="tag danger">${t('match.notSelectable')}</span>`
+    return `<div class="file-row match-row"><div class="file-name"><strong>${relationLink('employee-detail', employee.id, employee.name)}</strong><span>${reasons}</span><span>${experience}</span></div><div class="modal-actions">${actions}</div></div>`
+  }).join('')
+  const filters = `<div class="grid cols-2">${bound('matchSearch', t('match.search'))}<div class="form-actions" style="align-items:end">${boundCheckbox('matchOnlyEligible', t('match.onlyEligible'))}${boundCheckbox('matchOnlyAvailable', t('match.onlyAvailable'))}</div></div>`
+  const body = `${formError()}${context}${filters}${rows || `<p class="muted">${t('common.noResults')}</p>`}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"></div>`
+  return modalShell(t('match.find'), t('staffing.slotLabel', { number: '' }).trim(), 'search', body, footer, 'large')
+}
+
 // Sykefravær (§6): registrering med periode, fraværsgrad og notat - og en
 // forhåndsvisning av berørte vakter FØR noe lagres (§56-§57).
 function sickLeaveDialog() {
@@ -11579,6 +11793,7 @@ const dialogs = {
   'slot-function': slotFunctionDialog,
   'function': functionDialog,
   'live-in-profile': liveInProfileDialog,
+  'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
   'sick-leave-detail': sickLeaveDetailDialog,
   'confirm-delete': confirmDeleteDialog,
@@ -11908,6 +12123,34 @@ function actionHandlers(target = null) {
     // === Plass-handlinger: direkte tildeling og prioritert forespørselskø ===
     // Alt identifiseres av den numeriske slot.id. Kansellert vakt er lesbar
     // historie: ingen plass-handling er tillatt der (§42).
+    // Finn ansatt (§2): beslutningsstøtte for én konkret åpen plass. Resultatet
+    // er rådgivende og kan bli foreldet - selve tildelingen går ALLTID gjennom
+    // den eksisterende flyten med full revalidering (§26, §28, §63).
+    'open-match': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      if (!assignment || !slot || assignment.status === 'cancelled' || shiftOperationalStatus(assignment) !== 'open') return
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id }
+      openDialog('match-employees', 'create', { matchSearch: '', matchOnlyEligible: false, matchOnlyAvailable: false })
+    },
+    'match-direct-assign': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      if (!assignment || !slot) return
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id }
+      state.draft.assignEmployeeId = target?.dataset?.employeeId
+      state.draft.slotFunctionId = slot.functionId ? String(slot.functionId) : ''
+      // Samme kanoniske flyt: revalidering, plassidentitet, timeliste, historikk.
+      handleAction('confirm-direct-assign', target)
+    },
+    'match-send-request': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      if (!assignment || !slot) return
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id }
+      // Eksisterende kø-dialog, forhåndsutfylt med den valgte kandidaten (§27).
+      openDialog('slot-request', 'create', { channel: 'email', queue: [target?.dataset?.employeeId].filter(Boolean) })
+    },
     'open-direct-assign': () => {
       const assignment = record('assignments', target?.dataset?.id)
       if (!assignment || assignment.status === 'cancelled') return
@@ -13629,7 +13872,7 @@ function captureReportField(element) {
 // utløse det: et datofelt fyrer change per utfylt segment i Chrome, og en full
 // re-rendring midt i skrivingen river noden ut under markøren. Verdifelter
 // oppdaterer derfor bare kladden; feltet beholder sin egen verdi og fokus.
-const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail'])
+const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees'])
 const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit', 'payMode', 'type'])
 
 function handleDraftFieldChange(name, value) {
@@ -13799,6 +14042,7 @@ window.__workmaticPreview = {
   functions: () => JSON.parse(JSON.stringify(functionsCollection())),
   sickLeaves: () => JSON.parse(JSON.stringify(sickLeavesCollection())),
   reportField: element => captureReportField(element),
+  matchForSlot: (assignmentId, slotId) => JSON.parse(JSON.stringify(matchCandidatesForSlot(record('assignments', assignmentId), slotById(record('assignments', assignmentId), slotId)).map(match => ({ ...match, employee: { id: match.employee.id, name: match.employee.name } })))),
   setSimulationField: (name, value) => { state.simulationForm[name] = value; state.lastSimulation = null; render() },
   compareVersions: (leftId, rightId) => compareVersionValues(record('schemeVersions', leftId), record('schemeVersions', rightId)),
   go: (route, id = null) => navigate(route, id),
