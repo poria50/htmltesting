@@ -2630,6 +2630,24 @@ const copy = {
     'series.tooMany': 'For mange vakter i én opprettelse',
     'series.shrinkBlocked': 'Én eller flere fremtidige vakter kan ikke krympes trygt - ingen ble endret',
     'staffing.event.series_created': 'Opprettet som del av vaktserie',
+    'staffing.event.function_changed': 'Funksjon endret',
+    'functions.title': 'Funksjoner',
+    'functions.label': 'Funksjon',
+    'functions.none': 'Ingen',
+    'functions.new': 'Ny funksjon',
+    'functions.edit': 'Rediger funksjon',
+    'functions.archive': 'Arkiver funksjon',
+    'functions.premium': 'Funksjonstillegg',
+    'functions.fixedShift': 'Fast beløp per vakt',
+    'functions.hourly': 'Beløp per time',
+    'functions.percentage': 'Prosent',
+    'functions.value': 'Verdi',
+    'functions.nameNo': 'Navn (norsk)',
+    'functions.nameEn': 'Navn (engelsk)',
+    'functions.changeAction': 'Endre funksjon',
+    'functions.changeHelp': 'Påvirker endringen lønnen, må den tildelte bekrefte på nytt.',
+    'functions.help': 'Valgfri funksjon på bemanningsplassen, f.eks. Teamleder. Standard er alltid Ingen. Tillegg konfigureres som Funksjonstillegg under lønnssystemets tillegg.',
+    'financial.family.function': 'Funksjonstillegg',
     'common.create': 'Opprett',
     'common.edit': 'Rediger',
     'common.view': 'Vis',
@@ -3497,6 +3515,24 @@ copy.en = {
   'series.tooMany': 'Too many shifts in one creation',
   'series.shrinkBlocked': 'One or more future shifts cannot shrink safely - none were changed',
   'staffing.event.series_created': 'Created as part of a shift series',
+  'staffing.event.function_changed': 'Function changed',
+  'functions.title': 'Functions',
+  'functions.label': 'Function',
+  'functions.none': 'None',
+  'functions.new': 'New function',
+  'functions.edit': 'Edit function',
+  'functions.archive': 'Archive function',
+  'functions.premium': 'Function premium',
+  'functions.fixedShift': 'Fixed amount per shift',
+  'functions.hourly': 'Amount per hour',
+  'functions.percentage': 'Percentage',
+  'functions.value': 'Value',
+  'functions.nameNo': 'Name (Norwegian)',
+  'functions.nameEn': 'Name (English)',
+  'functions.changeAction': 'Change function',
+  'functions.changeHelp': 'If the change affects pay, the assigned employee must reconfirm.',
+  'functions.help': 'Optional function on the staffing slot, e.g. team lead. The default is always None. Premiums are configured as function premiums under the pay system rules.',
+  'financial.family.function': 'Function premium',
   'common.create': 'Create', 'common.edit': 'Edit', 'common.view': 'View', 'common.save': 'Save',
   'common.cancel': 'Cancel', 'common.back': 'Back', 'common.next': 'Next',
   'common.finish': 'Complete demo', 'common.search': 'Search', 'common.filter': 'Filter',
@@ -5995,6 +6031,41 @@ function entityHasHistory(collectionName, id) {
   return false
 }
 
+// === Funksjoner (valgfri funksjon på bemanningsplassen) ===
+// En liten konfigurerbar liste (Teamleder, Vaktansvarlig, ...). Funksjonen bor
+// ALLTID på den konkrete bemanningsplassen (slot.functionId) - aldri permanent
+// på den ansatte, og aldri på vakten. Standard er alltid Ingen (null).
+// Numeriske id-er fra den delte telleren. Brukte funksjoner arkiveres - de
+// hard-slettes aldri, så historiske vakter alltid kan vise navnet sitt.
+function functionsCollection() {
+  if (!Array.isArray(db.functions)) {
+    db.functions = [
+      { id: nextNumericSlotId(), nameNo: 'Teamleder', nameEn: 'Team lead', active: true },
+      { id: nextNumericSlotId(), nameNo: 'Vaktansvarlig', nameEn: 'Shift lead', active: true },
+      { id: nextNumericSlotId(), nameNo: 'Fagansvarlig', nameEn: 'Subject lead', active: true }
+    ]
+    persist()
+  }
+  return db.functions
+}
+
+function functionById(functionId) {
+  if (functionId === null || functionId === undefined || functionId === '') return null
+  return functionsCollection().find(item => String(item.id) === String(functionId)) ?? null
+}
+
+function functionName(functionId) {
+  const item = functionById(functionId)
+  if (!item) return t('functions.none')
+  return state.locale === 'nb' ? item.nameNo : item.nameEn
+}
+
+// Valgbare funksjoner: aktive, pluss en eventuelt arkivert som allerede er
+// valgt (slik at nedtrekket aldri lyver om gjeldende verdi).
+function selectableFunctions(currentId = null) {
+  return functionsCollection().filter(item => item.active || String(item.id) === String(currentId ?? ''))
+}
+
 function archiveRecord(collectionName, id) {
   const item = record(collectionName, id)
   if (!item) return null
@@ -7170,7 +7241,13 @@ function renderJobDetail() {
         slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button>`
       }
     }
-    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions"><span class="tag ${tone}">${t(statusKey)}</span>${slotActions}</div></div>`
+    // Funksjonen hører til plassen: en åpen plass kan stå med funksjon uten
+    // ansatt (§73), og en erstatter arver den til noen endrer den (§72).
+    const functionTag = slot.functionId ? `<span class="tag">${escapeHtml(functionName(slot.functionId))}</span>` : ''
+    const functionAction = assignment.status !== 'cancelled' && slot.status !== 'cancelled'
+      ? `<button type="button" class="button ghost small" data-action="open-slot-function" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('functions.changeAction')}</button>`
+      : ''
+    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions">${functionTag}<span class="tag ${tone}">${t(statusKey)}</span>${slotActions}${functionAction}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
   return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${seriesCard(assignment)}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
@@ -7921,7 +7998,10 @@ function shiftCompensation(shiftInput) {
   if (!resolution.ok) return resolution
   const hours = Math.max(0, shiftDuration(shift) - Math.max(0, Number(shift.breakMinutes) || 0) / 60)
   // Tillegg og overtid kommer fra reglene på lønnssystemet avdelingen har valgt.
-  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate)
+  // Funksjonen leses fra bemanningsplassen (aldri fra den ansatte), slik at
+  // også prognosen viser et eventuelt funksjonstillegg (§28, §39).
+  const slotFunctionId = assignment ? (slotForEmployee(assignment, shift.employeeId)?.functionId ?? null) : null
+  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate, slotFunctionId)
   const overtimeRule = overtimeFor(resolution.tariffId, 'daily', shift.date)
   const overtimeHours = overtimeRule ? Math.max(0, hours - (Number(overtimeRule.threshold) || 0)) : 0
   const overtimeAmount = overtimeRule && overtimeHours
@@ -8273,6 +8353,15 @@ function renderMessages() {
   return `<section class="page">${pageHeading('nav.messages', 'page.messages.desc')}<div class="message-layout"><aside class="inbox"><div class="card-header" style="padding:14px;margin:0"><h2>${t('messages.inbox')}</h2></div><div class="inbox-list">${people.map((person, i) => `<button class="inbox-item ${i === state.selectedMessage ? 'is-active' : ''}" data-message="${i}"><span class="message-person"><strong>${escapeHtml(person[0])}</strong><small>${escapeHtml(person[2])}</small></span><span class="muted">${escapeHtml(person[1])}</span></button>`).join('')}</div></aside><article class="conversation"><div class="conversation-header"><strong>${escapeHtml(selected[0])}</strong></div><div class="conversation-body"><div class="message-bubble">${escapeHtml(selected[1])}</div><div class="message-bubble mine">${t('demo.message.reply')}</div></div><div class="modal-footer"><div class="field" style="flex:1"><input placeholder="${t('messages.placeholder')}"></div>${button('messages.send', 'message-send')}</div></article></div></section>`
 }
 
+
+// Funksjonsadministrasjonen (§11): en liten konfigurerbar liste under
+// Lønnssystemer. Opprett, gi nytt navn, arkiver - brukte funksjoner slettes
+// aldri, så historiske vakter alltid kan vise navnet sitt (§41-§42).
+function functionsCard() {
+  const rows = functionsCollection().map(item => `<tr><td>${escapeHtml(item.nameNo)}${item.active ? '' : ` <span class="tag warning">${t('common.archived')}</span>`}</td><td>${escapeHtml(item.nameEn)}</td><td class="row-actions"><button class="button ghost small" data-action="edit-function" data-id="${item.id}">${t('common.edit')}</button>${item.active ? `<button class="button ghost small danger" data-action="archive-function" data-id="${item.id}">${t('functions.archive')}</button>` : ''}</td></tr>`)
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('functions.title')}</h2><button type="button" class="button secondary small" data-action="create-function">${icon('plus')}${t('functions.new')}</button></div><p class="field-help">${t('functions.help')}</p>${table(['functions.nameNo', 'functions.nameEn', 'common.actions'], rows)}</article>`
+}
+
 function renderFinancial() {
   const visible = filterList('tariffs', ['name', 'area'])
   const rows = visible.map(item => {
@@ -8284,7 +8373,7 @@ function renderFinancial() {
   const actions = `${button('financial.import', 'excel-import', 'secondary', 'file')}${button('financial.create', 'create-tariff', '', 'plus')}`
   const banner = state.tariffBannerVisible ? `<div class="banner"><span>${t('financial.banner')}</span><div class="banner-actions"><span class="demo-badge"><span>${t('app.demo')}</span></span><button class="icon-button" data-action="tariff-dismiss-banner" aria-label="${t('app.close')}">${icon('close')}</button></div></div>` : ''
   const count = status => collection('tariffs').filter(item => item.status === status).length
-  return `<section class="page">${pageHeading('financial.overview', 'page.financial.desc', actions)}${banner}<div class="stats-grid"><article class="stat-card"><span class="stat-label">${t('financial.total')}</span><strong class="stat-value">${collection('tariffs').length}</strong></article><article class="stat-card"><span class="stat-label">${t('financial.tariffs')}</span><strong class="stat-value">${collection('tariffs').length}</strong></article><article class="stat-card"><span class="stat-label">${t('financial.versionCount')}</span><strong class="stat-value">${collection('tariffs').reduce((sum, item) => sum + (item.versions?.length ?? 0), 0)}</strong></article></div>${searchToolbar()}${dataTable('tariffs', ['common.name', 'financial.area', 'financial.version', 'financial.annualHoursBasis', 'financial.effective', 'financial.usedBy', 'common.actions'], rows, collection('tariffs').length)}</section>`
+  return `<section class="page">${pageHeading('financial.overview', 'page.financial.desc', actions)}${banner}<div class="stats-grid"><article class="stat-card"><span class="stat-label">${t('financial.total')}</span><strong class="stat-value">${collection('tariffs').length}</strong></article><article class="stat-card"><span class="stat-label">${t('financial.tariffs')}</span><strong class="stat-value">${collection('tariffs').length}</strong></article><article class="stat-card"><span class="stat-label">${t('financial.versionCount')}</span><strong class="stat-value">${collection('tariffs').reduce((sum, item) => sum + (item.versions?.length ?? 0), 0)}</strong></article></div>${searchToolbar()}${dataTable('tariffs', ['common.name', 'financial.area', 'financial.version', 'financial.annualHoursBasis', 'financial.effective', 'financial.usedBy', 'common.actions'], rows, collection('tariffs').length)}${functionsCard()}</section>`
 }
 
 function renderTariffDetail() {
@@ -8547,11 +8636,26 @@ function medleverMatch(rule, start, shiftHours, rate) {
   return { units: shiftHours, amount: shiftHours * value }
 }
 
-function premiumsFor(paySystemId, iso, start, shiftHours, rate) {
+function premiumsFor(paySystemId, iso, start, shiftHours, rate, functionId = null) {
   const rules = premiumRulesForPaySystem(paySystemId, iso)
   const matches = rules
     .map(rule => {
       const family = rule.family || (rule.type === 'holiday' ? 'date' : 'time')
+      // Funksjonstillegg (§16-§24): bare et vanlig tillegg i samme motor.
+      // Ingen funksjon på plassen => null tillegg, selv med konfigurert regel;
+      // ingen matchende regel => null tillegg, aldri et oppfunnet beløp.
+      // Prosentgrunnlaget er DOKUMENTERT: grunnlønn for de betalte timene
+      // (sats × timer), FØR helligdag, overtid og andre tillegg (§21).
+      if (family === 'function') {
+        if (functionId === null || functionId === undefined || String(rule.functionId) !== String(functionId)) return null
+        const value = Number(rule.amount) || 0
+        const amount = rule.method === 'percentage' ? shiftHours * rate * (value / 100)
+          : rule.method === 'hourly' ? shiftHours * value
+          : value
+        if (amount <= 0) return null
+        // fixed_shift er et flatt beløp per vakt - aldri multiplisert med timer.
+        return { rule, hours: rule.method === 'fixed_shift' ? 0 : shiftHours, amount, replacesBase: 0 }
+      }
       if (family === 'medlever') {
         const { units, amount } = medleverMatch(rule, start, shiftHours, rate)
         if (amount <= 0) return null
@@ -8982,7 +9086,9 @@ function timesheetPayrollBasis(period = null) {
     const hours = Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(snapshot.actualBreakMinutes) || 0)) / 60
     const rate = resolution.baseRate
     // Tillegg og helligdager vurderes mot det faktiske, godkjente intervallet.
-    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate)
+    // Funksjonen kommer fra godkjenningssnapshotet - aldri fra plassens
+    // nåværende verdi - så senere endringer ikke rører godkjent grunnlag (§29).
+    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate, snapshot.functionId ?? null)
 
     const daily = overtimeFor(resolution.tariffId, 'daily', snapshot.plannedDate)
     const weekly = overtimeFor(resolution.tariffId, 'weekly', snapshot.plannedDate)
@@ -9017,6 +9123,11 @@ function timesheetPayrollBasis(period = null) {
       resolution,
       ordinaryAmount,
       premiumAmount: premium.amount,
+      // Sporbarhet (§38): hvilken regel, beregningstype og beløp - inkludert
+      // funksjonstillegg med funksjonens fryste id/navn fra snapshotet.
+      functionId: snapshot.functionId ?? null,
+      functionName: snapshot.functionName ?? null,
+      premiumLines: premium.applied.map(match => ({ ruleId: match.rule.id, name: match.rule.name, family: match.rule.family ?? 'time', method: match.rule.method, value: Number(match.rule.amount) || 0, hours: match.hours, amount: match.amount, functionId: match.rule.functionId ?? null })),
       overtimeHours,
       overtimeRule,
       overtimeAmount,
@@ -10324,9 +10435,31 @@ function candidateDialog() {
 function directAssignDialog() {
   const assignment = record('assignments', state.slotAction?.assignmentId)
   if (!assignment) return ''
-  const body = `${formError()}<div class="grid cols-1">${assignEmployeeField(assignment)}</div>`
+  // Valgfri funksjon på plassen (§13): standard Ingen, aldri obligatorisk.
+  const functionChoices = selectableFunctions(draftValue('slotFunctionId')).map(item => ({ value: String(item.id), text: state.locale === 'nb' ? item.nameNo : item.nameEn }))
+  const body = `${formError()}<div class="grid cols-1">${assignEmployeeField(assignment)}${boundSelect('slotFunctionId', t('functions.label'), functionChoices, { placeholder: t('functions.none') })}</div>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-direct-assign">${t('staffing.confirmAssignment')}</button></div>`
   return modalShell(t('staffing.assignDirectly'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'medium')
+}
+
+// Endre funksjon på en konkret bemanningsplass (§14): standard Ingen, og
+// lønnsendring håndteres av eksisterende material-/ny bekreftelse-regler.
+function slotFunctionDialog() {
+  const assignment = record('assignments', state.slotAction?.assignmentId)
+  const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+  if (!assignment || !slot) return ''
+  const functionChoices = selectableFunctions(draftValue('slotFunctionId')).map(item => ({ value: String(item.id), text: state.locale === 'nb' ? item.nameNo : item.nameEn }))
+  const employee = slot.employeeId ? record('employees', slot.employeeId) : null
+  const body = `${formError()}<dl class="detail-list"><div><dt>${t('jobs.employee')}</dt><dd>${employee ? escapeHtml(employee.name) : `<span class="muted">${t('functions.none')}</span>`}</dd></div><div><dt>${t('functions.label')}</dt><dd>${escapeHtml(functionName(slot.functionId))}</dd></div></dl>${boundSelect('slotFunctionId', t('functions.label'), functionChoices, { placeholder: t('functions.none') })}<p class="field-help">${t('functions.changeHelp')}</p>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-slot-function">${t('common.save')}</button></div>`
+  return modalShell(t('functions.changeAction'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'small')
+}
+
+// Liten funksjonsadministrasjon (§11): opprett, gi nytt navn, arkiver.
+function functionDialog() {
+  const editing = Boolean(state.editingId)
+  const body = `${formError()}<div class="grid cols-2">${bound('nameNo', t('functions.nameNo'), { required: true })}${bound('nameEn', t('functions.nameEn'), { required: true })}</div>${storageNote()}`
+  return modalShell(t(editing ? 'functions.edit' : 'functions.new'), t('functions.title'), 'users', body, formFooter('save-function'), 'small')
 }
 
 // Prioritert forespørselskø: kandidatene velges og sorteres før utsendelse.
@@ -10626,7 +10759,7 @@ function ruleValueSuffix(name) {
 function premiumDialog() {
   const editing = Boolean(state.editingId)
   const family = draftValue('family', 'time')
-  const familyChoices = ['time', 'date', 'medlever'].map(key => ({ value: key, text: t(`financial.family.${key}`) }))
+  const familyChoices = ['time', 'date', 'medlever', 'function'].map(key => ({ value: key, text: t(`financial.family.${key}`) }))
   const stackChoices = [{ value: 'additive', text: t('financial.overlap.additive') }, { value: 'highest', text: t('financial.overlap.highest') }]
 
   let familyFields = ''
@@ -10659,8 +10792,22 @@ function premiumDialog() {
     const payModeChoices = ['add', 'replace'].map(key => ({ value: key, text: t(`financial.payMode.${key}`) }))
     familyFields = `${boundSelect('unit', t('financial.ruleUnit'), unitChoices)}${boundSelect('payMode', t('financial.payMode'), payModeChoices)}`
   }
+  if (family === 'function') {
+    // Funksjonstillegg (§45): velg funksjon, beregningstype og verdi. Arkiverte
+    // funksjoner kan ikke velges på nytt, men en allerede valgt vises.
+    const functionChoices = selectableFunctions(draftValue('functionId')).map(item => ({ value: String(item.id), text: state.locale === 'nb' ? item.nameNo : item.nameEn }))
+    const modeChoices = [
+      { value: 'fixed_shift', text: t('functions.fixedShift') },
+      { value: 'hourly', text: t('functions.hourly') },
+      { value: 'percentage', text: t('functions.percentage') }
+    ]
+    familyFields = `${boundSelect('functionId', t('functions.label'), functionChoices, { placeholder: t('common.select') })}${boundSelect('method', t('financial.calculationType'), modeChoices)}`
+  }
 
-  const body = `${formError()}<div class="grid cols-2">${boundSelect('family', t('financial.ruleFamily'), familyChoices)}${bound('name', t('common.name'), { required: true })}${familyFields}${calculationTypeField(draftValue('method', 'fixed'))}${ruleValueSuffix('amount')}${boundSelect('stacking', t('financial.overlap'), stackChoices)}${bound('effectiveFrom', t('financial.effectiveFrom'), { type: 'date' })}${bound('effectiveTo', t('financial.effectiveTo'), { type: 'date' })}</div>${storageNote()}`
+  const calcFields = family === 'function'
+    ? bound('amount', t('functions.value'), { type: 'number' })
+    : `${calculationTypeField(draftValue('method', 'fixed'))}${ruleValueSuffix('amount')}`
+  const body = `${formError()}<div class="grid cols-2">${boundSelect('family', t('financial.ruleFamily'), familyChoices)}${bound('name', t('common.name'), { required: true })}${familyFields}${calcFields}${boundSelect('stacking', t('financial.overlap'), stackChoices)}${bound('effectiveFrom', t('financial.effectiveFrom'), { type: 'date' })}${bound('effectiveTo', t('financial.effectiveTo'), { type: 'date' })}</div>${storageNote()}`
   return modalShell(t(editing ? 'financial.editRule' : 'financial.addRule'), t('financial.premiumRules'), 'chart', body, formFooter('save-premium'), 'medium')
 }
 
@@ -10723,6 +10870,8 @@ const dialogs = {
   'salary-cell': salaryCellDialog,
   'remove-worker': removeWorkerDialog,
   'replace-worker': replaceWorkerDialog,
+  'slot-function': slotFunctionDialog,
+  'function': functionDialog,
   'confirm-delete': confirmDeleteDialog,
   'confirm-archive': confirmArchiveDialog,
   'confirm-reset': confirmResetDialog
@@ -11053,7 +11202,9 @@ function actionHandlers(target = null) {
       const assignment = record('assignments', target?.dataset?.id)
       if (!assignment || assignment.status === 'cancelled') return
       state.slotAction = { assignmentId: assignment.id, slotId: target?.dataset?.slotId }
-      openDialog('direct-assign', 'create', {})
+      // Funksjonen følger plassen: nedtrekket starter på plassens verdi (§72).
+      const slot = slotById(assignment, target?.dataset?.slotId)
+      openDialog('direct-assign', 'create', { slotFunctionId: slot?.functionId ? String(slot.functionId) : '' })
     },
     'confirm-direct-assign': () => {
       const assignment = record('assignments', state.slotAction?.assignmentId)
@@ -11064,11 +11215,76 @@ function actionHandlers(target = null) {
       if (blocker) { state.formError = blocker; render(); return }
       slot.employeeId = employee.id
       slot.status = 'assigned'
+      // Valgfri funksjon på plassen (§13): tomt valg betyr Ingen (null).
+      slot.functionId = state.draft.slotFunctionId ? Number(state.draft.slotFunctionId) : null
       syncAssignmentStaffing(assignment)
       ensureTimesheetForSlot(assignment, slot)
-      logAssignmentEvent(assignment, { type: 'direct_assignment', slotId: slot.id, employeeId: employee.id, assignedBy: 'demo-admin' })
+      logAssignmentEvent(assignment, { type: 'direct_assignment', slotId: slot.id, employeeId: employee.id, assignedBy: 'demo-admin', functionId: slot.functionId })
       state.slotAction = null
       persist(); closeDialog(); showToast('crud.updated', { name: employee.name })
+    },
+    // Endre funksjon på plassen (§14-§15, §31-§32): endringen logges alltid;
+    // påvirker den lønnen (ulik regelkonfigurasjon i vaktens lønnssystem),
+    // klassifiseres den som vesentlig og den tildelte må bekrefte på nytt.
+    'open-slot-function': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      if (!assignment || !slot || assignment.status === 'cancelled') return
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id }
+      openDialog('slot-function', 'edit', { slotFunctionId: slot.functionId ? String(slot.functionId) : '' })
+    },
+    'confirm-slot-function': () => {
+      const assignment = record('assignments', state.slotAction?.assignmentId)
+      const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+      if (!assignment || !slot || assignment.status === 'cancelled') return
+      const oldId = slot.functionId ?? null
+      const newId = state.draft.slotFunctionId ? Number(state.draft.slotFunctionId) : null
+      if (String(oldId) === String(newId)) { state.slotAction = null; closeDialog(); return }
+      // Deterministisk lønnseffekt: har gammel og ny funksjon ulik aktiv
+      // regelkonfigurasjon i vaktens lønnssystem? (§31-§32)
+      const date = assignment.date || todayIso()
+      const context = payContextFor(assignment, date)
+      const rulesFor = functionId => functionId && context.tariffId
+        ? premiumRulesForPaySystem(context.tariffId, date)
+            .filter(rule => rule.family === 'function' && String(rule.functionId) === String(functionId))
+            .map(rule => [rule.method, Number(rule.amount) || 0])
+        : []
+      const payEffect = JSON.stringify(rulesFor(oldId)) !== JSON.stringify(rulesFor(newId))
+      slot.functionId = newId
+      logAssignmentEvent(assignment, { type: 'function_changed', slotId: slot.id, employeeId: slot.employeeId ?? null, oldFunctionId: oldId, newFunctionId: newId, actor: 'demo-admin', material: payEffect })
+      if (payEffect && slot.employeeId && slot.status === 'assigned') {
+        slot.status = 'pending_reconfirmation'
+        logAssignmentEvent(assignment, { type: 'reconfirmation_requested', employeeId: slot.employeeId, slotId: slot.id })
+        syncAssignmentStaffing(assignment)
+      }
+      state.slotAction = null
+      persist(); closeDialog(); render()
+    },
+    // Funksjonsadministrasjon (§11): opprett, gi nytt navn, arkiver. Brukte
+    // funksjoner hard-slettes aldri - historikken skal alltid kunne vise navnet.
+    'create-function': () => openDialog('function', 'create', {}),
+    'edit-function': () => {
+      const item = functionById(target?.dataset?.id)
+      if (!item) return
+      openDialog('function', 'edit', { nameNo: item.nameNo, nameEn: item.nameEn }, item.id)
+    },
+    'save-function': () => {
+      const nameNo = String(state.draft.nameNo ?? '').trim()
+      const nameEn = String(state.draft.nameEn ?? '').trim()
+      if (!nameNo || !nameEn) { state.formError = 'common.required'; render(); return }
+      if (state.editingId) {
+        const item = functionById(state.editingId)
+        if (item) Object.assign(item, { nameNo, nameEn })
+      } else {
+        functionsCollection().push({ id: nextNumericSlotId(), nameNo, nameEn, active: true })
+      }
+      persist(); closeDialog(); showToast('crud.updated', { name: nameNo })
+    },
+    'archive-function': () => {
+      const item = functionById(target?.dataset?.id)
+      if (!item) return
+      item.active = false
+      persist(); render(); showToast('crud.archived', { name: item.nameNo })
     },
     'open-slot-request': () => {
       const assignment = record('assignments', target?.dataset?.id)
@@ -11297,6 +11513,10 @@ function actionHandlers(target = null) {
         employeeId: timesheet.employeeId,
         clientId: assignment?.clientId ?? null,
         departmentId: assignment?.departmentId ?? null,
+        // Funksjonen fryses i godkjenningsøyeblikket - både id og navn - slik at
+        // senere funksjons-/regelendringer aldri omskriver godkjent historikk.
+        functionId: (assignment ? slotById(assignment, timesheet.slotId)?.functionId : null) ?? null,
+        functionName: (assignment && slotById(assignment, timesheet.slotId)?.functionId) ? functionName(slotById(assignment, timesheet.slotId).functionId) : null,
         approvedAt: timesheet.approvedAt,
         approvedBy: timesheet.approvedBy
       }
@@ -11749,8 +11969,13 @@ const entities = {
         end: family === 'time' ? draft.end || '06:00' : '',
         unit: family === 'medlever' ? draft.unit || 'hour' : undefined,
         payMode: family === 'medlever' ? draft.payMode || 'add' : undefined,
+        // Funksjonstillegget peker på én funksjon og har sin egen beregningstype:
+        // fast per vakt, per time eller prosent (§17-§18).
+        functionId: family === 'function' ? (Number(draft.functionId) || null) : undefined,
         // 'hourly' er eldre data for fast beløp per time.
-        method: draft.method === 'percentage' ? 'percentage' : 'fixed',
+        method: family === 'function'
+          ? (['fixed_shift', 'hourly', 'percentage'].includes(draft.method) ? draft.method : 'fixed_shift')
+          : draft.method === 'percentage' ? 'percentage' : 'fixed',
         amount: Number(draft.amount) || 0,
         stacking: draft.stacking || 'additive',
         status: draft.status ?? 'active'
@@ -12582,7 +12807,8 @@ window.__workmaticPreview = {
   select: (key, id) => { state.selected[key] = id; render() },
   reset: () => { resetData(); render() },
   storageAvailable: () => storageWorks,
-  premiumsFor: (paySystemId, iso, start, hours, rate) => premiumsFor(paySystemId, iso, start, hours, rate),
+  premiumsFor: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId),
+  functions: () => JSON.parse(JSON.stringify(functionsCollection())),
   setSimulationField: (name, value) => { state.simulationForm[name] = value; state.lastSimulation = null; render() },
   compareVersions: (leftId, rightId) => compareVersionValues(record('schemeVersions', leftId), record('schemeVersions', rightId)),
   go: (route, id = null) => navigate(route, id),
