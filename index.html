@@ -2439,7 +2439,9 @@ const state = {
   // byttes. Tomme strenger betyr «alle».
   timesheetFilters: { clientId: '', departmentId: '' },
   // Fakturagrunnlag: periode, klient og avdelingsfilter.
-  reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentIds: [] },
+  // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
+  // avdelinger. departmentIds består kun som API-kompatibilitet for testene.
+  reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '', departmentIds: [] },
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -2551,6 +2553,9 @@ const copy = {
     'audit.empty': 'Ingen hendelser i utvalget',
     'audit.system': 'System',
     'recruitment.positionsMenu': 'Stillinger',
+    'invoicing.selectClientFirst': 'Velg en klient for å filtrere på avdeling.',
+    'invoicing.noDepartments': 'Denne klienten har ingen aktive avdelinger.',
+    'invoicing.emptyFiltered': 'Ingen fakturagrunnlag i valgt periode og filter.',
     'common.archived': 'Arkivert',
     'common.nextDay': '+1 dag',
     'crud.archive': 'Arkiver',
@@ -3519,6 +3524,9 @@ copy.en = {
   'audit.empty': 'No events in the selection',
   'audit.system': 'System',
   'recruitment.positionsMenu': 'Positions',
+  'invoicing.selectClientFirst': 'Select a client to filter by department.',
+  'invoicing.noDepartments': 'This client has no active departments.',
+  'invoicing.emptyFiltered': 'No invoice basis for the selected period and filters.',
   'common.archived': 'Archived',
   'common.nextDay': '+1 day',
   'crud.archive': 'Archive',
@@ -9176,7 +9184,8 @@ function economyLines(form) {
   const lines = []
   const from = form.startDate
   const to = form.endDate
-  const departmentFilter = new Set(form.departmentIds ?? [])
+  // Én valgt avdeling (rullegardinen) eller den eldre listen fra API-et.
+  const departmentFilter = form.departmentId ? new Set([form.departmentId]) : new Set(form.departmentIds ?? [])
 
   // Bare oppdrag for den valgte klienten, siden kommisjon og mva hentes fra
   // klientkortet og rapporten faktureres til én klient.
@@ -9461,11 +9470,19 @@ function periodFields() {
   return `${reportField('startDate', t('comp.invoicing.fromDate'), 'date')}${reportField('endDate', t('comp.invoicing.toDate'), 'date')}`
 }
 
-function departmentChips() {
-  const selected = new Set(state.reportForm.departmentIds)
-  const all = collection('departments')
-  const count = selected.size ? `${selected.size}/${all.length}` : t('comp.invoicing.allDepartments')
-  return `<fieldset class="field department-filter"><legend>${t('comp.invoicing.departments')} <span class="muted">(${count})</span></legend><div class="chips">${all.map(item => `<label class="chip-toggle ${selected.has(item.id) ? 'is-active' : ''}"><input type="checkbox" data-department-filter="${item.id}"${selected.has(item.id) ? ' checked' : ''}><span>${lab(item.name)}</span></label>`).join('')}</div></fieldset>`
+// Avdeling er en vanlig avhengig rullegardin (§4-§8): kun aktive avdelinger
+// som tilhører valgt klient, med «Alle avdelinger» som standard. Identiteten
+// er alltid numerisk/kanonisk departmentId - aldri visningsnavnet (§23).
+// Historiske rader viser fortsatt arkiverte avdelingers navn via record().
+function departmentSelect() {
+  const clientId = state.reportForm.clientId
+  const departments = collection('departments').filter(item => item.clientId === clientId && item.status !== 'archived')
+  const selected = String(state.reportForm.departmentId ?? '')
+  const options = `<option value=""${selected ? '' : ' selected'}>${t('comp.invoicing.allDepartments')}</option>${departments.map(item => `<option value="${item.id}"${selected === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')}`
+  const helper = !clientId
+    ? `<p class="field-help">${t('invoicing.selectClientFirst')}</p>`
+    : departments.length ? '' : `<p class="field-help">${t('invoicing.noDepartments')}</p>`
+  return `<div class="field"><label for="r-departmentId">${t('rel.department')}</label><select id="r-departmentId" data-report-field="departmentId"${!clientId || !departments.length ? ' disabled' : ''}>${options}</select>${helper}</div>`
 }
 
 function departmentReportTable(report) {
@@ -9488,14 +9505,14 @@ function departmentReportTable(report) {
   ]})
   const groupTotals = report.byDepartment.map(display).reduce((sum, d) => ({ net: sum.net + d.net, commission: sum.commission + d.commission, vat: sum.vat + d.vat, gross: sum.gross + d.gross }), { net: 0, commission: 0, vat: 0, gross: 0 })
   const totalRow = `<tr class="row-total"><td><strong>${t('comp.invoicing.total')}</strong></td><td></td><td>${report.totals.shifts}</td><td><strong>${formatHours(report.totals.hours)}</strong></td><td>${formatHours(report.totals.overtimeHours)}</td><td>${formatMoney(report.totals.ordinaryAmount)}</td><td>${formatMoney(report.totals.overtimeAmount)}</td><td>${formatMoney(report.totals.premiumAmount)}</td><td>${formatMoney(groupTotals.net)}</td><td>${formatMoney(groupTotals.commission)}</td><td>${formatMoney(groupTotals.vat)}</td><td><strong>${formatMoney(groupTotals.gross)}</strong></td></tr>`
-  const body = rows.length ? rows.join('') + totalRow : `<tr><td colspan="${head.length}"><p class="muted">${t('comp.invoicing.noData')}</p></td></tr>`
+  const body = rows.length ? rows.join('') + totalRow : `<tr><td colspan="${head.length}"><p class="muted">${t('invoicing.emptyFiltered')}</p></td></tr>`
   return `<div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
 }
 
 function shiftReportTable(report) {
   const head = ['comp.payroll.date', 'comp.invoicing.department', 'comp.payroll.name', 'comp.payroll.title', 'comp.tables.start', 'comp.tables.end', 'comp.payroll.hours', 'comp.payroll.overtime', 'comp.payroll.rate', 'comp.payroll.ordinaryPay', 'comp.payroll.overtimePay', 'comp.invoicing.premiums', 'comp.invoicing.netAmount']
   const rows = report.lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${line.department ? lab(line.department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td><strong>${escapeHtml(line.employee.name)}</strong></td><td>${lab(line.employee.profession)}</td><td>${escapeHtml(line.start)}</td><td>${escapeHtml(line.end)}</td><td>${formatHours(line.hours)}</td><td>${formatHours(line.overtimeHours)}</td><td>${formatMoney(line.rate)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td>${formatMoney(line.premiumAmount)}${line.premiumRule ? ` <span class="muted">${escapeHtml(line.premiumRule.name)}</span>` : ''}</td><td><strong>${formatMoney(displayNok(line.ordinaryAmount) + displayNok(line.overtimeAmount) + displayNok(line.premiumAmount))}</strong></td></tr>`)
-  const body = rows.length ? rows.join('') : `<tr><td colspan="${head.length}"><p class="muted">${t('comp.invoicing.noData')}</p></td></tr>`
+  const body = rows.length ? rows.join('') : `<tr><td colspan="${head.length}"><p class="muted">${t('invoicing.emptyFiltered')}</p></td></tr>`
   return `<div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
 }
 
@@ -9511,7 +9528,7 @@ function renderInvoicing() {
     // avrunding av råsummen (§2-§3, §6).
     [t('comp.invoicing.grossAmount'), formatMoney(displayNok(report.totals.net) + displayNok(report.totals.commission) + displayNok(report.totals.vat)), `${t('comp.invoicing.vat')} ${formatMoney(report.totals.vat)}`]
   ]
-  const setup = `<article class="card"><div class="card-header"><h2>${t('comp.invoicing.reportSetup')}</h2><span class="muted">${escapeHtml(client?.name ?? '')} · ${t('comp.invoicing.orgNumber')} ${escapeHtml(client?.org ?? '')}</span></div><div class="grid cols-2">${reportSelect('clientId', t('rel.client'), clientOptions())}${periodFields()}<div class="field"><label>${t('comp.invoicing.commissionRate')}</label><input value="${formatPercent(report.commissionRate * 100)}" readonly></div><div class="field"><label>${t('comp.invoicing.vatRate')}</label><input value="${formatPercent(report.vatRate * 100)}" readonly></div></div>${departmentChips()}</article>`
+  const setup = `<article class="card"><div class="card-header"><h2>${t('comp.invoicing.reportSetup')}</h2><span class="muted">${escapeHtml(client?.name ?? '')} · ${t('comp.invoicing.orgNumber')} ${escapeHtml(client?.org ?? '')}</span></div><div class="grid cols-2">${reportSelect('clientId', t('rel.client'), clientOptions())}${periodFields()}<div class="field"><label>${t('comp.invoicing.commissionRate')}</label><input value="${formatPercent(report.commissionRate * 100)}" readonly></div><div class="field"><label>${t('comp.invoicing.vatRate')}</label><input value="${formatPercent(report.vatRate * 100)}" readonly></div></div>${departmentSelect()}</article>`
   const table = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${detailed ? t('comp.invoicing.shiftList') : t('comp.invoicing.perDepartment')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-invoicing-detail"${detailed ? ' checked' : ''}><span>${t('comp.invoicing.showShifts')}</span></label></div>${detailed ? shiftReportTable(report) : departmentReportTable(report)}</article>`
   // Rapporten under fakturagrunnlaget er historisk (§30-§31).
   const legacyLabel = `<div class="banner info">${icon('file')}<span><strong>${t('financial.legacyReport')}</strong> · ${t('financial.legacyReportHelp')}</span></div>`
@@ -13597,17 +13614,12 @@ function captureReportField(element) {
   const name = element.dataset?.reportField
   if (!name) return false
   state.reportForm[name] = element.value
-  render()
-  return true
-}
-
-function toggleDepartmentFilter(element) {
-  const id = element.dataset?.departmentFilter
-  if (!id) return false
-  const selected = new Set(state.reportForm.departmentIds)
-  if (element.checked) selected.add(id)
-  else selected.delete(id)
-  state.reportForm.departmentIds = [...selected]
+  // Avdelingen er avhengig av klienten: bytte av klient nullstiller et valg
+  // som ikke lenger tilhører klienten - aldri en foreldet kryssklient-verdi (§6).
+  if (name === 'clientId') {
+    const department = record('departments', state.reportForm.departmentId)
+    if (!department || department.clientId !== state.reportForm.clientId) state.reportForm.departmentId = ''
+  }
   render()
   return true
 }
@@ -13635,7 +13647,6 @@ document.addEventListener('change', event => {
   if (capturePayrollField(event.target)) return
   if (captureSimulationField(event.target)) return
   if (captureCompareAgainst(event.target)) return
-  if (toggleDepartmentFilter(event.target)) return
   if (event.target.dataset?.field) {
     handleDraftFieldChange(event.target.dataset.field, event.target.type === 'checkbox' ? event.target.checked : event.target.value)
     return
@@ -13787,6 +13798,7 @@ window.__workmaticPreview = {
   premiumsFor: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId),
   functions: () => JSON.parse(JSON.stringify(functionsCollection())),
   sickLeaves: () => JSON.parse(JSON.stringify(sickLeavesCollection())),
+  reportField: element => captureReportField(element),
   setSimulationField: (name, value) => { state.simulationForm[name] = value; state.lastSimulation = null; render() },
   compareVersions: (leftId, rightId) => compareVersionValues(record('schemeVersions', leftId), record('schemeVersions', rightId)),
   go: (route, id = null) => navigate(route, id),
