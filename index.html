@@ -2472,10 +2472,10 @@ const state = {
   calendarMode: 'week',
   // Ankerdato for synlig uke/måned; tom streng betyr i dag.
   calendarAnchor: '',
-  // Den delte filtermodellen for Vakter: periode, klient, avdeling, rolle og
+  // Den delte filtermodellen for Vakter: periode, klient, avdeling og
   // bemanningssituasjon. Status filtreres via det generiske statusfilteret
   // (state.filters.status, deriverte verdier) - én kilde, ikke to.
-  shiftFilters: { fromDate: '', toDate: '', clientId: '', departmentId: '', role: '', staffing: '' },
+  shiftFilters: { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '' },
   // Revisjonsloggen: periode, modul, hendelsestype og utfører.
   auditFilters: { entityType: 'all', eventType: 'all', actor: 'all', startDate: '', endDate: '' }
 }
@@ -6592,9 +6592,9 @@ function renderDashboard() {
   const upcoming = upcomingAssignments()
   const upcomingRows = upcoming.map(item => {
     const staffed = activeEmployeeIdsForAssignment(item).length
-    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}</td><td>${escapeHtml(record('clients', item.clientId)?.name ?? '')}</td><td>${lab(record('departments', item.departmentId)?.name ?? '')}</td><td>${escapeHtml(taxonomy(item.role))}</td><td>${staffedOfLabel(item)}</td><td>${shiftStatusTag(item)}</td></tr>`
+    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}</td><td>${escapeHtml(record('clients', item.clientId)?.name ?? '')}</td><td>${lab(record('departments', item.departmentId)?.name ?? '')}</td><td>${staffedOfLabel(item)}</td><td>${shiftStatusTag(item)}</td></tr>`
   })
-  const upcomingCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.upcoming')}</h2><span class="tag info">${upcoming.length}</span></div>${upcoming.length ? table(['common.date', 'shifts.time', 'rel.client', 'rel.department', 'staffing.role', 'staffing.assigned', 'common.status'], upcomingRows) : `<p class="muted">${t('dashboard.noUpcoming')}</p>`}</article>`
+  const upcomingCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.upcoming')}</h2><span class="tag info">${upcoming.length}</span></div>${upcoming.length ? table(['common.date', 'shifts.time', 'rel.client', 'rel.department', 'staffing.assigned', 'common.status'], upcomingRows) : `<p class="muted">${t('dashboard.noUpcoming')}</p>`}</article>`
   // Kritiske avvik: deterministiske regler, hver rad peker på konteksten sin.
   const deviations = criticalDeviations()
   const deviationRows = deviations.map(item => `<div class="file-row"><div class="file-name"><strong>${t(item.key)}</strong><span>${escapeHtml(item.context)}</span></div><button type="button" class="button ghost small" ${item.id ? `data-route="${item.route}" data-id="${item.id}"` : `data-action="dashboard-go-${item.route}"`}>${t('common.view')}</button></div>`).join('')
@@ -7018,15 +7018,12 @@ function shiftFilterControls() {
   const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const departments = collection('departments').filter(item => item.status !== 'archived' && (!filters.clientId || item.clientId === filters.clientId))
   const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
-  const roles = [...new Set([...collection('assignments').map(item => item.role).filter(Boolean), 'environment_worker', 'healthcare_worker'])]
-  const roleChoices = roles.map(role => `<option value="${escapeHtml(role)}"${filters.role === role ? ' selected' : ''}>${escapeHtml(taxonomy(role))}</option>`).join('')
   const situations = [['open', 'staffing.sitOpen'], ['full', 'staffing.sitFull'], ['requested', 'staffing.sitRequested'], ['awaiting_confirmation', 'staffing.awaitingConfirmation'], ['pending_reconfirmation', 'staffing.pendingReconfirmation']]
   const situationChoices = situations.map(([value, key]) => `<option value="${value}"${filters.staffing === value ? ' selected' : ''}>${t(key)}</option>`).join('')
   return `<input type="date" data-shift-filter="fromDate" value="${escapeHtml(filters.fromDate)}" aria-label="${t('shifts.filter.from')}">
     <input type="date" data-shift-filter="toDate" value="${escapeHtml(filters.toDate)}" aria-label="${t('shifts.filter.to')}">
     <select data-shift-filter="clientId" aria-label="${t('rel.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('shifts.filter.allClients')}</option>${clientChoices}</select>
     <select data-shift-filter="departmentId" aria-label="${t('rel.department')}"><option value=""${filters.departmentId ? '' : ' selected'}>${t('shifts.filter.allDepartments')}</option>${departmentChoices}</select>
-    <select data-shift-filter="role" aria-label="${t('staffing.role')}"><option value=""${filters.role ? '' : ' selected'}>${t('shifts.filter.allRoles')}</option>${roleChoices}</select>
     <select data-shift-filter="staffing" aria-label="${t('shifts.filter.staffingSituation')}"><option value=""${filters.staffing ? '' : ' selected'}>${t('shifts.filter.allSituations')}</option>${situationChoices}</select>
     <button type="button" class="button ghost small" data-action="clear-shift-filters">${t('shifts.clearFilters')}</button>`
 }
@@ -7040,10 +7037,10 @@ function shiftListTable(visible) {
     const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(item.assignmentNumber ?? '')}${item.shiftSeriesId ? ` · ${t('series.tag')}` : ''}</span></div>`
     // «X av Y bemannet» adskilt fra status; behovet («Antall ansatte») som undertekst (§22, §25).
     const staffing = `<div class="file-name"><strong>${staffedOfLabel(item)}</strong><span>${t('staffing.slots')}: ${formatNumber(item.slots, 0)}</span></div>`
-    return `<tr><td>${dateCell}</td><td>${item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.role ? escapeHtml(taxonomy(item.role)) : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
+    return `<tr><td>${dateCell}</td><td>${item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
   if (!rows.length) return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shifts.emptyFiltered')}</h3></div>`
-  return dataTable('assignments', ['common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.role', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
+  return dataTable('assignments', ['common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
 }
 
 // Én kalenderoppføring: klikk åpner den eksisterende vaktdetaljen (§31).
@@ -7131,7 +7128,7 @@ function renderJobDetail() {
     ? button('common.back', 'back-staffing', 'secondary', 'arrow-left')
     : `${button('common.back', 'back-staffing', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-action="manage-assignment-team" data-id="${assignment.id}">${icon('users')}${t('staffing.manageTeam')}</button><button type="button" class="button" data-action="edit-assignment" data-id="${assignment.id}">${icon('edit')}${t('common.edit')}</button>${destructive}`
   const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div>${assignment.shiftSeriesId ? (() => { const shifts = seriesShifts(assignment.shiftSeriesId); const index = shifts.findIndex(item => item.id === assignment.id) + 1; return `<div><dt>${t('series.partOf')}</dt><dd>${t('series.position', { index, total: shifts.length })}</dd></div>` })() : ''}<div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
-  const requirementsCard = `<article class="card"><h2>${t('staffing.requirementsPreferences')}</h2><dl class="detail-list"><div><dt>${t('assignment.genderPreference')}</dt><dd>${t({ female: 'assignment.genderWomen', male: 'assignment.genderMen' }[assignment.genderPreference] ?? 'assignment.genderBoth')}</dd></div><div><dt>${t('staffing.educationPreference')}</dt><dd>${t({ educated: 'assignment.educated', not_educated: 'assignment.notEducated' }[assignment.educationPreference] ?? 'assignment.educationBoth')}</dd></div></dl><h3 style="margin-top:16px">${t('staffing.roleRequirements')}</h3><dl class="detail-list"><div><dt>${t('staffing.role')}</dt><dd>${escapeHtml(taxonomy(assignment.role))}</dd></div><div><dt>${t('staffing.requiredQualification')}</dt><dd>${escapeHtml(taxonomy(assignment.requiredQualification))}</dd></div><div><dt>${t('staffing.requiredCertificates')}</dt><dd>${(assignment.requiredCertificates ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div></dl></article>`
+  const requirementsCard = `<article class="card"><h2>${t('staffing.requirementsPreferences')}</h2><dl class="detail-list"><div><dt>${t('assignment.genderPreference')}</dt><dd>${t({ female: 'assignment.genderWomen', male: 'assignment.genderMen' }[assignment.genderPreference] ?? 'assignment.genderBoth')}</dd></div><div><dt>${t('staffing.educationPreference')}</dt><dd>${t({ educated: 'assignment.educated', not_educated: 'assignment.notEducated' }[assignment.educationPreference] ?? 'assignment.educationBoth')}</dd></div></dl><h3 style="margin-top:16px">${t('staffing.roleRequirements')}</h3><dl class="detail-list"><div><dt>${t('staffing.requiredQualification')}</dt><dd>${escapeHtml(taxonomy(assignment.requiredQualification))}</dd></div><div><dt>${t('staffing.requiredCertificates')}</dt><dd>${(assignment.requiredCertificates ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div></dl></article>`
   // Lønnskontekst, lønnsgrunnlag, tildelte ansatte og kommende vakter hører til
   // et bemannet oppdrag. Før tildeling handler kortet om jobben og om hvem som
   // er ledig og passer.
@@ -9476,7 +9473,6 @@ function filteredAssignments(filters = state.shiftFilters, now = new Date()) {
     .filter(item => {
       if (filters.clientId && item.clientId !== filters.clientId) return false
       if (filters.departmentId && item.departmentId !== filters.departmentId) return false
-      if (filters.role && item.role !== filters.role) return false
       if (filters.fromDate && (!item.date || item.date < filters.fromDate)) return false
       if (filters.toDate && (!item.date || item.date > filters.toDate)) return false
       if (status !== 'all' && shiftOperationalStatus(item, now) !== status) return false
@@ -10475,7 +10471,6 @@ function changePreviewMarkup() {
 function assignmentDialog() {
   const editing = Boolean(state.editingId)
   const draftAssignment = { id: state.editingId ?? 'draft', ...state.draft, requiredCertificates: String(state.draft.requiredCertificatesText ?? '').split(',').map(item => item.trim()).filter(Boolean) }
-  const roleChoices = [{ value: 'environment_worker', text: t('taxonomy.environment_worker') }, { value: 'healthcare_worker', text: t('taxonomy.healthcare_worker') }]
   const qualificationChoices = [{ value: 'trade_certificate', text: t('taxonomy.trade_certificate') }, { value: 'none', text: t('taxonomy.none') }]
   const clientId = draftValue('clientId')
   const departmentId = draftValue('departmentId')
@@ -10510,7 +10505,7 @@ function assignmentDialog() {
       : `<article class="card" style="margin-top:8px"><div class="card-header"><h4>${t('series.previewTitle')}</h4><span class="tag info">${repeatPreview.dates.length}</span></div><p class="field-help">${repeatPreview.dates.map(formatDate).join(' · ')}</p></article>`
     : ''
   const repeatSection = editing ? '' : `<div class="form-section"><h3>${t('series.enable')}</h3>${boundCheckbox('repeatEnabled', t('series.enable'))}${repeatOn ? `<div class="grid cols-2" style="margin-top:8px">${boundSelect('repeatMode', t('series.repeat'), repeatModes)}${endControls}</div>${weekdayBoxes}${previewBlock}` : ''}</div>`
-  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('staffing.templateOptional'), templates, { placeholder: t('common.none'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number', required: true })}${boundSelect('role', `${t('staffing.role')} *`, roleChoices, { placeholder: t('common.select') })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${bound('customerOrderReference', t('staffing.customerRef'))}${boundTextarea('description', t('staffing.description'))}</div></div>${repeatSection}<div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
+  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('staffing.templateOptional'), templates, { placeholder: t('common.none'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number', required: true })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${bound('customerOrderReference', t('staffing.customerRef'))}${boundTextarea('description', t('staffing.description'))}</div></div>${repeatSection}<div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
   // Eksplisitt bekreftelse ved masseopprettelse: knappen sier hvor mange (§10).
   const footer = repeatOn && !repeatPreview.error && repeatPreview.dates.length > 1
     ? `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="save-assignment">${t('series.createCount', { count: repeatPreview.dates.length })}</button></div>`
@@ -10785,7 +10780,7 @@ function actionHandlers(target = null) {
       render()
     },
     'clear-shift-filters': () => {
-      state.shiftFilters = { fromDate: '', toDate: '', clientId: '', departmentId: '', role: '', staffing: '' }
+      state.shiftFilters = { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '' }
       state.filters.search = ''
       state.filters.status = 'all'
       render()
@@ -11896,7 +11891,7 @@ function crudHandlers(target) {
       // Obligatoriske vaktfelt med spesifikk melding per felt (§25). Vaktmal er
       // valgfri hjelp - aldri en avhengighet (§11-§12).
       if (creating) {
-        const requiredFields = [['clientId', 'staffing.missing.client'], ['departmentId', 'staffing.missing.department'], ['date', 'staffing.missing.date'], ['startTime', 'staffing.missing.start'], ['endTime', 'staffing.missing.end'], ['role', 'staffing.missing.role']]
+        const requiredFields = [['clientId', 'staffing.missing.client'], ['departmentId', 'staffing.missing.department'], ['date', 'staffing.missing.date'], ['startTime', 'staffing.missing.start'], ['endTime', 'staffing.missing.end']]
         for (const [field, messageKey] of requiredFields) {
           if (!String(state.draft[field] ?? '').trim()) { state.formError = messageKey; render(); return }
         }
