@@ -2419,6 +2419,23 @@ const copy = {
     'staffing.noneForClient': 'Ingen vakter registrert på klienten',
     'dashboard.groupStaffing': 'Bemanningsplasser',
     'dashboard.groupEconomy': 'Timelister og økonomi',
+    'shifts.statusLabel': 'Vaktstatus',
+    'shifts.opStatus.open': 'Åpen',
+    'shifts.opStatus.staffed': 'Bemannet',
+    'shifts.opStatus.completed': 'Utført',
+    'shifts.opStatus.cancelled': 'Kansellert',
+    'staffing.staffingLabel': 'Bemanning',
+    'staffing.staffedOf': '{count} av {total} bemannet',
+    'staffing.templateOptional': 'Velg vaktmal (valgfritt)',
+    'staffing.customerRef': 'Kundens bestillingsreferanse',
+    'staffing.field.customerOrderReference': 'Kundens bestillingsreferanse',
+    'staffing.missing.client': 'Klient må velges',
+    'staffing.missing.department': 'Avdeling må velges og tilhøre valgt klient',
+    'staffing.missing.date': 'Dato må fylles ut',
+    'staffing.missing.start': 'Starttid må fylles ut',
+    'staffing.missing.end': 'Sluttid må fylles ut',
+    'staffing.missing.role': 'Rolle må velges',
+    'staffing.missing.slots': 'Antall bemanningsplasser må være et positivt heltall',
     'common.create': 'Opprett',
     'common.edit': 'Rediger',
     'common.view': 'Vis',
@@ -3222,6 +3239,23 @@ copy.en = {
   'staffing.noneForClient': 'No shifts registered for this client',
   'dashboard.groupStaffing': 'Staffing slots',
   'dashboard.groupEconomy': 'Timesheets and finance',
+  'shifts.statusLabel': 'Shift status',
+  'shifts.opStatus.open': 'Open',
+  'shifts.opStatus.staffed': 'Staffed',
+  'shifts.opStatus.completed': 'Completed',
+  'shifts.opStatus.cancelled': 'Cancelled',
+  'staffing.staffingLabel': 'Staffing',
+  'staffing.staffedOf': '{count} of {total} staffed',
+  'staffing.templateOptional': 'Select shift template (optional)',
+  'staffing.customerRef': 'Customer order reference',
+  'staffing.field.customerOrderReference': 'Customer order reference',
+  'staffing.missing.client': 'A client must be selected',
+  'staffing.missing.department': 'A department must be selected and belong to the chosen client',
+  'staffing.missing.date': 'A date is required',
+  'staffing.missing.start': 'A start time is required',
+  'staffing.missing.end': 'An end time is required',
+  'staffing.missing.role': 'A role must be selected',
+  'staffing.missing.slots': 'The number of staffing slots must be a positive whole number',
   'common.create': 'Create', 'common.edit': 'Edit', 'common.view': 'View', 'common.save': 'Save',
   'common.cancel': 'Cancel', 'common.back': 'Back', 'common.next': 'Next',
   'common.finish': 'Complete demo', 'common.search': 'Search', 'common.filter': 'Filter',
@@ -6174,7 +6208,11 @@ function searchable(item, fields) {
 function filterList(name, fields) {
   const query = state.filters.search.trim().toLocaleLowerCase()
   return collection(name).filter(item => {
-    if (state.filters.status !== 'all' && item.status !== state.filters.status) return false
+    if (state.filters.status !== 'all') {
+      // Vakter måles mot derivert status; øvrige samlinger mot lagret felt.
+      const status = name === 'assignments' ? shiftOperationalStatus(item) : item.status
+      if (status !== state.filters.status) return false
+    }
     return !query || searchable(item, fields).includes(query)
   })
 }
@@ -6209,6 +6247,11 @@ function relationLink(route, id, text) {
 function statusFilterOptions() {
   // Lønnssystemer har ingen livssyklus i grensesnittet: lagret er gjeldende.
   if (state.route === 'financial') return []
+  // Vaktoversikten filtrerer på den DERIVERTE vaktstatusen - aldri på legacy
+  // active/draft (§27, §62).
+  if (state.route === 'staffing') {
+    return [['open', 'shifts.opStatus.open'], ['staffed', 'shifts.opStatus.staffed'], ['completed', 'shifts.opStatus.completed'], ['cancelled', 'shifts.opStatus.cancelled']]
+  }
   return [['active', 'common.active'], ['inactive', 'common.inactive']]
 }
 
@@ -6302,7 +6345,7 @@ function renderDashboard() {
   const upcoming = upcomingAssignments()
   const upcomingRows = upcoming.map(item => {
     const staffed = activeEmployeeIdsForAssignment(item).length
-    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}</td><td>${escapeHtml(record('clients', item.clientId)?.name ?? '')}</td><td>${lab(record('departments', item.departmentId)?.name ?? '')}</td><td>${escapeHtml(taxonomy(item.role))}</td><td>${t('staffing.assignedOf', { assigned: staffed, total: item.slots })}</td><td>${statusTag(item.status)}</td></tr>`
+    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}</td><td>${escapeHtml(record('clients', item.clientId)?.name ?? '')}</td><td>${lab(record('departments', item.departmentId)?.name ?? '')}</td><td>${escapeHtml(taxonomy(item.role))}</td><td>${staffedOfLabel(item)}</td><td>${shiftStatusTag(item)}</td></tr>`
   })
   const upcomingCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.upcoming')}</h2><span class="tag info">${upcoming.length}</span></div>${upcoming.length ? table(['common.date', 'shifts.time', 'rel.client', 'rel.department', 'staffing.role', 'staffing.assigned', 'common.status'], upcomingRows) : `<p class="muted">${t('dashboard.noUpcoming')}</p>`}</article>`
   // Kritiske avvik: deterministiske regler, hver rad peker på konteksten sin.
@@ -6371,7 +6414,7 @@ function renderClientDetail() {
     return primary.contact
       ? `${escapeHtml(primary.name)} · <span class="muted">${lab(primary.contact.role)}${primary.contact.phone ? ` · ${escapeHtml(primary.contact.phone)}` : ''}</span>`
       : escapeHtml(primary.name)
-  })()}</dd></div><div><dt>${t('common.email')}</dt><dd>${escapeHtml(client.email ?? '')}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(client.phone ?? '')}</dd></div><div><dt>${t('clients.description')}</dt><dd>${client.description ? escapeHtml(client.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl><p class="field-help">${t('clients.responsibleForAgreement')}</p></article><article class="card"><h3>${t('clients.tabs.basic')}</h3><dl class="detail-list"><div><dt>${t('clients.departmentCount')}</dt><dd>${clientDepartments.length}</dd></div><div><dt>${t('clients.activeAssignments')}</dt><dd>${clientAssignments.filter(item => item.status === 'active').length}</dd></div><div><dt>${t('nav.recruitment')}</dt><dd>${clientPositions.length}</dd></div></dl></article></div>`
+  })()}</dd></div><div><dt>${t('common.email')}</dt><dd>${escapeHtml(client.email ?? '')}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(client.phone ?? '')}</dd></div><div><dt>${t('clients.description')}</dt><dd>${client.description ? escapeHtml(client.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl><p class="field-help">${t('clients.responsibleForAgreement')}</p></article><article class="card"><h3>${t('clients.tabs.basic')}</h3><dl class="detail-list"><div><dt>${t('clients.departmentCount')}</dt><dd>${clientDepartments.length}</dd></div><div><dt>${t('clients.activeAssignments')}</dt><dd>${clientAssignments.filter(item => ['open', 'staffed'].includes(shiftOperationalStatus(item))).length}</dd></div><div><dt>${t('nav.recruitment')}</dt><dd>${clientPositions.length}</dd></div></dl></article></div>`
   if (tab === 'addresses') body = `<div class="grid cols-2"><article class="address-card"><div class="card-header"><h3>${t('clients.address.main')}</h3>${statusTag(client.status)}</div><p>${escapeHtml(client.address)}</p><span class="tag info">${t('clients.address.default')}</span></article><article class="address-card"><h3>${t('clients.address.billing')}</h3><p>${escapeHtml(client.invoiceEmail)}</p></article></div>`
   if (tab === 'contacts') {
     const primary = clientPrimaryContact(client)
@@ -6383,7 +6426,7 @@ function renderClientDetail() {
     body = `<article class="card">${rows.length ? table(['nav.departments', 'departments.manager', 'departments.managerPhone', 'departments.departmentPhone', 'departments.city', 'common.status', 'common.actions'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   }
   if (tab === 'assignments') {
-    const rows = clientAssignments.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.date ? formatDate(item.date) : ''}</td><td>${formatNumber(item.slots, 0)}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-route="job-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
+    const rows = clientAssignments.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.date ? formatDate(item.date) : ''}</td><td>${formatNumber(item.slots, 0)}</td><td>${shiftStatusTag(item)}</td><td><button class="button ghost small" data-route="job-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
     body = `<article class="card">${rows.length ? table(['staffing.assignmentId', 'rel.department', 'assignment.date', 'staffing.slots', 'common.status', 'common.actions'], rows) : `<p class="muted">${t('staffing.noneForClient')}</p>`}</article>`
   }
   if (tab === 'billing') body = `<article class="card"><dl class="detail-list"><div><dt>${t('clients.provision')}</dt><dd>${formatPercent(client.provision)}</dd></div><div><dt>${t('clients.vat')}</dt><dd>${formatPercent(client.vat)}</dd></div><div><dt>${t('clients.invoiceEmail')}</dt><dd>${escapeHtml(client.invoiceEmail)}</dd></div><div><dt>${t('clients.paymentTerms')}</dt><dd>${t('clients.days')}</dd></div></dl></article>`
@@ -6484,7 +6527,7 @@ function renderDepartmentDetail() {
     body = `<article class="card"><div class="card-header"><h2>${t('departments.employeeHistory')}</h2><span class="tag info">${rows.length}</span></div>${rows.length ? table(['common.name', 'comp.payroll.employeeNumber', 'departments.lastWorked', 'departments.shiftCount'], rows) : `<p class="muted">${t('departments.noHistory')}</p>`}</article>`
   }
   if (tab === 'department-assignments') {
-    const rows = departmentAssignments(item.id).map(assignment => `<tr><td><button class="row-link" data-route="job-detail" data-id="${assignment.id}">${escapeHtml(assignment.assignmentNumber ?? '')}</button></td><td>${assignment.date ? formatDate(assignment.date) : ''}</td><td>${escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '')}</td><td>${formatNumber(assignment.slots, 0)}</td><td>${statusTag(assignment.status)}</td></tr>`)
+    const rows = departmentAssignments(item.id).map(assignment => `<tr><td><button class="row-link" data-route="job-detail" data-id="${assignment.id}">${escapeHtml(assignment.assignmentNumber ?? '')}</button></td><td>${assignment.date ? formatDate(assignment.date) : ''}</td><td>${escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '')}</td><td>${formatNumber(assignment.slots, 0)}</td><td>${shiftStatusTag(assignment)}</td></tr>`)
     body = `<article class="card"><div class="card-header"><h2>${t('clients.tabs.assignments')}</h2><span class="tag info">${rows.length}</span></div>${rows.length ? table(['staffing.assignmentId', 'assignment.date', 'shiftTemplates.template', 'staffing.slots', 'common.status'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   }
   if (tab === 'department-documents') {
@@ -6608,7 +6651,7 @@ function renderEmployeeDetail() {
       const today = todayIso()
       const upcoming = currentWork.filter(item => item.date && item.date >= today).sort((a, b) => String(a.date).localeCompare(String(b.date)))
       if (!upcoming.length) return `<p class="muted">${t('dashboard.noUpcoming')}</p>`
-      const rows = upcoming.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${timeRangeLabel(item.startTime, item.endTime, item.endNextDay)}</td><td>${relationLink('client-detail', item.clientId, record('clients', item.clientId)?.name ?? '')}</td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : ''}</td><td>${statusTag(item.status)}</td></tr>`)
+      const rows = upcoming.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${timeRangeLabel(item.startTime, item.endTime, item.endNextDay)}</td><td>${relationLink('client-detail', item.clientId, record('clients', item.clientId)?.name ?? '')}</td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : ''}</td><td>${shiftStatusTag(item)}</td></tr>`)
       return table(['common.date', 'shifts.time', 'rel.client', 'rel.department', 'common.status'], rows)
     })()}`],
     [t('nav.timesheets'), `${(() => {
@@ -6740,9 +6783,10 @@ function renderStaffing() {
     const template = record('shiftTemplates', item.shiftTemplateId)
     const assigned = item.employeeIds?.length ?? 0
     const schedule = item.date ? `${formatDate(item.date)} · ${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}` : item.from && item.to ? formatDateRange(item.from, item.to) : ''
-    // Antall ansatte er bemanningsbehovet, med ledige plasser som undertekst.
-    const need = `<div class="file-name"><strong>${formatNumber(item.slots, 0)}</strong><span>${t('staffing.open')}: ${formatNumber(Math.max(0, item.slots - assigned), 0)}</span></div>`
-    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${template ? escapeHtml(template.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${schedule}</td><td>${need}</td><td>${assignedEmployeesCell(item)}</td><td>${statusTag(item.status)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
+    // Bemanningsgraden («X av Y bemannet») vises alltid adskilt fra den
+    // deriverte vaktstatusen (§27-§28).
+    const need = `<div class="file-name"><strong>${formatNumber(item.slots, 0)}</strong><span>${staffedOfLabel(item)}</span></div>`
+    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${template ? escapeHtml(template.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${schedule}</td><td>${need}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
   return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${filterBanner}${searchToolbar()}${dataTable('assignments', ['staffing.assignmentId', 'staffing.client', 'rel.department', 'shiftTemplates.template', 'assignment.date', 'staffing.slots', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)}</section>`
 }
@@ -6777,7 +6821,7 @@ function renderJobDetail() {
   const actions = cancelled
     ? button('common.back', 'back-staffing', 'secondary', 'arrow-left')
     : `${button('common.back', 'back-staffing', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-action="manage-assignment-team" data-id="${assignment.id}">${icon('users')}${t('staffing.manageTeam')}</button><button type="button" class="button" data-action="edit-assignment" data-id="${assignment.id}">${icon('edit')}${t('common.edit')}</button>${destructive}`
-  const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('common.status')}</dt><dd>${statusTag(assignment.status)}</dd></div><div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
+  const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
   const requirementsCard = `<article class="card"><h2>${t('staffing.requirementsPreferences')}</h2><dl class="detail-list"><div><dt>${t('assignment.genderPreference')}</dt><dd>${t({ female: 'assignment.genderWomen', male: 'assignment.genderMen' }[assignment.genderPreference] ?? 'assignment.genderBoth')}</dd></div><div><dt>${t('staffing.educationPreference')}</dt><dd>${t({ educated: 'assignment.educated', not_educated: 'assignment.notEducated' }[assignment.educationPreference] ?? 'assignment.educationBoth')}</dd></div></dl><h3 style="margin-top:16px">${t('staffing.roleRequirements')}</h3><dl class="detail-list"><div><dt>${t('staffing.role')}</dt><dd>${escapeHtml(taxonomy(assignment.role))}</dd></div><div><dt>${t('staffing.requiredQualification')}</dt><dd>${escapeHtml(taxonomy(assignment.requiredQualification))}</dd></div><div><dt>${t('staffing.requiredCertificates')}</dt><dd>${(assignment.requiredCertificates ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div></dl></article>`
   // Lønnskontekst, lønnsgrunnlag, tildelte ansatte og kommende vakter hører til
   // et bemannet oppdrag. Før tildeling handler kortet om jobben og om hvem som
@@ -7152,7 +7196,7 @@ function workforceTabs(active) {
 const MATERIAL_SHIFT_FIELDS = ['date', 'startTime', 'endTime', 'clientId', 'departmentId', 'location', 'shiftTemplateId', 'role', 'breakMinutes', 'endNextDay', 'from', 'to']
 // Praktisk informasjon og matchekriterier: varsles, men krever ikke ny aksept.
 // Kravfeltene endrer hvem som matcher vakten - ikke den tildeltes egne vilkår.
-const INFORMATIONAL_SHIFT_FIELDS = ['description', 'county', 'requiredEducation', 'requiredQualification', 'requiredCertificates']
+const INFORMATIONAL_SHIFT_FIELDS = ['description', 'county', 'requiredEducation', 'requiredQualification', 'requiredCertificates', 'customerOrderReference']
 
 function shiftFieldValue(record, field) {
   const value = record?.[field]
@@ -7234,6 +7278,55 @@ function syncAssignmentStaffing(assignment) {
 
 function openStaffingSlots(assignment) {
   return staffingSlotsFor(assignment).filter(slot => slot.status === 'open')
+}
+
+// === Derivert vaktstatus ===
+// Vaktstatus er ALDRI et manuelt valg: den beregnes deterministisk fra
+// kansellering, tid og bemanningsplassene (§2-§3). Lagret assignment.status
+// beholdes kun for kansellering og kompatibilitet - aldri som visning.
+
+function shiftEndTimestamp(assignment) {
+  if (!assignment?.date || !assignment?.endTime) return null
+  const date = assignment.endNextDay ? isoAddDays(assignment.date, 1) : assignment.date
+  return `${date}T${assignment.endTime}`
+}
+
+function localTimestamp(now = new Date()) {
+  const pad = value => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+}
+
+// En plass teller som endelig bemannet når den har en aktiv ansatt - også ved
+// «avventer ny bekreftelse», der den ansatte fortsatt er koblet til plassen
+// (§4). Kø, sendt forespørsel og ja-svar uten bekreftelse teller aldri (§29).
+function slotIsStaffed(slot) {
+  return Boolean(slot.employeeId) && (slot.status === 'assigned' || slot.status === 'pending_reconfirmation')
+}
+
+function staffedSlotCount(assignment) {
+  return staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled' && slotIsStaffed(slot)).length
+}
+
+// Presedens (§3): kansellert vinner alltid; passert sluttid gir Utført;
+// ellers Åpen når minst én aktiv plass mangler endelig ansatt, Bemannet når
+// alle har det. Utført endrer ALDRI timelister eller økonomi (§6).
+function shiftOperationalStatus(assignment, now = new Date()) {
+  if (assignment.status === 'cancelled') return 'cancelled'
+  const end = shiftEndTimestamp(assignment)
+  if (end && localTimestamp(now) > end) return 'completed'
+  const active = staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled')
+  return active.length && active.every(slotIsStaffed) ? 'staffed' : 'open'
+}
+
+function shiftStatusTag(assignment, now = new Date()) {
+  const status = shiftOperationalStatus(assignment, now)
+  const tones = { open: 'info', staffed: 'success', completed: '', cancelled: 'danger' }
+  return `<span class="tag ${tones[status]}">${t(`shifts.opStatus.${status}`)}</span>`
+}
+
+// «X av Y bemannet» vises alltid adskilt fra vaktstatusen (§28).
+function staffedOfLabel(assignment) {
+  return t('staffing.staffedOf', { count: staffedSlotCount(assignment), total: staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled').length })
 }
 
 // === Prioritert forespørselskø per bemanningsplass ===
@@ -9855,7 +9948,7 @@ function assignmentDialog() {
   const nextDay = draftValue('endNextDay') ? `<span class="tag info">${t('shiftTemplates.nextDay')}</span>` : ''
   const genderChoices = [{ value: 'female', text: t('assignment.genderWomen') }, { value: 'male', text: t('assignment.genderMen') }, { value: 'both', text: t('assignment.genderBoth') }]
   const educationChoices = [{ value: 'educated', text: t('assignment.educated') }, { value: 'not_educated', text: t('assignment.notEducated') }, { value: 'both', text: t('assignment.educationBoth') }]
-  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('shiftTemplates.template'), templates, { placeholder: t('common.select'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number' })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('role', t('staffing.role'), roleChoices, { placeholder: t('common.select') })}${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${boundTextarea('description', t('staffing.description'))}${editing ? boundSelect('status', t('common.status'), statusOptions()) : ''}</div></div><div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
+  const body = `${formError()}<div class="form-section"><h3>${t('staffing.basics')}</h3><div class="grid cols-2">${assignmentIdField()}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('departmentId', t('rel.department'), departments, { placeholder: t('common.select'), disabled: !clientId })}${boundSelect('shiftTemplateId', t('staffing.templateOptional'), templates, { placeholder: t('common.none'), disabled: !clientId })}${bound('date', t('assignment.date'), { type: 'date', required: true })}${bound('startTime', t('shifts.start'), { type: 'time', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number' })}${bound('slots', t('staffing.slots'), { type: 'number', required: true })}${boundSelect('role', `${t('staffing.role')} *`, roleChoices, { placeholder: t('common.select') })}</div>${nextDay}${noTemplates}${addressWarning}<div class="grid cols-2">${bound('location', t('jobs.location'))}${bound('county', t('form.administrativeArea'))}${editing ? `${boundSelect('requiredQualification', t('staffing.requiredQualification'), qualificationChoices, { placeholder: t('common.select') })}${bound('requiredCertificatesText', t('staffing.requiredCertificates'))}` : ''}${bound('customerOrderReference', t('staffing.customerRef'))}${boundTextarea('description', t('staffing.description'))}</div></div><div class="form-section"><h3>${t('staffing.requirementsPreferences')}</h3><div class="grid cols-2">${genderPreferenceField()}${educationPreferenceField()}${competenceLevelField()}</div></div><div class="form-section"><h3>${t('rel.employees')}</h3><div class="grid cols-2">${assignEmployeeField(draftAssignment)}</div></div>${storageNote()}`
   return modalShell(t(editing ? 'staffing.modal.edit' : 'staffing.modal.create'), t('page.staffing.desc'), 'briefcase', `${body}${changePreviewMarkup()}`, formFooter('save-assignment'))
 }
 
@@ -10996,8 +11089,12 @@ const entities = {
       from: draft.from ?? '',
       to: draft.to ?? '',
       slots: Number(draft.slots) || 0,
+      // Valgfri referanse fra kundens bestilling. Blank er gyldig (§21-§22).
+      customerOrderReference: String(draft.customerOrderReference ?? '').trim(),
       employeeIds: assignmentEmployeeIds(draft, state.editingId),
-      status: draft.status ?? 'pending'
+      // Status velges aldri manuelt (§8-§9): lagret verdi beholdes for
+      // kompatibilitet/kansellering; visning bruker shiftOperationalStatus.
+      status: draft.status ?? 'active'
     })
   },
   'shift-template': {
@@ -11206,12 +11303,25 @@ function crudHandlers(target) {
     },
     'save-assignment': () => {
       const creating = !state.editingId
-      if ((creating && (!state.draft.clientId || !state.draft.departmentId || !state.draft.shiftTemplateId || !state.draft.date || !state.draft.startTime || !state.draft.endTime)) || Number(state.draft.slots) < 1) {
-        state.formError = 'common.required'; render(); return
+      // Obligatoriske vaktfelt med spesifikk melding per felt (§25). Vaktmal er
+      // valgfri hjelp - aldri en avhengighet (§11-§12).
+      if (creating) {
+        const requiredFields = [['clientId', 'staffing.missing.client'], ['departmentId', 'staffing.missing.department'], ['date', 'staffing.missing.date'], ['startTime', 'staffing.missing.start'], ['endTime', 'staffing.missing.end'], ['role', 'staffing.missing.role']]
+        for (const [field, messageKey] of requiredFields) {
+          if (!String(state.draft[field] ?? '').trim()) { state.formError = messageKey; render(); return }
+        }
+      }
+      if (Number(state.draft.slots) < 1 || !Number.isInteger(Number(state.draft.slots))) {
+        state.formError = 'staffing.missing.slots'; render(); return
       }
       const department = record('departments', state.draft.departmentId)
-      const template = record('shiftTemplates', state.draft.shiftTemplateId)
-      if (creating && (!department || department.clientId !== state.draft.clientId || !template || template.status !== 'active' || template.clientId !== state.draft.clientId)) {
+      if (creating && (!department || department.clientId !== state.draft.clientId)) {
+        state.formError = 'staffing.missing.department'; render(); return
+      }
+      // Er en mal valgt, må den være aktiv og tilhøre klienten - men tom mal er
+      // fullt gyldig (§12).
+      const template = state.draft.shiftTemplateId ? record('shiftTemplates', state.draft.shiftTemplateId) : null
+      if (creating && state.draft.shiftTemplateId && (!template || template.status !== 'active' || template.clientId !== state.draft.clientId)) {
         state.formError = 'common.required'; render(); return
       }
       // Arkivert klient/avdeling kan aldri få nye vakter (§10, §38-§39).
@@ -11873,6 +11983,8 @@ window.__workmaticPreview = {
   invoiceBasis: (period = null) => JSON.parse(JSON.stringify(timesheetInvoiceBasis(period))),
   // Fase 4: dashboard-KPI-er, varsler og revisjonslogg - avledet lesning.
   dashboardCounts: () => ({ ...dashboardActionCounts() }),
+  shiftStatus: (assignmentId, nowIso = null) => shiftOperationalStatus(record('assignments', assignmentId), nowIso ? new Date(nowIso) : new Date()),
+  staffedCount: assignmentId => staffedSlotCount(record('assignments', assignmentId)),
   notifications: () => JSON.parse(JSON.stringify(syncNotifications())),
   unreadNotifications: () => syncNotifications().filter(item => !item.readAt).length,
   auditEntries: () => JSON.parse(JSON.stringify(auditEntries())),
