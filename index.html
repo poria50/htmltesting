@@ -2646,6 +2646,35 @@ const copy = {
     'employees.relationship': 'Relasjon',
     'employees.adminNotes': 'Interne notater',
     'employees.clientNotes': 'Klientnotater',
+    'staffing.assignDirectly': 'Tildel direkte',
+    'staffing.sendRequestSlot': 'Send forespørsel',
+    'staffing.awaitingResponse': 'Avventer svar',
+    'staffing.awaitingConfirmation': 'Avventer bekreftelse',
+    'staffing.confirmAssignment': 'Bekreft tildeling',
+    'staffing.withdraw': 'Trekk tilbake',
+    'staffing.answeredYes': 'Har svart ja',
+    'staffing.deadlineExpired': 'Svarfrist utløpt',
+    'staffing.requestPriority': 'Prioritet {current} av {total}',
+    'staffing.responseDeadline': 'Svarfrist',
+    'staffing.requestChannel': 'Kanal',
+    'staffing.addCandidate': 'Legg til i køen',
+    'staffing.queueHeading': 'Kandidater i prioritert rekkefølge',
+    'staffing.queueEmpty': 'Ingen kandidater er lagt til ennå.',
+    'staffing.queueUp': 'Opp',
+    'staffing.queueDown': 'Ned',
+    'staffing.duplicateCandidate': 'Denne ansatte står allerede i køen.',
+    'staffing.requestNotFinal': 'Hvis kandidaten svarer ja, må bemanningsansvarlig fortsatt bekrefte tildelingen.',
+    'staffing.replaceViaRequest': 'Bytt via forespørsel',
+    'staffing.finalCheckInactive': 'Den ansatte er ikke aktiv.',
+    'staffing.finalCheckUnqualified': 'Den ansatte oppfyller ikke kravene til vakten.',
+    'staffing.finalConfirmationSent': 'Vakten er nå bekreftet og tildelt {name}.',
+    'staffing.event.request_queue_created': 'Forespørselskø opprettet',
+    'staffing.event.request_accepted': 'Kandidat svarte ja',
+    'staffing.event.request_declined': 'Forespørsel avslått',
+    'staffing.event.request_expired': 'Svarfrist utløpt',
+    'staffing.event.request_withdrawn': 'Tilbud trukket tilbake',
+    'staffing.event.assignment_confirmed': 'Tildeling bekreftet',
+    'staffing.event.direct_assignment': 'Tildelt direkte',
     'staffing.slotLabel': 'Plass {number}',
     'staffing.slotOpen': 'Ledig',
     'staffing.slotAssigned': 'Tildelt',
@@ -3200,6 +3229,35 @@ copy.en = {
   'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Client notes',
   'staffing.new': 'New shift', 'staffing.client': 'Client', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
+  'staffing.assignDirectly': 'Assign directly',
+  'staffing.sendRequestSlot': 'Send request',
+  'staffing.awaitingResponse': 'Awaiting response',
+  'staffing.awaitingConfirmation': 'Awaiting confirmation',
+  'staffing.confirmAssignment': 'Confirm assignment',
+  'staffing.withdraw': 'Withdraw',
+  'staffing.answeredYes': 'Accepted',
+  'staffing.deadlineExpired': 'Response deadline expired',
+  'staffing.requestPriority': 'Priority {current} of {total}',
+  'staffing.responseDeadline': 'Response deadline',
+  'staffing.requestChannel': 'Channel',
+  'staffing.addCandidate': 'Add to queue',
+  'staffing.queueHeading': 'Candidates in priority order',
+  'staffing.queueEmpty': 'No candidates have been added yet.',
+  'staffing.queueUp': 'Up',
+  'staffing.queueDown': 'Down',
+  'staffing.duplicateCandidate': 'This employee is already in the queue.',
+  'staffing.requestNotFinal': 'If the candidate accepts, the staffing manager still has to confirm the assignment.',
+  'staffing.replaceViaRequest': 'Replace via request',
+  'staffing.finalCheckInactive': 'The employee is not active.',
+  'staffing.finalCheckUnqualified': 'The employee does not meet the shift requirements.',
+  'staffing.finalConfirmationSent': 'The shift is now confirmed and assigned to {name}.',
+  'staffing.event.request_queue_created': 'Request queue created',
+  'staffing.event.request_accepted': 'Candidate accepted',
+  'staffing.event.request_declined': 'Request declined',
+  'staffing.event.request_expired': 'Response deadline expired',
+  'staffing.event.request_withdrawn': 'Offer withdrawn',
+  'staffing.event.assignment_confirmed': 'Assignment confirmed',
+  'staffing.event.direct_assignment': 'Assigned directly',
   'staffing.slotLabel': 'Position {number}',
   'staffing.slotOpen': 'Open',
   'staffing.slotAssigned': 'Assigned',
@@ -6164,10 +6222,36 @@ function renderJobDetail() {
   // interne, stabile id-en vises ikke.
   const slotRows = slotRecords.map((slot, index) => {
     const employee = slot.employeeId ? record('employees', slot.employeeId) : null
-    const label = employee ? relationLink('employee-detail', employee.id, employee.name) : `<span class="muted">${t('staffing.slotOpen')}</span>`
-    const tone = slot.status === 'open' ? '' : slot.status === 'pending_reconfirmation' ? 'warning' : slot.status === 'cancelled' ? 'danger' : 'success'
-    const statusKey = slot.status === 'open' ? 'staffing.slotOpen' : slot.status === 'pending_reconfirmation' ? 'staffing.pendingReconfirmation' : slot.status === 'cancelled' ? 'staffing.cancelled' : 'staffing.slotAssigned'
-    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${label}</span></div><span class="tag ${tone}">${t(statusKey)}</span></div>`
+    const active = activeSlotRequest(slot)
+    const accepted = acceptedSlotRequest(slot)
+    const tone = slot.status === 'open' ? '' : slot.status === 'assigned' ? 'success' : slot.status === 'cancelled' ? 'danger' : 'warning'
+    const statusKey = slot.status === 'open' ? 'staffing.slotOpen'
+      : slot.status === 'requested' ? 'staffing.awaitingResponse'
+      : slot.status === 'awaiting_confirmation' ? 'staffing.awaitingConfirmation'
+      : slot.status === 'pending_reconfirmation' ? 'staffing.pendingReconfirmation'
+      : slot.status === 'cancelled' ? 'staffing.cancelled' : 'staffing.slotAssigned'
+    // Innhold og handlinger per status. Kansellert vakt er lesbar: ingen knapper.
+    let detail = employee ? relationLink('employee-detail', employee.id, employee.name) : `<span class="muted">${t('staffing.slotOpen')}</span>`
+    let slotActions = ''
+    if (assignment.status !== 'cancelled') {
+      if (slot.status === 'open') {
+        slotActions = `<button type="button" class="button ghost small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.sendRequest')}</button>`
+      }
+      if (slot.status === 'requested' && active) {
+        const candidate = record('employees', active.employeeId)
+        detail = `${escapeHtml(candidate?.name ?? '')} · ${t('staffing.requestPriority', { current: active.priority, total: slot.requestQueue.length })}${active.expiresAt ? ` · ${t('staffing.responseDeadline')}: ${formatDate(active.expiresAt)}` : ''}`
+        slotActions = `<button type="button" class="button ghost small" data-action="slot-request-accept" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.answeredYes')}</button><button type="button" class="button ghost small" data-action="slot-request-decline" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.declineChange')}</button><button type="button" class="button ghost small" data-action="slot-request-expire" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.deadlineExpired')}</button>`
+      }
+      if (slot.status === 'awaiting_confirmation' && accepted) {
+        const candidate = record('employees', accepted.employeeId)
+        detail = `${escapeHtml(candidate?.name ?? '')} · ${t('staffing.answeredYes')}`
+        slotActions = `<button type="button" class="button small" data-action="confirm-slot-assignment" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.confirmAssignment')}</button><button type="button" class="button ghost small danger" data-action="withdraw-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.withdraw')}</button>`
+      }
+      if (slot.status === 'assigned' && employee) {
+        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button>`
+      }
+    }
+    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions"><span class="tag ${tone}">${t(statusKey)}</span>${slotActions}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
   return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${assignmentHistoryCard(assignment)}</section>`
@@ -6285,8 +6369,12 @@ function matchStatusFor(employee, assignment) {
 }
 
 function requestStatusFor(assignmentId, employeeId) {
-  if (record('assignments', assignmentId)?.employeeIds?.includes(employeeId)) return { key: 'staffing.assigned', tone: 'success' }
-  return state.requestLog[`${assignmentId}:${employeeId}`]
+  const assignment = record('assignments', assignmentId)
+  if (assignment?.employeeIds?.includes(employeeId)) return { key: 'staffing.assigned', tone: 'success' }
+  // Kontakthistorikken leses fra de persisterte hendelsene; det gamle flyktige
+  // requestLog-kartet er ikke lenger en aktiv sannhet.
+  const contacted = (assignment?.events ?? []).some(event => event.type === 'request_sent' && event.employeeId === employeeId)
+  return contacted
     ? { key: 'staffing.requestSentStatus', tone: 'info' }
     : { key: 'staffing.notContacted', tone: '' }
 }
@@ -6575,6 +6663,62 @@ function syncAssignmentStaffing(assignment) {
 
 function openStaffingSlots(assignment) {
   return staffingSlotsFor(assignment).filter(slot => slot.status === 'open')
+}
+
+// === Prioritert forespørselskø per bemanningsplass ===
+// Køen bor på den konkrete plassen (slot.requestQueue) og identifiseres alltid
+// av den numeriske slot.id. Nøyaktig én forespørsel er «sent» om gangen; resten
+// står «queued». Et ja tildeler ALDRI automatisk: plassen går til «avventer
+// bekreftelse», og bemanningsansvarlig bekrefter - etter full revalidering.
+
+function slotById(assignment, slotId) {
+  return staffingSlotsFor(assignment).find(slot => String(slot.id) === String(slotId)) ?? null
+}
+
+function activeSlotRequest(slot) {
+  return (slot.requestQueue ?? []).find(request => request.status === 'sent') ?? null
+}
+
+function acceptedSlotRequest(slot) {
+  return (slot.requestQueue ?? []).find(request => request.status === 'accepted') ?? null
+}
+
+// Neste kandidat i køen sendes; er køen tom, åpnes den samme plassen igjen.
+// Historikken beholdes alltid - ingen rader slettes (§24-§25).
+function advanceSlotQueue(assignment, slot) {
+  const next = (slot.requestQueue ?? []).find(request => request.status === 'queued')
+  if (next) {
+    next.status = 'sent'
+    next.sentAt = new Date().toISOString()
+    slot.status = 'requested'
+    logAssignmentEvent(assignment, { type: 'request_sent', slotId: slot.id, requestId: next.id, employeeId: next.employeeId, channel: next.channel })
+  } else {
+    slot.status = 'open'
+    slot.employeeId = null
+  }
+  syncAssignmentStaffing(assignment)
+}
+
+// Full revalidering før endelig tildeling - både for direkte tildeling og for
+// bekreftelse etter ja (§21, §31): aktiv ansatt, ingen overlapp, eksplisitte krav.
+function finalAssignmentBlocker(employee, assignment) {
+  if (!employee || employee.status === 'inactive') return 'staffing.finalCheckInactive'
+  if (employeeBusyDuring(employee.id, assignment)) return 'staffing.replaceBusy'
+  // Dobbeltbooking på planleggingsnivå: en aktiv tildeling på en annen vakt med
+  // overlappende tidsrom blokkerer også - ikke bare registrerte vakter.
+  if (employeeAssignedElsewhereDuring(employee.id, assignment)) return 'staffing.replaceBusy'
+  if (!qualificationFor(employee, assignment).qualified) return 'staffing.finalCheckUnqualified'
+  return null
+}
+
+function employeeAssignedElsewhereDuring(employeeId, assignment) {
+  if (!assignment.date) return false
+  const target = timeWindow(assignment.date, assignment.startTime, assignment.endTime)
+  return collection('assignments').some(item => {
+    if (item.id === assignment.id || item.status === 'cancelled' || !item.date) return false
+    if (!activeEmployeeIdsForAssignment(item).includes(employeeId)) return false
+    return windowsOverlap(timeWindow(item.date, item.startTime, item.endTime), target)
+  })
 }
 
 function slotForEmployee(assignment, employeeId) {
@@ -8174,6 +8318,7 @@ function closeDialog() {
   state.formError = null
   state.changePreview = null
   state.changeConfirmed = false
+  state.slotAction = null
   render()
   requestAnimationFrame(() => state.lastTrigger?.focus?.())
 }
@@ -8361,6 +8506,37 @@ function candidateDialog() {
 
 // Kansellering sletter aldri vakten: den markeres som kansellert, med
 // obligatorisk årsak, og berørte ansatte varsles (§20-§23, §38).
+// Direkte tildeling på én konkret plass: samme søk og samme forhåndsvisning av
+// lønn/kvalifikasjon som ellers, og full revalidering ved bekreftelse.
+function directAssignDialog() {
+  const assignment = record('assignments', state.slotAction?.assignmentId)
+  if (!assignment) return ''
+  const body = `${formError()}<div class="grid cols-1">${assignEmployeeField(assignment)}</div>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-direct-assign">${t('staffing.confirmAssignment')}</button></div>`
+  return modalShell(t('staffing.assignDirectly'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'medium')
+}
+
+// Prioritert forespørselskø: kandidatene velges og sorteres før utsendelse.
+// Bare førstemann får forespørselen; resten står i kø (§10-§12).
+function slotRequestDialog() {
+  const assignment = record('assignments', state.slotAction?.assignmentId)
+  if (!assignment) return ''
+  const queue = state.draft.queue ?? []
+  const rows = queue.map((employeeId, index) => {
+    const employee = record('employees', employeeId)
+    return `<div class="file-row"><div class="file-name"><strong>${index + 1}. ${escapeHtml(employee?.name ?? '')}</strong></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="slot-queue-up" data-employee-id="${employeeId}">${t('staffing.queueUp')}</button><button type="button" class="button ghost small" data-action="slot-queue-down" data-employee-id="${employeeId}">${t('staffing.queueDown')}</button><button type="button" class="button ghost small danger" data-action="slot-queue-remove" data-employee-id="${employeeId}">${t('common.remove')}</button></div></div>`
+  }).join('')
+  const channels = [{ value: 'email', text: t('staffing.channelEmail') }, { value: 'sms', text: t('staffing.channelSms') }, { value: 'both', text: t('staffing.channelBoth') }]
+  const body = `${formError()}
+    <div class="banner">${icon('bell')}<span>${t('staffing.requestNotFinal')}</span></div>
+    <div class="grid cols-1">${assignEmployeeField(assignment)}</div>
+    <div class="form-actions" style="margin:0 0 8px"><button type="button" class="button secondary small" data-action="slot-queue-add">${icon('plus')}${t('staffing.addCandidate')}</button></div>
+    <div class="field field-wide"><label>${t('staffing.queueHeading')}</label>${rows || `<p class="muted">${t('staffing.queueEmpty')}</p>`}</div>
+    <div class="grid cols-2">${boundSelect('channel', t('staffing.requestChannel'), channels)}${bound('responseDeadline', t('staffing.responseDeadline'), { type: 'date' })}</div>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="send-slot-request">${t('staffing.sendRequest')}</button></div>`
+  return modalShell(t('staffing.sendRequest'), escapeHtml(assignment.assignmentNumber ?? ''), 'envelope', body, footer, 'medium')
+}
+
 function cancelAssignmentDialog() {
   const assignment = record('assignments', state.selected.assignment)
   const reasons = ['client_cancelled', 'wrong_entry', 'changed_need', 'other'].map(key => ({ value: key, text: t(`staffing.cancelReason.${key}`) }))
@@ -8577,6 +8753,8 @@ function timesheetRejectDialog() {
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
+  'direct-assign': directAssignDialog,
+  'slot-request': slotRequestDialog,
   premium: premiumDialog,
   overtime: overtimeDialog,
   shift: shiftDialog,
@@ -8863,6 +9041,152 @@ function actionHandlers(target = null) {
     // beregningssnapshots står urørt.
     // Svar på ny bekreftelse skjer på den ene plassen. Aksept beholder samme
     // plass; avslag åpner den samme plassen igjen - aldri en ny (§13-§15).
+    // === Plass-handlinger: direkte tildeling og prioritert forespørselskø ===
+    // Alt identifiseres av den numeriske slot.id. Kansellert vakt er lesbar
+    // historie: ingen plass-handling er tillatt der (§42).
+    'open-direct-assign': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      if (!assignment || assignment.status === 'cancelled') return
+      state.slotAction = { assignmentId: assignment.id, slotId: target?.dataset?.slotId }
+      openDialog('direct-assign', 'create', {})
+    },
+    'confirm-direct-assign': () => {
+      const assignment = record('assignments', state.slotAction?.assignmentId)
+      const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+      const employee = record('employees', state.draft.assignEmployeeId)
+      if (!assignment || !slot || !employee || assignment.status === 'cancelled') return
+      const blocker = finalAssignmentBlocker(employee, assignment)
+      if (blocker) { state.formError = blocker; render(); return }
+      slot.employeeId = employee.id
+      slot.status = 'assigned'
+      syncAssignmentStaffing(assignment)
+      logAssignmentEvent(assignment, { type: 'direct_assignment', slotId: slot.id, employeeId: employee.id, assignedBy: 'demo-admin' })
+      state.slotAction = null
+      persist(); closeDialog(); showToast('crud.updated', { name: employee.name })
+    },
+    'open-slot-request': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      if (!assignment || assignment.status === 'cancelled') return
+      state.slotAction = { assignmentId: assignment.id, slotId: target?.dataset?.slotId }
+      openDialog('slot-request', 'create', { channel: 'email', queue: [] })
+    },
+    // Kandidatlisten bygges i kladden: legg til, opp, ned, fjern. Samme ansatt
+    // kan aldri stå to ganger i samme kø (§29).
+    'slot-queue-add': () => {
+      const employee = record('employees', state.draft.assignEmployeeId)
+      if (!employee) return
+      const queue = state.draft.queue ?? []
+      if (queue.includes(employee.id)) { state.formError = 'staffing.duplicateCandidate'; render(); return }
+      state.formError = null
+      state.draft.queue = [...queue, employee.id]
+      delete state.draft.assignEmployeeId
+      delete state.draft.assignEmployeeQuery
+      render()
+    },
+    'slot-queue-up': () => {
+      const queue = [...(state.draft.queue ?? [])]
+      const index = queue.indexOf(target?.dataset?.employeeId)
+      if (index > 0) { [queue[index - 1], queue[index]] = [queue[index], queue[index - 1]]; state.draft.queue = queue; render() }
+    },
+    'slot-queue-down': () => {
+      const queue = [...(state.draft.queue ?? [])]
+      const index = queue.indexOf(target?.dataset?.employeeId)
+      if (index >= 0 && index < queue.length - 1) { [queue[index + 1], queue[index]] = [queue[index], queue[index + 1]]; state.draft.queue = queue; render() }
+    },
+    'slot-queue-remove': () => {
+      state.draft.queue = (state.draft.queue ?? []).filter(id => id !== target?.dataset?.employeeId)
+      render()
+    },
+    'send-slot-request': () => {
+      const assignment = record('assignments', state.slotAction?.assignmentId)
+      const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+      const queue = state.draft.queue ?? []
+      if (!assignment || !slot || !queue.length || assignment.status === 'cancelled') { state.formError = 'common.required'; render(); return }
+      const channel = String(state.draft.channel ?? 'email')
+      // Bytte via forespørsel: den sittende går til historikken, samme plass (§38).
+      if (slot.employeeId) {
+        logAssignmentEvent(assignment, { type: 'employee_removed', slotId: slot.id, employeeId: slot.employeeId })
+        slot.employeeId = null
+      }
+      slot.requestQueue = queue.map((employeeId, index) => ({
+        id: nextNumericSlotId(),
+        employeeId,
+        priority: index + 1,
+        status: 'queued',
+        channel,
+        sentAt: null,
+        respondedAt: null,
+        expiresAt: String(state.draft.responseDeadline ?? '')
+      }))
+      logAssignmentEvent(assignment, { type: 'request_queue_created', slotId: slot.id, notified: queue })
+      advanceSlotQueue(assignment, slot)
+      state.slotAction = null
+      persist(); closeDialog(); showToast('staffing.requestSent', { count: 1 })
+    },
+    // Svarene registreres av bemanningsansvarlig i demoen. Avslag og utløpt
+    // frist går videre til neste i køen; et ja pauser køen og venter på
+    // bekreftelse - det tildeler aldri (§15-§19).
+    'slot-request-decline': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const request = slot ? activeSlotRequest(slot) : null
+      if (!request) return
+      request.status = 'declined'
+      request.respondedAt = new Date().toISOString()
+      logAssignmentEvent(assignment, { type: 'request_declined', slotId: slot.id, requestId: request.id, employeeId: request.employeeId })
+      advanceSlotQueue(assignment, slot)
+      persist(); render()
+    },
+    'slot-request-expire': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const request = slot ? activeSlotRequest(slot) : null
+      if (!request) return
+      request.status = 'expired'
+      request.respondedAt = new Date().toISOString()
+      logAssignmentEvent(assignment, { type: 'request_expired', slotId: slot.id, requestId: request.id, employeeId: request.employeeId })
+      advanceSlotQueue(assignment, slot)
+      persist(); render()
+    },
+    'slot-request-accept': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const request = slot ? activeSlotRequest(slot) : null
+      if (!request) return
+      request.status = 'accepted'
+      request.respondedAt = new Date().toISOString()
+      slot.status = 'awaiting_confirmation'
+      logAssignmentEvent(assignment, { type: 'request_accepted', slotId: slot.id, requestId: request.id, employeeId: request.employeeId })
+      persist(); render()
+    },
+    'confirm-slot-assignment': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const request = slot ? acceptedSlotRequest(slot) : null
+      const employee = request ? record('employees', request.employeeId) : null
+      if (!assignment || !slot || !request || assignment.status === 'cancelled') return
+      // Full revalidering rett før tildeling: feiler den, forblir plassen
+      // avventende og ja-svaret står historisk (§21, §56).
+      const blocker = finalAssignmentBlocker(employee, assignment)
+      if (blocker) { showToast(blocker, {}); return }
+      slot.employeeId = employee.id
+      slot.status = 'assigned'
+      syncAssignmentStaffing(assignment)
+      logAssignmentEvent(assignment, { type: 'assignment_confirmed', slotId: slot.id, requestId: request.id, employeeId: employee.id, confirmedBy: 'demo-admin', notified: [employee.id] })
+      persist(); render(); showToast('staffing.finalConfirmationSent', { name: employee.name })
+    },
+    'withdraw-slot-request': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const request = slot ? acceptedSlotRequest(slot) : null
+      if (!request) return
+      // Ja-svaret består historisk; kandidaten tildeles ikke, og neste i køen
+      // kan sendes (§23).
+      request.status = 'withdrawn'
+      logAssignmentEvent(assignment, { type: 'request_withdrawn', slotId: slot.id, requestId: request.id, employeeId: request.employeeId })
+      advanceSlotQueue(assignment, slot)
+      persist(); render()
+    },
     'confirm-reconfirmation': () => {
       const assignment = record('assignments', target?.dataset?.id)
       const employeeId = target?.dataset?.employeeId
@@ -9987,6 +10311,7 @@ window.__workmaticPreview = {
   find: (name, id) => record(name, id),
   dispatchOn: (action, id) => handleAction(action, { dataset: { id } }),
   dispatchOn2: (action, id, employeeId) => handleAction(action, { dataset: { id, employeeId } }),
+  dispatchSlot: (action, id, slotId, employeeId) => handleAction(action, { dataset: { id, slotId, employeeId } }),
   fillForm: values => { Object.assign(state.draft, values); render() },
   changeDraft: (name, value) => { applyDraftChange(name, value); render() },
   changeField: (name, value) => handleDraftFieldChange(name, value),
