@@ -2701,6 +2701,16 @@ const copy = {
     'timesheets.event.timesheet_returned': 'Sendt tilbake',
     'timesheets.event.timesheet_approved': 'Godkjent',
     'timesheets.event.timesheet_reopened': 'Gjenåpnet',
+    'payrollBasis.title': 'Lønnsgrunnlag fra godkjente timelister',
+    'payrollBasis.ready': 'Til lønn',
+    'payrollBasis.blocked': 'Lønnsgrunnlag mangler',
+    'payrollBasis.pending': 'Venter på godkjent timeliste',
+    'payrollBasis.waiting': 'Venter på godkjent timeliste',
+    'payrollBasis.missing': 'Lønnsgrunnlag mangler',
+    'payrollBasis.actualTime': 'Faktisk tid',
+    'payrollBasis.approvedHours': 'Godkjente timer',
+    'payrollBasis.total': 'Til lønn',
+    'payrollBasis.source': 'Kilde: Godkjent timeliste',
     'timesheets.one': 'Timeliste',
     'timesheets.perShift': 'Timelister per vakt',
     'timesheets.planned': 'Planlagt',
@@ -3325,6 +3335,16 @@ copy.en = {
   'timesheets.event.timesheet_returned': 'Sent back',
   'timesheets.event.timesheet_approved': 'Approved',
   'timesheets.event.timesheet_reopened': 'Reopened',
+  'payrollBasis.title': 'Payroll basis from approved timesheets',
+  'payrollBasis.ready': 'Payroll total',
+  'payrollBasis.blocked': 'Payroll basis missing',
+  'payrollBasis.pending': 'Waiting for approved timesheet',
+  'payrollBasis.waiting': 'Waiting for approved timesheet',
+  'payrollBasis.missing': 'Payroll basis missing',
+  'payrollBasis.actualTime': 'Actual time',
+  'payrollBasis.approvedHours': 'Approved hours',
+  'payrollBasis.total': 'Payroll total',
+  'payrollBasis.source': 'Source: Approved timesheet',
   'timesheets.one': 'Timesheet',
   'timesheets.perShift': 'Timesheets per shift',
   'timesheets.planned': 'Planned',
@@ -7894,6 +7914,120 @@ function shiftApproved(iso, form) {
   return iso < addDays(form.endDate, -6)
 }
 
+// === Kanonisk lønnsgrunnlag: godkjente slot-timelister ===
+// Kun godkjent, faktisk arbeidstid blir nytt lønnsgrunnlag. Snapshotet fra
+// godkjenningen er kilden - aldri de muterbare feltene, aldri planlagt tid.
+// Historisk låst calculationSnapshot vinner fortsatt, og den eldre genererte
+// rapporten består urørt for de låste fixture-tallene. Fakturering byttes ikke.
+
+// Én sentral kilde (§24): aktive, godkjente timelister med siste godkjenning.
+function approvedPayrollTimesheets(period = null) {
+  return collection('slotTimesheets')
+    .filter(item => !item.voided && !item.superseded && item.status === 'approved' && (item.approvalVersions ?? []).length)
+    .map(item => ({ timesheet: item, snapshot: item.approvalVersions[item.approvalVersions.length - 1] }))
+    .filter(({ snapshot }) => !period || ((!period.startDate || snapshot.plannedDate >= period.startDate) && (!period.endDate || snapshot.plannedDate <= period.endDate)))
+}
+
+function pendingPayrollTimesheets() {
+  return collection('slotTimesheets').filter(item => !item.voided && !item.superseded && item.status !== 'approved')
+}
+
+// Lønnslinjene fra godkjent faktisk tid. Samme beregningsprimitiv som resten av
+// motoren: resolver -> grunnlønn -> tillegg (mot faktisk intervall) -> overtid,
+// med den ukentlige akkumulatoren per ansatt på tvers av klienter (§13).
+function timesheetPayrollBasis(period = null) {
+  const approved = approvedPayrollTimesheets(period)
+    .sort((a, b) => (a.snapshot.plannedDate === b.snapshot.plannedDate
+      ? String(a.snapshot.employeeId).localeCompare(String(b.snapshot.employeeId))
+      : String(a.snapshot.plannedDate).localeCompare(String(b.snapshot.plannedDate))))
+
+  const lines = []
+  const blocked = []
+  const weekTally = new Map()
+
+  for (const { timesheet, snapshot } of approved) {
+    const assignment = record('assignments', snapshot.assignmentId)
+    const employee = record('employees', snapshot.employeeId)
+    const trace = { timesheetId: timesheet.id, assignmentId: snapshot.assignmentId, slotId: snapshot.slotId, employeeId: snapshot.employeeId }
+    const resolution = assignment && employee ? resolveCompensation(employee, assignment, snapshot.plannedDate) : { ok: false, reason: 'missing_context' }
+    if (!resolution.ok) {
+      // Godkjent arbeid uten lønnsoppslag er et blokkert avvik - aldri stille
+      // utelatt, og aldri «ukvalifisert» (§17, §31).
+      blocked.push({ ...trace, date: snapshot.plannedDate, employee, assignment, reasonKey: blockingMessageKey(resolution.reason) })
+      continue
+    }
+
+    const spanMinutes = timeSpanMinutes(snapshot.actualStart, snapshot.actualEnd, timesheet.endNextDay)
+    const hours = Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(snapshot.actualBreakMinutes) || 0)) / 60
+    const rate = resolution.baseRate
+    // Tillegg og helligdager vurderes mot det faktiske, godkjente intervallet.
+    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate)
+
+    const daily = overtimeFor(resolution.tariffId, 'daily', snapshot.plannedDate)
+    const weekly = overtimeFor(resolution.tariffId, 'weekly', snapshot.plannedDate)
+    const weekKey = `${snapshot.employeeId}-${isoWeekKey(snapshot.plannedDate)}`
+    const beforeWeek = weekTally.get(weekKey) ?? 0
+    weekTally.set(weekKey, beforeWeek + hours)
+    const dailyOvertime = daily ? Math.max(0, hours - (Number(daily.threshold) || 0)) : 0
+    const weeklyOvertime = weekly ? Math.max(0, Math.min(hours, beforeWeek + hours - (Number(weekly.threshold) || 0))) : 0
+    const overtimeRule = weeklyOvertime > dailyOvertime ? weekly : daily
+    const overtimeHours = Math.max(dailyOvertime, weeklyOvertime)
+    const overtimeAmount = overtimeRule && overtimeHours
+      ? (overtimeRule.method === 'percentage'
+          ? overtimeHours * rate * ((Number(overtimeRule.value) || 0) / 100)
+          : overtimeHours * (Number(overtimeRule.value) || 0))
+      : 0
+
+    const ordinaryAmount = hours * rate - (premium.baseReplacement || 0)
+    lines.push({
+      ...trace,
+      date: snapshot.plannedDate,
+      employee,
+      assignment,
+      client: record('clients', snapshot.clientId),
+      department: record('departments', snapshot.departmentId),
+      actualStart: snapshot.actualStart,
+      actualEnd: snapshot.actualEnd,
+      actualBreakMinutes: snapshot.actualBreakMinutes,
+      hours,
+      rate,
+      resolution,
+      ordinaryAmount,
+      premiumAmount: premium.amount,
+      overtimeHours,
+      overtimeRule,
+      overtimeAmount,
+      total: ordinaryAmount + premium.amount + overtimeAmount
+    })
+  }
+
+  const totals = lines.reduce((sum, line) => ({
+    hours: sum.hours + line.hours,
+    ordinaryAmount: sum.ordinaryAmount + line.ordinaryAmount,
+    premiumAmount: sum.premiumAmount + line.premiumAmount,
+    overtimeAmount: sum.overtimeAmount + line.overtimeAmount,
+    total: sum.total + line.total
+  }), { hours: 0, ordinaryAmount: 0, premiumAmount: 0, overtimeAmount: 0, total: 0 })
+
+  return { lines, blocked, pending: pendingPayrollTimesheets(), totals }
+}
+
+// Grunnlagsseksjonen på Lønn-siden: klare linjer, blokkerte avvik og ventende
+// timelister - tydelig adskilt (§18, §28-§31).
+function timesheetPayrollSection() {
+  const basis = timesheetPayrollBasis()
+  if (!basis.lines.length && !basis.blocked.length && !basis.pending.length) return ''
+  const chips = `<div class="stats-grid" style="margin-bottom:12px">
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.ready')}</span><strong class="stat-value">${basis.lines.length}</strong><span class="muted">${formatMoney(basis.totals.total)}</span></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.blocked.length}</strong><span class="muted">${t('payrollBasis.missing')}</span></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong><span class="muted">${t('payrollBasis.waiting')}</span></article>
+  </div>`
+  const rows = basis.lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}</td><td>${escapeHtml(line.actualStart)}–${escapeHtml(line.actualEnd)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td><strong>${formatMoney(line.total)}</strong></td><td><span class="muted">${t('payrollBasis.source')}</span></td></tr>`)
+  const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}</span></div>`).join('')
+  const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'shifts.basePay', 'comp.tables.premium', 'comp.payroll.overtime', 'payrollBasis.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('payrollBasis.title')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedRows}${table_}</article>`
+}
+
 function payrollReport(form) {
   const lines = economyLines({ ...form, clientId: null, departmentIds: [] }).map(line => ({
     ...line,
@@ -8146,7 +8280,7 @@ function renderPayroll() {
   const selection = `<article class="card"><div class="card-header"><h2>${t('comp.payroll.selection')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-payroll-detail"${detailed ? ' checked' : ''}><span>${t('comp.payroll.showShifts')}</span></label></div><div class="grid cols-2">${payrollPeriodFields()}</div><p class="field-help">${t('comp.payroll.agencyNote')}</p></article>`
   const table = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${detailed ? t('comp.payroll.shiftList') : t('comp.payroll.perEmployee')}</h2><span class="tag info">${detailed ? report.lines.length : payrollEmployeeRows(report).length}</span></div><p class="field-help">${t('comp.payroll.clickHint')}</p>${detailed ? payrollShiftTable(report) : payrollEmployeeTable(report)}</article>`
   // Eksporten av timelister ligger der den alltid har ligget, uendret.
-  return `<section class="page">${pageHeading('comp.pages.payrollTitle', 'comp.pages.payrollDesc', button('comp.payroll.exportCsv', 'export-payroll', 'secondary', 'file'))}${payrollFilterControls()}${basisExplanation}${selection}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
+  return `<section class="page">${pageHeading('comp.pages.payrollTitle', 'comp.pages.payrollDesc', button('comp.payroll.exportCsv', 'export-payroll', 'secondary', 'file'))}${timesheetPayrollSection()}${payrollFilterControls()}${basisExplanation}${selection}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
 }
 
 // Ansattkortet vises i en skuff, slik at man kan inspisere én ansatt uten å
@@ -10856,6 +10990,7 @@ window.__workmaticPreview = {
   migrateCompensations: data => migrateCompensationsToPaySystems(data),
   migrateNumericSlotIds: data => migrateNumericSlotIds(data),
   migrateSlotTimesheets: data => migrateSlotTimesheets(data),
+  payrollBasis: (period = null) => JSON.parse(JSON.stringify(timesheetPayrollBasis(period))),
   slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
   slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
   timesheetDeviation: id => { const t = collection('slotTimesheets').find(item => item.id === id); return t ? JSON.parse(JSON.stringify(timesheetDeviation(t))) : null },
