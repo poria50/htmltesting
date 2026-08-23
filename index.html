@@ -2676,6 +2676,21 @@ const copy = {
     'staffing.event.assignment_confirmed': 'Tildeling bekreftet',
     'staffing.event.direct_assignment': 'Tildelt direkte',
     'departments.workedHere': 'Ansatte som har jobbet her',
+    'timesheets.one': 'Timeliste',
+    'timesheets.perShift': 'Timelister per vakt',
+    'timesheets.planned': 'Planlagt',
+    'timesheets.actual': 'Faktisk',
+    'timesheets.actualStart': 'Faktisk start',
+    'timesheets.actualEnd': 'Faktisk slutt',
+    'timesheets.actualBreak': 'Faktisk pause',
+    'timesheets.breakShort': 'Pause',
+    'timesheets.deviation': 'Avvik',
+    'timesheets.deviationNote': 'Forklaring på avvik',
+    'timesheets.open': 'Åpne timeliste',
+    'timesheets.status.not_submitted': 'Ikke levert',
+    'timesheets.status.submitted': 'Til godkjenning',
+    'timesheets.status.approved': 'Godkjent',
+    'timesheets.status.needs_correction': 'Må korrigeres',
     'staffing.slotLabel': 'Plass {number}',
     'staffing.slotOpen': 'Ledig',
     'staffing.slotAssigned': 'Tildelt',
@@ -3260,6 +3275,21 @@ copy.en = {
   'staffing.event.assignment_confirmed': 'Assignment confirmed',
   'staffing.event.direct_assignment': 'Assigned directly',
   'departments.workedHere': 'Employees who have worked here',
+  'timesheets.one': 'Timesheet',
+  'timesheets.perShift': 'Timesheets per shift',
+  'timesheets.planned': 'Planned',
+  'timesheets.actual': 'Actual',
+  'timesheets.actualStart': 'Actual start',
+  'timesheets.actualEnd': 'Actual end',
+  'timesheets.actualBreak': 'Actual break',
+  'timesheets.breakShort': 'Break',
+  'timesheets.deviation': 'Deviation',
+  'timesheets.deviationNote': 'Deviation explanation',
+  'timesheets.open': 'Open timesheet',
+  'timesheets.status.not_submitted': 'Not submitted',
+  'timesheets.status.submitted': 'Pending approval',
+  'timesheets.status.approved': 'Approved',
+  'timesheets.status.needs_correction': 'Needs correction',
   'staffing.slotLabel': 'Position {number}',
   'staffing.slotOpen': 'Open',
   'staffing.slotAssigned': 'Assigned',
@@ -4981,7 +5011,7 @@ function taxonomy(value) {
   return value ? t(`taxonomy.${value}`) : t('common.none')
 }
 
-let db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))
+let db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))))
 let storageWorks = true
 
 // Migrering: en eksperimentell runde flyttet lønnstabell og regler til en egen
@@ -5104,6 +5134,49 @@ function migrateStaffingSlots(data) {
   return data
 }
 
+// Migrering: kanoniske timelister per bemanningsplass. Legacy-arbeid (workSessions
+// via shift -> assignment + employee) kobles bare når mappingen er entydig: den
+// ansatte må ha nøyaktig én plass på oppdraget. Tvetydige tilfeller hoppes over
+// uten gjetting. De gamle ukepostene beholdes som visnings-/kompatibilitetsdata.
+// Idempotent: finnes en aktiv timeliste for (assignment, slot), røres ingenting.
+function migrateSlotTimesheets(data) {
+  data.slotTimesheets = data.slotTimesheets ?? []
+  const nextId = () => nextNumericSlotId(data)
+  const activeFor = (assignmentId, slotId) => data.slotTimesheets.find(item => item.assignmentId === assignmentId && String(item.slotId) === String(slotId) && !item.voided && !item.superseded)
+
+  for (const session of data.workSessions ?? []) {
+    const shift = (data.shifts ?? []).find(item => item.id === session.shiftId)
+    const assignment = shift ? (data.assignments ?? []).find(item => item.id === (shift.assignmentId || (data.jobs ?? []).find(job => job.id === shift.jobId)?.assignmentId)) : null
+    if (!assignment || !shift?.employeeId) continue
+    const slots = (assignment.staffingSlots ?? []).filter(slot => slot.employeeId === shift.employeeId && slot.status !== 'cancelled')
+    if (slots.length !== 1) continue
+    const slot = slots[0]
+    let timesheet = activeFor(assignment.id, slot.id)
+    if (!timesheet) {
+      timesheet = {
+        id: nextId(),
+        assignmentId: assignment.id,
+        slotId: slot.id,
+        employeeId: shift.employeeId,
+        status: 'not_submitted',
+        plannedDate: shift.date || assignment.date || '',
+        plannedStart: shift.start || assignment.startTime || '',
+        plannedEnd: shift.end || assignment.endTime || '',
+        plannedBreakMinutes: Number(shift.breakMinutes ?? assignment.breakMinutes ?? 0) || 0,
+        endNextDay: Boolean(assignment.endNextDay),
+        actualStart: session.start || '',
+        actualEnd: session.end || '',
+        actualBreakMinutes: session.breakMinutes ?? null,
+        deviationNote: '',
+        sessionIds: []
+      }
+      data.slotTimesheets.push(timesheet)
+    }
+    if (!timesheet.sessionIds.includes(session.id)) timesheet.sessionIds.push(session.id)
+  }
+  return data
+}
+
 function storage() {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage
@@ -5189,14 +5262,14 @@ function restore() {
     const raw = store.getItem(STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw)
-    if (parsed?.meta?.version === SEED_VERSION) db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed)))))
+    if (parsed?.meta?.version === SEED_VERSION) db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed))))))
   } catch {
     storageWorks = false
   }
 }
 
 function resetData() {
-  db = migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))
+  db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))))
   const store = storage()
   try {
     store?.removeItem(STORAGE_KEY)
@@ -6278,7 +6351,7 @@ function renderJobDetail() {
         slotActions = `<button type="button" class="button small" data-action="confirm-slot-assignment" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.confirmAssignment')}</button><button type="button" class="button ghost small danger" data-action="withdraw-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.withdraw')}</button>`
       }
       if (slot.status === 'assigned' && employee) {
-        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button>`
+        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button>`
       }
     }
     return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions"><span class="tag ${tone}">${t(statusKey)}</span>${slotActions}</div></div>`
@@ -6908,6 +6981,86 @@ function renderShiftTemplates() {
 // Klient og avdeling for én registrering. Sannheten ligger i oppdraget vakten
 // hører til, ikke på timelisten, så ingenting kopieres opp på timesheet-posten:
 // registrering → vakt → oppdrag → klient/avdeling.
+// === Kanonisk timeliste per bemanningsplass ===
+// Én bemannet plass = én aktiv timeliste, identifisert av assignmentId + den
+// numeriske slot.id. Uka er bare en visning; den er ikke identitet lenger.
+// Planlagt tid kommer fra vakten; faktisk tid registreres på timelisten og
+// muterer aldri det planlagte. Lønn/fakturering leser IKKE disse ennå.
+
+function timesheetForSlot(assignmentId, slotId) {
+  return collection('slotTimesheets').find(item => item.assignmentId === assignmentId && String(item.slotId) === String(slotId) && !item.voided && !item.superseded) ?? null
+}
+
+// Idempotent: finnes den aktive timelisten, gjenbrukes den. Aldri duplikater.
+function ensureTimesheetForSlot(assignment, slot) {
+  const existing = timesheetForSlot(assignment.id, slot.id)
+  if (existing) return existing
+  const created = {
+    id: nextNumericSlotId(),
+    assignmentId: assignment.id,
+    slotId: slot.id,
+    employeeId: slot.employeeId,
+    status: 'not_submitted',
+    plannedDate: assignment.date || '',
+    plannedStart: assignment.startTime || assignment.shiftTemplateSnapshot?.startTime || '',
+    plannedEnd: assignment.endTime || assignment.shiftTemplateSnapshot?.endTime || '',
+    plannedBreakMinutes: Number(assignment.breakMinutes ?? assignment.shiftTemplateSnapshot?.breakMinutes ?? 0) || 0,
+    endNextDay: Boolean(assignment.endNextDay),
+    actualStart: '',
+    actualEnd: '',
+    actualBreakMinutes: null,
+    deviationNote: '',
+    sessionIds: []
+  }
+  db.slotTimesheets = [...(db.slotTimesheets ?? []), created]
+  return created
+}
+
+// Har timelisten reell aktivitet? Da kan den aldri stilltiende få ny eier.
+function timesheetHasActivity(timesheet) {
+  return Boolean(timesheet && (timesheet.actualStart || timesheet.actualEnd || timesheet.actualBreakMinutes !== null || timesheet.deviationNote || timesheet.status !== 'not_submitted' || (timesheet.sessionIds ?? []).length))
+}
+
+// Plassen mistet eieren sin: en urørt generert timeliste voides; en med
+// aktivitet bevares urørt som historikk, markert avløst (§17-§18).
+function releaseSlotTimesheet(assignment, slot) {
+  const active = timesheetForSlot(assignment.id, slot.id)
+  if (!active) return
+  if (timesheetHasActivity(active)) active.superseded = true
+  else active.voided = true
+}
+
+// Minutter mellom to klokkeslett, med støtte for vakter over midnatt.
+function timeSpanMinutes(start, end, endNextDay = false) {
+  if (!start || !end) return null
+  const [sh, sm] = String(start).split(':').map(Number)
+  const [eh, em] = String(end).split(':').map(Number)
+  let minutes = (eh * 60 + em) - (sh * 60 + sm)
+  if (minutes < 0 || (endNextDay && minutes <= 0)) minutes += 24 * 60
+  return minutes
+}
+
+// Deterministisk avvik mellom planlagt og faktisk (§13): per felt, i minutter.
+function timesheetDeviation(timesheet) {
+  const minuteDiff = (planned, actual) => {
+    if (!planned || !actual) return null
+    let diff = timeSpanMinutes(planned, actual)
+    if (diff === null) return null
+    if (diff > 12 * 60) diff -= 24 * 60
+    return diff
+  }
+  const startDiff = minuteDiff(timesheet.plannedStart, timesheet.actualStart)
+  const endDiff = minuteDiff(timesheet.plannedEnd, timesheet.actualEnd)
+  const breakDiff = timesheet.actualBreakMinutes === null ? null : (Number(timesheet.actualBreakMinutes) || 0) - (Number(timesheet.plannedBreakMinutes) || 0)
+  return { startDiff, endDiff, breakDiff, any: [startDiff, endDiff, breakDiff].some(value => value !== null && value !== 0) }
+}
+
+function deviationLabel(deviation) {
+  const part = (key, value) => (value === null || value === 0 ? '' : `${t(key)} ${value > 0 ? '+' : ''}${value} min`)
+  const parts = [part('comp.tables.start', deviation.startDiff), part('comp.tables.end', deviation.endDiff), part('timesheets.breakShort', deviation.breakDiff)].filter(Boolean)
+  return parts.join(' · ')
+}
+
 function sessionContext(session) {
   const shift = record('shifts', session?.shiftId)
   const job = record('jobs', shift?.jobId)
@@ -6978,6 +7131,20 @@ function timesheetEmptyState() {
   return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t(titleKey)}</h3><p>${t('timesheets.noneBody')}</p></div>`
 }
 
+// Én rad per ansatt + konkret vakt, fra de kanoniske slot-timelistene. Klient og
+// avdeling utledes av oppdraget - aldri av den ansatte (§24).
+function slotTimesheetTable() {
+  const rows = collection('slotTimesheets').filter(item => !item.voided && !item.superseded).map(item => {
+    const assignment = record('assignments', item.assignmentId)
+    const employee = record('employees', item.employeeId)
+    const deviation = timesheetDeviation(item)
+    const actualText = item.actualStart || item.actualEnd ? `${escapeHtml(item.actualStart || '—')}–${escapeHtml(item.actualEnd || '—')}` : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`
+    return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
+  })
+  if (!rows.length) return ''
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'], rows)}</article>`
+}
+
 function renderTimesheets() {
   const visible = filterList('timesheets', ['week']).filter(timesheetMatchesFilters)
   const rows = visible.map(item => {
@@ -6989,7 +7156,7 @@ function renderTimesheets() {
   const list = !rows.length && state.timesheetFilters.clientId
     ? timesheetEmptyState()
     : dataTable('timesheets', headers, rows, collection('timesheets').length)
-  return `<section class="page">${workforceTabs('timesheets')}${searchToolbar(timesheetFilterControls())}${list}</section>`
+  return `<section class="page">${slotTimesheetTable()}${workforceTabs('timesheets')}${searchToolbar(timesheetFilterControls())}${list}</section>`
 }
 
 function renderTimesheetReview() {
@@ -8569,6 +8736,34 @@ function slotRequestDialog() {
   return modalShell(t('staffing.sendRequest'), escapeHtml(assignment.assignmentNumber ?? ''), 'envelope', body, footer, 'medium')
 }
 
+// Timelisten for én bemanningsplass: planlagt og faktisk side ved side.
+// Planlagt tid er vaktens og er skrivebeskyttet; avviket beregnes deterministisk.
+function slotTimesheetDialog() {
+  const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+  if (!timesheet) return ''
+  const assignment = record('assignments', timesheet.assignmentId)
+  const employee = record('employees', timesheet.employeeId)
+  const preview = { ...timesheet, actualStart: String(draftValue('actualStart', '')), actualEnd: String(draftValue('actualEnd', '')), actualBreakMinutes: draftValue('actualBreakMinutes', '') === '' ? null : Number(draftValue('actualBreakMinutes', 0)) }
+  const deviation = timesheetDeviation(preview)
+  const planned = `<article class="card"><h3>${t('timesheets.planned')}</h3><dl class="detail-list">
+    <div><dt>${t('financial.workDate')}</dt><dd>${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}</dd></div>
+    <div><dt>${t('comp.forms.startTime')}</dt><dd>${escapeHtml(timesheet.plannedStart)}</dd></div>
+    <div><dt>${t('comp.forms.endTime')}</dt><dd>${escapeHtml(timesheet.plannedEnd)}${timesheet.endNextDay ? ` (+1)` : ''}</dd></div>
+    <div><dt>${t('timesheets.breakShort')}</dt><dd>${formatNumber(timesheet.plannedBreakMinutes, 0)} min</dd></div>
+  </dl></article>`
+  const actual = `<article class="card"><h3>${t('timesheets.actual')}</h3>
+    ${bound('actualStart', t('timesheets.actualStart'), { type: 'time' })}
+    ${bound('actualEnd', t('timesheets.actualEnd'), { type: 'time' })}
+    ${bound('actualBreakMinutes', t('timesheets.actualBreak'), { type: 'number', help: 'min' })}
+  </article>`
+  const deviationRow = deviation.any
+    ? `<div class="banner warning">${icon('bell')}<span><strong>${t('timesheets.deviation')}:</strong> ${deviationLabel(deviation)}</span></div><div class="field field-wide">${bound('deviationNote', t('timesheets.deviationNote'))}</div>`
+    : ''
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${escapeHtml(assignment?.assignmentNumber ?? '')}</p><div class="grid cols-2">${planned}${actual}</div>${deviationRow}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="save-slot-timesheet">${t('common.save')}</button></div>`
+  return modalShell(t('timesheets.one'), t(`timesheets.status.${timesheet.status}`), 'file', body, footer, 'medium')
+}
+
 function cancelAssignmentDialog() {
   const assignment = record('assignments', state.selected.assignment)
   const reasons = ['client_cancelled', 'wrong_entry', 'changed_need', 'other'].map(key => ({ value: key, text: t(`staffing.cancelReason.${key}`) }))
@@ -8785,6 +8980,7 @@ function timesheetRejectDialog() {
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
+  'slot-timesheet': slotTimesheetDialog,
   'direct-assign': directAssignDialog,
   'slot-request': slotRequestDialog,
   premium: premiumDialog,
@@ -9092,6 +9288,7 @@ function actionHandlers(target = null) {
       slot.employeeId = employee.id
       slot.status = 'assigned'
       syncAssignmentStaffing(assignment)
+      ensureTimesheetForSlot(assignment, slot)
       logAssignmentEvent(assignment, { type: 'direct_assignment', slotId: slot.id, employeeId: employee.id, assignedBy: 'demo-admin' })
       state.slotAction = null
       persist(); closeDialog(); showToast('crud.updated', { name: employee.name })
@@ -9204,6 +9401,7 @@ function actionHandlers(target = null) {
       slot.employeeId = employee.id
       slot.status = 'assigned'
       syncAssignmentStaffing(assignment)
+      ensureTimesheetForSlot(assignment, slot)
       logAssignmentEvent(assignment, { type: 'assignment_confirmed', slotId: slot.id, requestId: request.id, employeeId: employee.id, confirmedBy: 'demo-admin', notified: [employee.id] })
       persist(); render(); showToast('staffing.finalConfirmationSent', { name: employee.name })
     },
@@ -9233,6 +9431,7 @@ function actionHandlers(target = null) {
       const slot = assignment && employeeId ? slotForEmployee(assignment, employeeId) : null
       if (!slot) return
       // Samme plass åpnes igjen: identiteten består, historikken peker på den.
+      releaseSlotTimesheet(assignment, slot)
       slot.employeeId = null
       slot.status = 'open'
       syncAssignmentStaffing(assignment)
@@ -9243,6 +9442,33 @@ function actionHandlers(target = null) {
       state.selected.assignment = target?.dataset?.id ?? state.selected.assignment
       openDialog('cancel-assignment', 'cancel', {})
     },
+    // Timelisten for den konkrete plassen: planlagt tid er lesbar; faktisk tid
+    // og avviksforklaring registreres her - og rører aldri det planlagte.
+    'open-slot-timesheet': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      if (!assignment || !slot) return
+      const timesheet = ensureTimesheetForSlot(assignment, slot)
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id, timesheetId: timesheet.id }
+      // Faktisk tid forhåndsutfylles med planlagt som redigerbart forslag (§11) -
+      // lagrede verdier røres ikke av visningen.
+      openDialog('slot-timesheet', 'edit', {
+        actualStart: timesheet.actualStart || timesheet.plannedStart,
+        actualEnd: timesheet.actualEnd || timesheet.plannedEnd,
+        actualBreakMinutes: timesheet.actualBreakMinutes ?? timesheet.plannedBreakMinutes,
+        deviationNote: timesheet.deviationNote ?? ''
+      }, timesheet.id)
+    },
+    'save-slot-timesheet': () => {
+      const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
+      if (!timesheet) return
+      timesheet.actualStart = String(state.draft.actualStart ?? '')
+      timesheet.actualEnd = String(state.draft.actualEnd ?? '')
+      timesheet.actualBreakMinutes = state.draft.actualBreakMinutes === '' ? null : Number(state.draft.actualBreakMinutes)
+      timesheet.deviationNote = String(state.draft.deviationNote ?? '').trim()
+      state.slotAction = null
+      persist(); closeDialog(); showToast('crud.updated', { name: record('employees', timesheet.employeeId)?.name ?? '' })
+    },
     'confirm-remove-worker': () => {
       const assignment = record('assignments', state.workerAction?.assignmentId)
       const employeeId = state.workerAction?.employeeId
@@ -9250,6 +9476,7 @@ function actionHandlers(target = null) {
       const slot = slotForEmployee(assignment, employeeId)
       if (!slot) return
       // Fjerning åpner den samme plassen - ingen ny plass, ingen historikktap.
+      releaseSlotTimesheet(assignment, slot)
       slot.employeeId = null
       slot.status = 'open'
       syncAssignmentStaffing(assignment)
@@ -9271,9 +9498,16 @@ function actionHandlers(target = null) {
       if (employeeBusyDuring(next.id, assignment)) { state.formError = 'staffing.replaceBusy'; render(); return }
       const replacedSlot = slotForEmployee(assignment, previousId)
       if (!replacedSlot) return
+      // En urørt timeliste følger den nye eieren; en med aktivitet bevares som
+      // avløst historikk, og den nye tildelingen får sin egen (§16-§17).
+      const activeTimesheet = timesheetForSlot(assignment.id, replacedSlot.id)
+      if (activeTimesheet && timesheetHasActivity(activeTimesheet)) activeTimesheet.superseded = true
       replacedSlot.employeeId = nextId
       replacedSlot.status = 'assigned'
       syncAssignmentStaffing(assignment)
+      const followTimesheet = timesheetForSlot(assignment.id, replacedSlot.id)
+      if (followTimesheet) followTimesheet.employeeId = nextId
+      else ensureTimesheetForSlot(assignment, replacedSlot)
       logAssignmentEvent(assignment, { type: 'employee_replaced', employeeId: previousId, newEmployeeId: nextId, slotId: replacedSlot.id })
       state.workerAction = null
       persist()
@@ -9829,7 +10063,13 @@ function crudHandlers(target) {
       assignment.cancelComment = String(state.draft.cancelComment ?? '').trim()
       assignment.cancelledAt = new Date().toISOString()
       // Alle plassene lukkes med identiteten i behold - ingen åpnes (§20).
-      for (const slot of staffingSlotsFor(assignment)) slot.status = 'cancelled'
+      // Timelistene deres kan aldri bli lønns-/fakturagrunnlag: de voides, men
+      // slettes ikke (§19 i timelisterunden).
+      for (const slot of staffingSlotsFor(assignment)) {
+        const timesheet = timesheetForSlot(assignment.id, slot.id)
+        if (timesheet) timesheet.voided = true
+        slot.status = 'cancelled'
+      }
       syncAssignmentStaffing(assignment)
       logAssignmentEvent(assignment, { type: 'cancelled', reason, comment: assignment.cancelComment, notified: affected })
       persist()
@@ -10216,6 +10456,9 @@ function handleDraftFieldChange(name, value) {
   applyDraftChange(name, value)
   if (dialogsRerenderOnChange.has(state.dialog)) { render(); return }
   if (['premium', 'overtime'].includes(state.dialog) && structuralRuleFields.has(name)) render()
+  // Avviksbanneret i timelisten følger faktisk-feltene (change = etter blur,
+  // så tasting forstyrres ikke).
+  if (state.dialog === 'slot-timesheet' && ['actualStart', 'actualEnd', 'actualBreakMinutes'].includes(name)) render()
 }
 
 document.addEventListener('change', event => {
@@ -10381,6 +10624,10 @@ window.__workmaticPreview = {
   migrateSchemeRules: data => migrateSchemeRulesToPaySystems(data),
   migrateCompensations: data => migrateCompensationsToPaySystems(data),
   migrateNumericSlotIds: data => migrateNumericSlotIds(data),
+  migrateSlotTimesheets: data => migrateSlotTimesheets(data),
+  slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
+  slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
+  timesheetDeviation: id => { const t = collection('slotTimesheets').find(item => item.id === id); return t ? JSON.parse(JSON.stringify(timesheetDeviation(t))) : null },
   classifyShiftChange: (before, after) => JSON.parse(JSON.stringify(classifyShiftChange(before, after))),
   staffingSlots: assignmentId => JSON.parse(JSON.stringify(staffingSlotsFor(record('assignments', assignmentId)))),
   openSlots: assignmentId => JSON.parse(JSON.stringify(openStaffingSlots(record('assignments', assignmentId)))),
