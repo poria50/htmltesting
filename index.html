@@ -2123,6 +2123,111 @@ tbody tr:hover td {
   }
 }
 
+/* === Fase 4: operativt dashboard, varselklokke og revisjonslogg === */
+/* Handlingskortene er knapper med samme kortutseende som stat-kortene. */
+button.stat-card.stat-action {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+button.stat-card.stat-action:hover {
+  border-color: var(--primary);
+}
+
+.banner.info {
+  border-color: var(--surface-300);
+  background: var(--surface-50);
+  color: var(--surface-600);
+}
+
+.notification-bell {
+  position: relative;
+  display: inline-flex;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: min(360px, 88vw);
+  border: 1px solid var(--surface-200);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.16);
+}
+
+.notification-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--surface-200);
+}
+
+.notification-list {
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--surface-100);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-item:hover {
+  background: var(--surface-50);
+}
+
+.notification-item.is-unread {
+  background: var(--primary-soft);
+}
+
+.notification-title {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.notification-meta {
+  font-size: 12px;
+  color: var(--surface-500);
+}
+
+.notification-empty {
+  padding: 16px 14px;
+}
+
+.notification-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--surface-200);
+}
+
 </style>
   </head>
   <body>
@@ -2201,7 +2306,16 @@ const state = {
   simulationForm: { employeeId: 'e1', tariffId: 't1', scenario: 'planned', startDate: '2026-08-17', endDate: '2026-08-17' },
   lastSimulation: null,
   compareVersionId: 'sv2',
-  compareAgainstId: null
+  compareAgainstId: null,
+  // Varselpanelet i topplinjen: bare åpen/lukket. Lest-status bor i lageret.
+  notificationsOpen: false,
+  // Eksplisitt filteroverlevering fra dashboardets handlingskort: hvilken
+  // plass-status Vakter-listen skal vise, og hvilken timelistestatus
+  // Timelister-tabellen skal vise. Tom streng betyr «alle».
+  staffingSlotFilter: '',
+  slotTimesheetFilter: '',
+  // Revisjonsloggen: periode, modul, hendelsestype og utfører.
+  auditFilters: { entityType: 'all', eventType: 'all', actor: 'all', startDate: '', endDate: '' }
 }
 
 const copy = {
@@ -2246,6 +2360,34 @@ const copy = {
     'page.messages.desc': 'Samtaler og oppfølging',
     'page.financial.desc': 'Lønnssystem, kompensasjon, fakturagrunnlag og lønnsgrunnlag',
     'page.settings.desc': 'Organisasjons-, bruker- og sikkerhetsinnstillinger',
+    'page.audit.desc': 'Uforanderlig historikk fra de kanoniske hendelseskildene',
+    'notif.title': 'Varsler',
+    'notif.empty': 'Ingen varsler',
+    'notif.markAllRead': 'Merk alle som lest',
+    'notif.type.request_response_received': 'Svar på forespørsel mottatt',
+    'notif.type.request_expired': 'Svarfrist utløpt',
+    'notif.type.awaiting_assignment_confirmation': 'Ja-svar: avventer endelig bekreftelse',
+    'notif.type.reconfirmation_response': 'Svar på ny bekreftelse',
+    'notif.type.timesheet_submitted': 'Timeliste levert til godkjenning',
+    'notif.type.timesheet_returned': 'Timeliste sendt tilbake',
+    'notif.type.payroll_blocked': 'Lønnsgrunnlag blokkert',
+    'notif.type.invoice_blocked': 'Fakturagrunnlag blokkert',
+    'notif.type.shift_cancelled': 'Vakt kansellert',
+    'audit.time': 'Tidspunkt',
+    'audit.event': 'Hendelse',
+    'audit.module': 'Modul',
+    'audit.context': 'Kontekst',
+    'audit.actor': 'Utført av',
+    'audit.details': 'Detaljer',
+    'audit.module.assignment': 'Vakter',
+    'audit.module.timesheet': 'Timelister',
+    'audit.filter.allModules': 'Alle moduler',
+    'audit.filter.allEvents': 'Alle hendelser',
+    'audit.filter.allActors': 'Alle brukere',
+    'audit.from': 'Fra dato',
+    'audit.to': 'Til dato',
+    'audit.empty': 'Ingen hendelser i utvalget',
+    'audit.system': 'System',
     'common.create': 'Opprett',
     'common.edit': 'Rediger',
     'common.view': 'Vis',
@@ -2305,6 +2447,24 @@ const copy = {
     'dashboard.activity1': 'Nora Hansen ble lagt til som ansatt',
     'dashboard.activity2': 'Kontrakt_2026.pdf ble lastet opp',
     'dashboard.activity3': 'Intervju med Emil Johansen ble booket',
+    'dashboard.actionTitle': 'Krever handling nå',
+    'dashboard.card.openSlots': 'Åpne bemanningsplasser',
+    'dashboard.card.requestsWaiting': 'Forespørsler venter på svar',
+    'dashboard.card.awaitingConfirmation': 'Avventer bekreftelse',
+    'dashboard.card.pendingReconfirmation': 'Avventer ny bekreftelse',
+    'dashboard.card.timesheetsToApprove': 'Timelister til godkjenning',
+    'dashboard.card.timesheetsToCorrect': 'Timelister som må korrigeres',
+    'dashboard.card.payrollBlocked': 'Lønnsgrunnlag med blokkering',
+    'dashboard.card.invoiceBlocked': 'Fakturagrunnlag med blokkering',
+    'dashboard.upcoming': 'Kommende vakter',
+    'dashboard.noUpcoming': 'Ingen kommende vakter',
+    'dashboard.deviations': 'Kritiske avvik',
+    'dashboard.noDeviations': 'Ingen kritiske avvik',
+    'dashboard.dev.openSoon': 'Åpen plass nær vaktstart',
+    'dashboard.dev.awaitingAdmin': 'Ja-svar venter på endelig bekreftelse',
+    'dashboard.dev.submittedWaiting': 'Levert timeliste venter på godkjenning',
+    'dashboard.dev.payrollBlocked': 'Godkjent arbeid mangler lønnsgrunnlag',
+    'dashboard.dev.invoiceBlocked': 'Godkjent arbeid mangler kundepris',
     'clients.new': 'Ny klient',
     'clients.organization': 'Organisasjonsnummer',
     'clients.contact': 'Kontaktperson',
@@ -2735,6 +2895,8 @@ const copy = {
     'timesheets.status.submitted': 'Til godkjenning',
     'timesheets.status.approved': 'Godkjent',
     'timesheets.status.needs_correction': 'Må korrigeres',
+    'timesheets.filterActive': 'Viser timelister med status',
+    'timesheets.emptyFiltered': 'Ingen timelister i denne statusen',
     'staffing.slotLabel': 'Plass {number}',
     'staffing.slotOpen': 'Ledig',
     'staffing.slotAssigned': 'Tildelt',
@@ -2768,6 +2930,18 @@ const copy = {
     'staffing.event.employee_removed': 'Ansatt fjernet',
     'staffing.event.employee_replaced': 'Ansatt erstattet',
     'staffing.event.cancelled': 'Vakt kansellert',
+    'staffing.slotFilterActive': 'Viser vakter med plass i status',
+    'staffing.clearFilter': 'Fjern filter',
+    'staffing.requestHistory': 'Forespørsels- og meldingshistorikk',
+    'staffing.sentTo': 'Mottaker',
+    'staffing.sentAtLabel': 'Sendt tidspunkt',
+    'staffing.respondedAt': 'Besvart',
+    'staffing.reqStatus.queued': 'I kø',
+    'staffing.reqStatus.sent': 'Sendt',
+    'staffing.reqStatus.accepted': 'Svarte ja',
+    'staffing.reqStatus.declined': 'Avslått',
+    'staffing.reqStatus.expired': 'Frist utløpt',
+    'staffing.reqStatus.withdrawn': 'Trukket tilbake',
     'staffing.field.date': 'Dato',
     'staffing.field.startTime': 'Starttid',
     'staffing.field.endTime': 'Sluttid',
@@ -2972,6 +3146,34 @@ copy.en = {
   'page.messages.desc': 'Conversations and follow-up',
   'page.financial.desc': 'Pay system, compensation, invoicing and payroll',
   'page.settings.desc': 'Organization, user and security settings',
+  'page.audit.desc': 'Immutable history from the canonical event sources',
+  'notif.title': 'Notifications',
+  'notif.empty': 'No notifications',
+  'notif.markAllRead': 'Mark all as read',
+  'notif.type.request_response_received': 'Request response received',
+  'notif.type.request_expired': 'Response deadline expired',
+  'notif.type.awaiting_assignment_confirmation': 'Yes reply: awaiting final confirmation',
+  'notif.type.reconfirmation_response': 'Reconfirmation response',
+  'notif.type.timesheet_submitted': 'Timesheet submitted for approval',
+  'notif.type.timesheet_returned': 'Timesheet sent back',
+  'notif.type.payroll_blocked': 'Payroll basis blocked',
+  'notif.type.invoice_blocked': 'Invoice basis blocked',
+  'notif.type.shift_cancelled': 'Shift cancelled',
+  'audit.time': 'Time',
+  'audit.event': 'Event',
+  'audit.module': 'Module',
+  'audit.context': 'Context',
+  'audit.actor': 'Performed by',
+  'audit.details': 'Details',
+  'audit.module.assignment': 'Shifts',
+  'audit.module.timesheet': 'Timesheets',
+  'audit.filter.allModules': 'All modules',
+  'audit.filter.allEvents': 'All events',
+  'audit.filter.allActors': 'All users',
+  'audit.from': 'From date',
+  'audit.to': 'To date',
+  'audit.empty': 'No events in the selection',
+  'audit.system': 'System',
   'common.create': 'Create', 'common.edit': 'Edit', 'common.view': 'View', 'common.save': 'Save',
   'common.cancel': 'Cancel', 'common.back': 'Back', 'common.next': 'Next',
   'common.finish': 'Complete demo', 'common.search': 'Search', 'common.filter': 'Filter',
@@ -2999,6 +3201,24 @@ copy.en = {
   'dashboard.activity1': 'Nora Hansen was added as an employee',
   'dashboard.activity2': 'Contract_2026.pdf was uploaded',
   'dashboard.activity3': 'Interview with Emil Johansen was booked',
+  'dashboard.actionTitle': 'Requires action now',
+  'dashboard.card.openSlots': 'Open staffing slots',
+  'dashboard.card.requestsWaiting': 'Requests awaiting reply',
+  'dashboard.card.awaitingConfirmation': 'Awaiting confirmation',
+  'dashboard.card.pendingReconfirmation': 'Awaiting reconfirmation',
+  'dashboard.card.timesheetsToApprove': 'Timesheets to approve',
+  'dashboard.card.timesheetsToCorrect': 'Timesheets needing correction',
+  'dashboard.card.payrollBlocked': 'Payroll basis blocked',
+  'dashboard.card.invoiceBlocked': 'Invoice basis blocked',
+  'dashboard.upcoming': 'Upcoming shifts',
+  'dashboard.noUpcoming': 'No upcoming shifts',
+  'dashboard.deviations': 'Critical deviations',
+  'dashboard.noDeviations': 'No critical deviations',
+  'dashboard.dev.openSoon': 'Open slot close to shift start',
+  'dashboard.dev.awaitingAdmin': 'Yes reply awaiting final confirmation',
+  'dashboard.dev.submittedWaiting': 'Submitted timesheet awaiting approval',
+  'dashboard.dev.payrollBlocked': 'Approved work missing payroll basis',
+  'dashboard.dev.invoiceBlocked': 'Approved work missing customer price',
   'clients.new': 'New client', 'clients.organization': 'Organization number',
   'clients.contact': 'Contact person', 'clients.provision': 'Provision', 'clients.vat': 'VAT',
   'clients.historical': 'Historical provision',
@@ -3378,6 +3598,8 @@ copy.en = {
   'timesheets.status.submitted': 'Pending approval',
   'timesheets.status.approved': 'Approved',
   'timesheets.status.needs_correction': 'Needs correction',
+  'timesheets.filterActive': 'Showing timesheets with status',
+  'timesheets.emptyFiltered': 'No timesheets in this status',
   'staffing.slotLabel': 'Position {number}',
   'staffing.slotOpen': 'Open',
   'staffing.slotAssigned': 'Assigned',
@@ -3411,6 +3633,18 @@ copy.en = {
   'staffing.event.employee_removed': 'Employee removed',
   'staffing.event.employee_replaced': 'Employee replaced',
   'staffing.event.cancelled': 'Shift cancelled',
+  'staffing.slotFilterActive': 'Showing shifts with a slot in status',
+  'staffing.clearFilter': 'Clear filter',
+  'staffing.requestHistory': 'Request and message history',
+  'staffing.sentTo': 'Recipient',
+  'staffing.sentAtLabel': 'Sent at',
+  'staffing.respondedAt': 'Responded at',
+  'staffing.reqStatus.queued': 'Queued',
+  'staffing.reqStatus.sent': 'Sent',
+  'staffing.reqStatus.accepted': 'Accepted',
+  'staffing.reqStatus.declined': 'Declined',
+  'staffing.reqStatus.expired': 'Deadline expired',
+  'staffing.reqStatus.withdrawn': 'Withdrawn',
   'staffing.field.date': 'Date',
   'staffing.field.startTime': 'Start time',
   'staffing.field.endTime': 'End time',
@@ -4928,7 +5162,9 @@ const routes = {
   calculation: ['comp.calculation.title', 'comp.pages.simulationDesc'],
   versions: ['comp.pages.versionsTitle', 'comp.pages.versionsDesc'],
   'version-compare': ['comp.versions.compareTitle', 'comp.pages.versionsDesc'],
-  settings: ['nav.settings', 'page.settings.desc']
+  settings: ['nav.settings', 'page.settings.desc'],
+  // Revisjonsloggen: lesbar, aggregert visning av de kanoniske hendelseskildene.
+  audit: ['nav.audit', 'page.audit.desc']
 }
 
 const menu = [
@@ -5917,13 +6153,19 @@ function renderSidebar() {
       : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>` : ''
     return `<li><a class="nav-link ${active ? 'is-active' : ''}" href="#${route}" data-route="${route}"><span class="nav-icon">${icon(iconName)}</span><span>${t(`nav.${route}`)}</span></a>${submenu}</li>`
   }).join('')
-  const settings = ['general', 'users', 'billing', 'integrations', 'audit'].map(item => `<li><button type="button" class="nav-link" data-route="settings" data-settings="${item}">${t(`nav.${item}`)}</button></li>`).join('')
+  // Revisjonsloggen er en egen, lesbar flate; resten av punktene er demo-stubber.
+  const settings = ['general', 'users', 'billing', 'integrations'].map(item => `<li><button type="button" class="nav-link" data-route="settings" data-settings="${item}">${t(`nav.${item}`)}</button></li>`).join('')
+    + `<li><a class="nav-link ${state.route === 'audit' ? 'is-active' : ''}" href="#audit" data-route="audit">${t('nav.audit')}</a></li>`
   return `<div class="sidebar-logo"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTMxIiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMTMxIDI0IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTE5LjQ3NDggMC4wMTE0OTk4QzE5LjkzMzEgMC4wMjY4MzI4IDIwLjU4NjggMC4wOTU4MzEzIDIwLjkzOTkgMC4xNjQ4M0MyMS4yOTMgMC4yMzM4MjggMjEuODY0IDAuMzk0ODI1IDIyLjIxNzEgMC41MTc0ODlDMjIuNTcwMiAwLjY0NzgyIDIzLjEyNjIgMC44ODU0ODIgMjMuNDU2OCAxLjA1NDE0QzIzLjc4NzQgMS4yMjI4MSAyNC4zNTg0IDEuNTc1NDcgMjQuNzM0IDEuODM2MTNDMjUuMTAyMiAyLjA4OTEyIDI1LjczMzMgMi42MzM0NSAyNi4xMjQgMy4wMzIxQzI2LjUxNDYgMy40MzA3NiAyNy4wMzMxIDQuMDUxNzUgMjcuMjY2IDQuNDEyMDhDMjcuNDkxNCA0Ljc3MjQgMjcuNzg0NCA1LjI3MDcyIDI3LjkxMjEgNS41MjM3MkMyOC4wMzIzIDUuNzc2NzEgMjguMjIwMSA2LjI0NDM3IDI4LjMyNTMgNi41NTg3QzI4LjQzMDUgNi44NzMwMiAyOC41NzMzIDcuNDQ4MDEgMjguNjQwOSA3LjgyMzY3QzI4LjcwMSA4LjE5OTMzIDI4Ljc1MzYgOC42NTE2NSAyOC43NDYxIDguODIwMzJDMjguNzM4NSA4Ljk4ODk4IDI4LjcyMzUgOS4wNzMzMSAyOC43MDg1IDkuMDExOThDMjguNjg1OSA4LjkyNzY1IDI4LjU4ODMgOC45MDQ2NSAyOC4zNTU0IDguOTE5OThDMjguMTgyNiA4LjkyNzY1IDI3Ljk5NDcgOC45NTA2NSAyNy45NDk3IDguOTczNjVDMjcuODk3MSA4Ljk5NjY1IDI3Ljg1MiA4Ljk4MTMxIDI3Ljg1MiA4LjkzNTMxQzI3Ljg1MiA4Ljg4OTMyIDI3LjczMTggOC44NzM5OCAyNy41NzQgOC44ODkzMUMyNy40MTYyIDguOTA0NjUgMjcuMjY2IDguOTI3NjUgMjcuMjM1OSA4LjkyNzY1QzI3LjE5ODMgOC45MzUzMSAyNy4xNjgzIDkuMDExOTggMjcuMTUzMyA5LjExMTY0QzI3LjEzODIgOS4yMjY2NCAyNy4xMDgyIDkuMTg4MzEgMjcuMDcwNiA4Ljk3MzY1QzI3LjA0MDYgOC44MDQ5OCAyNi45Mjc5IDguMzc1NjYgMjYuODIyNyA4LjAxNTMzQzI2LjcxNzUgNy42NTUwMSAyNi41MzcyIDcuMTQxMzUgMjYuNDA5NSA2Ljg2NTM2QzI2LjI4OTMgNi41ODkzNiAyNS45OTYyIDYuMDc1NzEgMjUuNzYzMyA1LjcxNTM4QzI1LjUzMDQgNS4zNTUwNiAyNS4wNjQ2IDQuNzg3NzMgMjQuNzM0IDQuNDUwNDFDMjQuNDAzNSA0LjExMzA4IDIzLjg5MjYgMy42NzYwOSAyMy42MDcxIDMuNDc2NzZDMjMuMzE0IDMuMjg1MSAyMi43OTU2IDIuOTc4NDQgMjIuNDQyNSAyLjgwOTc4QzIyLjA4OTQgMi42MzM0NSAyMS40NjU4IDIuNDExMTIgMjEuMDUyNiAyLjMwMzc5QzIwLjYzOTQgMi4xOTY0NSAxOS45NDgyIDIuMDg5MTIgMTkuNTEyNCAyLjA1ODQ2QzE5LjAzMTYgMi4wMzU0NiAxOC40MzA1IDIuMDUwNzkgMTcuOTcyMiAyLjExMjEyQzE3LjU1OSAyLjE1ODEyIDE2Ljk1MDQgMi4yODg0NSAxNi42MTk4IDIuMzk1NzhDMTYuMjg5MyAyLjUwMzExIDE1Ljc2MzMgMi43MTc3OCAxNS40NTUzIDIuODcxMTFDMTUuMTQ3MyAzLjAyNDQ0IDE0LjcxOSAzLjI2OTc3IDE0LjUxNjIgMy40MTU0M0MxNC4zMTMzIDMuNTYxMDkgMTMuOTUyNyAzLjgzNzA5IDEzLjcyNzMgNC4wMjg3NUMxMy41MDE5IDQuMjI4MDggMTMuMDgxMSA0LjY3Mjc0IDEyLjgwMzIgNS4wMzMwNkMxMi41MjUyIDUuMzg1NzIgMTIuMTI3IDYuMDA2NzEgMTEuOTMxNiA2LjQwNTM3QzExLjcyODggNi44MDQwMyAxMS40NjU4IDcuNDQ4MDEgMTEuMzUzMSA3LjgyMzY3QzExLjI0MDQgOC4xOTkzMyAxMS4xMDUyIDguNTgyNjUgMTEuMDUyNiA4LjY2Njk5QzExLjAwNzUgOC43NTEzMiAxMC44NDIyIDguODgxNjUgMTAuNjkyIDguOTU4MzFDMTAuNDgxNiA5LjA1Nzk4IDEwLjIyNjEgOS4wODg2NCA5LjU1NzQ4IDkuMDg4NjRDOS4wNjkxMiA5LjA4ODY0IDguNDQ1NTMgOS4xNDIzMSA4LjEwNzQ0IDkuMjExMzFDNy43OTE4OSA5LjI3MjY0IDcuMjk2MDIgOS40MzM2NCA3LjAwMzAxIDkuNTU2M0M2LjcwOTk5IDkuNjc4OTcgNi4yNTkyIDkuOTE2NjMgNS45ODg3MyAxMC4wNzc2QzUuNzE4MjYgMTAuMjQ2MyA1LjI4MjQ5IDEwLjU4MzYgNS4wMTIwMiAxMC44Mjg5QzQuNzQxNTUgMTEuMDgxOSA0LjM1MDg2IDExLjUyNjYgNC4xMzI5OCAxMS44MTc5QzMuOTIyNjEgMTIuMTA5MiAzLjYyOTYgMTIuNTg0NiAzLjQ4Njg1IDEyLjg4MzZDMy4zMzY1OSAxMy4xODI2IDMuMTI2MjIgMTMuNzM0NSAzLjAxMzUyIDE0LjExMDJDMi44MzMyMSAxNC43MTU5IDIuODEwNjcgMTQuOTMwNSAyLjgwMzE2IDE1Ljg3MzVDMi44MDMxNiAxNi43NjI4IDIuODI1NjkgMTcuMDQ2NSAyLjk2ODQ0IDE3LjU0NDhDMy4wNTg2IDE3Ljg2NjggMy4yNjE0NiAxOC40MDM1IDMuNDI2NzUgMTguNzMzMUMzLjU4NDUyIDE5LjA1NTEgMy44OTI1NiAxOS41NDU4IDQuMTAyOTMgMTkuODIxOEM0LjMxMzMgMjAuMDk3NyA0LjY3MzkzIDIwLjQ3MzQgNC44OTkzMiAyMC42NjUxQzUuMTE3MjEgMjAuODU2NyA1LjQ4NTM1IDIxLjEyNTEgNS43MDMyMyAyMS4yNTU0QzUuOTIxMTEgMjEuMzkzNCA2LjMwNDI4IDIxLjU5MjcgNi41NTIyMiAyMS42OTI0QzYuODAwMTUgMjEuNzk5NyA3LjI2NTk2IDIxLjkzNzcgNy41ODkwMyAyMS45OTlDOC4wOTI0MSAyMi4xMDY0IDkuMTIxNzEgMjIuMTIxNyAxNS41NTMgMjIuMTIxN0MyMS43OTY0IDIyLjEyMTcgMjIuOTkxIDIyLjEwNjQgMjMuMzA2NSAyMi4wMTQ0QzIzLjUwOTQgMjEuOTUzIDIzLjgyNDkgMjEuNzkyIDIzLjk5NzcgMjEuNjY5NEMyNC4xOTMxIDIxLjUyMzcgMjQuMzQzMyAyMS4zNDc0IDI0LjM3MzQgMjEuMjI0N0MyNC4zOTU5IDIxLjEwMjEgMjQuMzY1OSAyMC44MTA3IDI0LjMwNTggMjAuNTUwMUMyNC4yMzgyIDIwLjI5NzEgMjMuNDk0NCAxOC4wODkxIDIyLjY0NTQgMTUuNjQzNUMyMS43OTY0IDEzLjE5NzkgMjEuMDgyNiAxMS4xMzU2IDIxLjA2MDEgMTEuMDY2NkMyMS4wMTUgMTAuOTM2MyAyMS4xMTI3IDEwLjkyODYgMjIuMjkyMyAxMC45Mjg2QzIzLjE3MTMgMTAuOTI4NiAyMy42NDQ2IDEwLjk1OTMgMjMuODE3NCAxMS4wMjgzQzIzLjk0NTIgMTEuMDgxOSAyNC4xNjMgMTEuMjU4MyAyNC4yODMyIDExLjQxMTZDMjQuNDU2IDExLjYzMzkgMjQuNzQ5MSAxMi40MzEyIDI1LjUwMDQgMTQuNzA4MkMyNi4wNDg4IDE2LjM1NjUgMjYuNTQ0NyAxNy43NjcxIDI2LjYxMjMgMTcuODI4NUMyNi43MSAxNy45MjgxIDI2Ljc0IDE3LjkyODEgMjYuODY3OCAxNy43OTAxQzI2Ljk0MjkgMTcuNzA1OCAyNy41NTE1IDE2LjY3MDggMjguMjI3NiAxNS40OTAyQzI4Ljg5NjMgMTQuMzA5NSAyOS42MDI2IDEzLjEwNTkgMjkuNzk3OSAxMi44MDY5QzMwLjA3NTkgMTIuMzc3NiAzMC4yMjYxIDEyLjIzMTkgMzAuNTU2NyAxMi4wNTU2QzMwLjg5NDggMTEuODcxNiAzMS4wMzAxIDExLjg0ODYgMzEuMzA4IDExLjg4NjlDMzEuNDk1OSAxMS45MDk5IDMxLjc1ODggMTIuMDA5NiAzMS45MDE2IDEyLjEwMTZDMzIuMDQ0MyAxMi4xOTM2IDMyLjIzMjIgMTIuNDA4MiAzMi4zMjk4IDEyLjU3NjlDMzIuNDI3NSAxMi43NDU2IDMyLjkxNTkgMTQuMTI1NSAzMy40MTkyIDE1LjY0MzVDMzMuOTIyNiAxNy4xNjE1IDM0LjM4MDkgMTguNDk1NCAzNC40MzM1IDE4LjYxODFDMzQuNDkzNiAxOC43MzMxIDM0LjU4MzggMTguODA5OCAzNC42MzY0IDE4Ljc5NDRDMzQuNjgxNCAxOC43ODY4IDM0Ljc0OTEgMTguNzI1NCAzNC43ODY2IDE4LjY2NDFDMzQuODE2NyAxOC42MDI4IDM1LjQzMjggMTYuOTU0NSAzNi4xNjE1IDE0Ljk5MTlDMzYuODkwMyAxMy4wMjkyIDM3LjU2NjUgMTEuMjczNiAzNy42NTY2IDExLjA4MTlDMzcuNzQ2OCAxMC44OTAzIDM3Ljk0MjEgMTAuNjIxOSAzOC4wNzc0IDEwLjQ4MzlDMzguMjIwMSAxMC4zNDYgMzguNDgzMSAxMC4xNTQzIDM4LjY3MDkgMTAuMDYyM0MzOC45NTY0IDkuOTE2NjMgMzkuMTUxOCA5Ljg5MzYzIDQwLjAwODMgOS44NzgyOUM0MC41NDkyIDkuODYyOTYgNDEgOS44NzA2MyA0MSA5Ljg5MzYzQzQxIDkuOTE2NjMgNDAuODA0NyAxMC40NzYzIDQwLjU1NjcgMTEuMTQzM0M0MC4zMTYzIDExLjgwMjYgMzkuMzQ3MSAxNC40MTY5IDM4LjQwOCAxNi45NDY4QzM3LjQ2ODggMTkuNDc2OCAzNi41ODk4IDIxLjc4NDQgMzYuNDYyMSAyMi4wODM0QzM2LjMyNjggMjIuMzgyNCAzNi4xMDE0IDIyLjczNSAzNS45NTg3IDIyLjg4MDdDMzUuODE1OSAyMy4wMTg3IDM1LjU2OCAyMy4yMTA0IDM1LjQwMjcgMjMuMjk0N0MzNS4yMzc0IDIzLjM3MTMgMzQuOTM2OSAyMy40NTU3IDM0LjcyNjUgMjMuNDc4N0MzNC40NTYgMjMuNTAxNyAzNC4yNzU3IDIzLjQ3MSAzNC4wOTU0IDIzLjM3MTNDMzMuOTUyNyAyMy4yOTQ3IDMzLjc0MjMgMjMuMTEwNyAzMy42Mjk2IDIyLjk2NUMzMy40OTQ0IDIyLjc4ODcgMzMuMTMzNyAyMS44MzggMzIuNTYyNyAyMC4xNjY3QzMyLjA4OTQgMTguNzc5MSAzMS42NDYxIDE3LjQ2ODEgMzEuNTc4NSAxNy4yNTM1QzMxLjUxMDkgMTcuMDQ2NSAzMS4zOTA3IDE2Ljc1NTIgMzEuMzA4IDE2LjYyNDhDMzEuMjI1NCAxNi40ODY4IDMxLjA5NzcgMTYuMzQ4OCAzMS4wMzAxIDE2LjMyNThDMzAuOTU0OSAxNi4yOTUyIDMwLjgxOTcgMTYuMzE4MiAzMC43Mjk1IDE2LjM2NDJDMzAuNjMxOSAxNi40MTAyIDMwLjQyMTUgMTYuNjMyNSAzMC4yNjM3IDE2Ljg1NDhDMzAuMDk4NCAxNy4wNjk1IDI5LjQzNzMgMTguMjM0OCAyOC43ODM2IDE5LjQzODRDMjguMTM3NSAyMC42NDIxIDI3LjUxMzkgMjEuNzYxNCAyNy40MDEyIDIxLjkzQzI3LjI4ODUgMjIuMDk4NyAyNy4wNDA2IDIyLjM5NzcgMjYuODQ1MiAyMi42MDQ3QzI2LjY1NzQgMjIuODA0IDI2LjI4OTMgMjMuMTAzIDI2LjAzMzggMjMuMjc5M0MyNS43NzA4IDIzLjQ0OCAyNS4yNzUgMjMuNjc4IDI0LjI4MzIgMjRIMTYuMjQ0MkM5Ljc1MjgyIDI0IDguMDk5OTIgMjMuOTc3IDcuNjQxNjIgMjMuODkyN0M3LjMzMzU4IDIzLjgzOSA2Ljc5MjY0IDIzLjY5MzMgNi40Mzk1MiAyMy41NzgzQzYuMDg2NCAyMy40NjMzIDUuNTgzMDIgMjMuMjU2MyA1LjMxMjU1IDIzLjExODRDNS4wNDIwNyAyMi45ODA0IDQuNTkxMjggMjIuNzA0NCA0LjI5ODI3IDIyLjQ5NzRDNC4wMDUyNiAyMi4yOTggMy41MzE5MyAyMS44NzY0IDMuMjM4OTIgMjEuNTY5N0MyLjk0NTkxIDIxLjI2MzEgMi41NjI3MyAyMC43ODc3IDIuMzgyNDIgMjAuNTExN0MyLjIwMjEgMjAuMjM1NyAxLjkwOTA5IDE5LjY5OTEgMS43MzYyOSAxOS4zMjM0QzEuNTU1OTcgMTguOTQ3OCAxLjMyMzA3IDE4LjI4ODUgMS4yMTAzNyAxNy44NjY4QzEuMDIyNTQgMTcuMTg0NSAxIDE2Ljk2MjEgMSAxNS44NzM1QzEgMTQuODMwOSAxLjAyMjU0IDE0LjUzOTUgMS4xNzI4IDEzLjk1NjlDMS4yNzA0NyAxMy41ODEyIDEuNDU4MyAxMi45OTA5IDEuNTkzNTQgMTIuNjUzNkMxLjcyODc4IDEyLjMxNjIgMS45NjkyIDExLjgxMDMgMi4xMjY5NyAxMS41MjY2QzIuMjkyMjYgMTEuMjUwNiAyLjYzNzg3IDEwLjczNjkgMi45MDgzNCAxMC4zOTJDMy4xNzg4MSAxMC4wMzkzIDMuNTk5NTUgOS41NzkzIDMuODQ3NDggOS4zNjQ2NEM0LjA5NTQyIDkuMTQ5OTggNC40MTg0OCA4Ljg4MTY1IDQuNTYxMjMgOC43NzQzMkM0LjcwMzk4IDguNjY2OTkgNS4wNDIwNyA4LjQ0NDY2IDUuMzEyNTUgOC4yOTEzM0M1LjU4MzAyIDguMTMwMzMgNi4wNzEzNyA3Ljg4NSA2LjQwMTk1IDcuNzM5MzRDNi43MzI1MyA3LjYwMTM0IDcuMjg4NSA3LjQxNzM1IDcuNjQxNjIgNy4zMzMwMUM3Ljk5NDc0IDcuMjQ4NjggOC41NzMyNSA3LjE0OTAyIDkuNTg3NTMgNy4wNTcwMkw5Ljg1MDQ5IDYuMzY3MDNDMTAuMDAwOCA1Ljk5MTM4IDEwLjI3MTIgNS40MDEwNSAxMC40NTkxIDUuMDYzNzNDMTAuNjQ2OSA0LjcyNjQgMTAuOTg1IDQuMjEyNzUgMTEuMjAyOSAzLjkxMzc1QzExLjQyODIgMy42MTQ3NiAxMS44NTY1IDMuMTMxNzcgMTIuMTU3IDIuODQwNDRDMTIuNDY1MSAyLjU0MTQ1IDEyLjk0NTkgMi4xMjc0NiAxMy4yMzg5IDEuOTIwNDZDMTMuNTMxOSAxLjcxMzQ2IDE0LjExOCAxLjM1MzE0IDE0LjU1MzcgMS4xMzA4MUMxNC45ODk1IDAuOTA4NDgxIDE1LjY1MDYgMC42MjQ4MiAxNi4wMTg4IDAuNTAyMTU2QzE2LjM4NjkgMC4zNzk0OTIgMTcuMDE4IDAuMjI2MTYyIDE3LjQwODcgMC4xNjQ4M0MxNy43OTk0IDAuMDk1ODMxMyAxOC4yNDI3IDAuMDI2ODMyOCAxOC4zODU0IDAuMDExNDk5OEMxOC41MjgyIC0wLjAwMzgzMzI1IDE5LjAxNjUgLTAuMDAzODMzMjUgMTkuNDc0OCAwLjAxMTQ5OThaTTIwLjUxMTYgNS40ODUzOUMyMC43MDcgNS40ODUzOSAyMC45NTQ5IDUuNTIzNzIgMjEuMDc1MSA1LjU2OTcyQzIxLjE4NzggNS42MDgwNSAyMS4zNzU3IDUuNzM4MzggMjEuNDk1OSA1Ljg1MzM4QzIxLjYxNjEgNS45NjgzOCAyMS43NzM5IDYuMTk4MzcgMjEuODQ5IDYuMzY3MDNDMjEuOTI0MSA2LjUzNTcgMjEuOTkxNyA2Ljc1ODAzIDIxLjk5MTcgNi44NjUzNkMyMS45OTE3IDYuOTcyNjkgMjEuOTU0MiA3LjE4NzM1IDIxLjkxNjYgNy4zNDA2OEMyMS44NzE1IDcuNTAxNjggMjEuNzUxMyA3LjczOTM0IDIxLjYzODYgNy44NzczNEMyMS41MTg0IDguMDA3NjcgMjEuMjkzIDguMTg0IDIxLjEyNzcgOC4yNTNDMjAuOTYyNCA4LjMyOTY2IDIwLjcyMiA4LjM5ODY2IDIwLjYwMTggOC4zOTg2NkMyMC40ODE2IDguMzk4NjYgMjAuMjQxMiA4LjM1MjY2IDE5Ljc3NTQgOC4xODRMMTYuNjQyNCAxMS4zNTAzTDE2LjcyNSAxMS43MTA2QzE2Ljc4NTEgMTEuOTYzNiAxNi43ODUxIDEyLjE3MDYgMTYuNzMyNSAxMi4zODUyQzE2LjY4NzUgMTIuNTUzOSAxNi41NjcyIDEyLjc5OTIgMTYuNDU0NSAxMi45Mjk2QzE2LjMzNDMgMTMuMDY3NiAxNi4xNTQgMTMuMjIwOSAxNi4wNDEzIDEzLjI3NDZDMTUuOTIxMSAxMy4zMzU5IDE1LjY4MDcgMTMuMzgxOSAxNS40OTI5IDEzLjM4MTlDMTUuMzA1IDEzLjM4MTkgMTUuMDc5NiAxMy4zNTEyIDE0Ljk4OTUgMTMuMzEyOUMxNC44MzE3IDEzLjI1MTYgMTQuNjg5IDEzLjM3NDIgMTIuNDQyNSAxNS42NDM1TDEzLjYyOTYgMTYuODcwMUMxNC4yODMyIDE3LjU0NDggMTQuODY5MyAxOC4xMDQ1IDE0LjkyOTQgMTguMTE5OEMxNC45ODk1IDE4LjEyNzUgMTUuMzgwMiAxNy43OTAxIDE2LjU0NDcgMTYuNjAxOFYxNi4xNTcyQzE2LjU0NDcgMTUuODI3NSAxNi41ODk4IDE1LjY1ODggMTYuNzE3NSAxNS40NjcyQzE2LjgwNzcgMTUuMzM2OCAxNi45ODggMTUuMTY4MiAxNy4xMDgyIDE1LjEwNjlDMTcuMjI4NCAxNS4wNDU1IDE3LjQ5MTQgMTQuOTkxOSAxNy42OTQyIDE0Ljk5MTlDMTcuOTA0NiAxNC45OTE5IDE4LjEzNzUgMTUuMDUzMiAxOC4yNzI3IDE1LjEzNzVDMTguMzkyOSAxNS4yMTQyIDE4LjU3MzMgMTUuNDI4OCAxOC42NzA5IDE1LjYxMjhDMTguODEzNyAxNS44ODg4IDE4LjgzNjIgMTYuMDExNSAxOC43OTExIDE2LjI5NTJDMTguNzUzNiAxNi41NDA1IDE4LjY1NTkgMTYuNzI0NSAxOC40NjgxIDE2LjkzMTVDMTguMzE3OCAxNy4wOTI1IDE4LjA3NzQgMTcuMjYxMSAxNy45MzQ2IDE3LjI5OTVDMTcuNzkxOSAxNy4zMzc4IDE3LjU1MTUgMTcuMzQ1NSAxNy40MDg3IDE3LjMyMjVDMTcuMTUzMyAxNy4yNzY1IDE3LjExNTcgMTcuMzA3MSAxNi4xMzE1IDE4LjMxOTFDMTUuMzcyNyAxOS4xMDExIDE1LjA3MjEgMTkuMzU0MSAxNC45Mjk0IDE5LjM2MThDMTQuNzg2NiAxOS4zNjE4IDE0LjM4ODQgMTkuMDAxNCAxMS43MzYzIDE2LjMxMDVMMTAuNjYxOSAxNy4zNTMxQzkuNjMyNjEgMTguMzY1MSA5LjU4NzUzIDE4LjQxMTEgOS41OTUwNCAxOC43MTAxQzkuNTk1MDQgMTguODg2NCA5LjUyNzQyIDE5LjEyNDEgOS40NDQ3OCAxOS4yNjIxQzkuMzYyMTMgMTkuNDAwMSA5LjIxOTM4IDE5LjU1MzQgOS4xMjkyMyAxOS41OTk0QzkuMDMxNTUgMTkuNjQ1NCA4LjgyMTE5IDE5LjY5MTQgOC42NTU5IDE5LjY5MTRDOC40OTA2MSAxOS42OTE0IDguMjQyNjcgMTkuNjM3OCA4LjExNDk1IDE5LjU2ODhDNy45Nzk3MSAxOS40OTIxIDcuODE0NDIgMTkuMzYxOCA3Ljc1NDMyIDE5LjI2MjFDNy42OTQyMSAxOS4xNzAxIDcuNjE5MDggMTguOTU1NCA3LjU5NjU0IDE4Ljc4NjhDNy41NTg5OCAxOC41NjQ0IDcuNTg5MDMgMTguMzk1OCA3LjY4NjcgMTguMTgxMUM3Ljc3Njg2IDE3Ljk4OTUgNy45MjcxMiAxNy44MzYxIDguMTE0OTUgMTcuNzQ0MUM4LjI4Nzc1IDE3LjY1MjEgOC41MjA2NiAxNy42MDYxIDguNzIzNTIgMTcuNjEzOEM5LjA0NjU4IDE3LjYzNjggOS4wNTQwOSAxNy42MjkxIDEwLjAzODMgMTYuNjU1NUMxMC41NzkzIDE2LjExODggMTEuMDIyNSAxNS42NTg4IDExLjAyMjUgMTUuNjIwNUMxMS4wMjI1IDE1LjU4OTggMTAuNTg2OCAxNS4xMjk5IDEwLjA0NTggMTQuNTg1NUM5LjE0NDI1IDEzLjY4ODUgOS4wNTQwOSAxMy42MTk1IDguOTAzODMgMTMuNjk2MkM4LjgwNjE2IDEzLjc0OTkgOC41NTgyMyAxMy43NzI5IDguMzQ3ODYgMTMuNzU3NUM4LjA5MjQxIDEzLjczNDUgNy44ODk1NiAxMy42NjU1IDcuNzA5MjQgMTMuNTI3NkM3LjU2NjQ5IDEzLjQyMDIgNy4zOTM2OSAxMy4yMDU2IDcuMzI2MDcgMTMuMDUyMkM3LjI1MDk0IDEyLjg5ODkgNy4xOTA4MyAxMi42MDc2IDcuMTkwODMgMTIuNDAwNkM3LjE5MDgzIDEyLjE1NTIgNy4yNTA5NCAxMS45MzI5IDcuMzc4NjYgMTEuNzEwNkM3LjUxMzkgMTEuNDgwNiA3LjY2NDE2IDExLjM0MjYgNy45MjcxMiAxMS4yMTk5QzguMTY3NTQgMTEuMTEyNiA4LjM3MDQgMTEuMDY2NiA4LjU4MDc3IDExLjA5NzNDOC43NDYwNiAxMS4xMTI2IDkuMDA5MDIgMTEuMjA0NiA5LjE2Njc5IDExLjI5NjZDOS4zMzIwOCAxMS4zOTYzIDkuNTA0ODggMTEuNTk1NiA5LjYwMjU1IDExLjc4NzNDOS43MzAyOCAxMi4wNDc5IDkuNzUyODIgMTIuMjAxMiA5LjY3NzY5IDEyLjg4MzZMMTAuNjY5NCAxMy45MTA5QzExLjIxNzkgMTQuNDcwNSAxMS42OTg3IDE0LjkxNTIgMTEuNzQzOCAxNC45MDc1QzExLjc5NjQgMTQuODkyMiAxMi4zNTk5IDE0LjM1NTUgMTQuMTcwNSAxMi41NzY5TDE0LjEyNTUgMTIuMTU1MkMxNC4wOTU0IDExLjgxNzkgMTQuMTE4IDExLjY3MjMgMTQuMjQ1NyAxMS40MDM5QzE0LjMyODMgMTEuMjI3NiAxNC40OTM2IDExLjAxMjkgMTQuNjEzOCAxMC45MjA5QzE0LjcyNjUgMTAuODM2NiAxNC45MzY5IDEwLjczNjkgMTUuMDc5NiAxMC42OTg2QzE1LjIyMjQgMTAuNjUyNiAxNS40OTI5IDEwLjY0NDkgMTYuMDE4OCAxMC43MDYzTDE5LjE3NDMgNy40Nzg2OFY2Ljk1NzM2QzE5LjE3NDMgNi41MDUwMyAxOS4yMDQ0IDYuMzkwMDMgMTkuMzkyMiA2LjExNDA0QzE5LjUxMjQgNS45Mzc3MSAxOS43MzAzIDUuNzMwNzEgMTkuODgwNSA1LjY0NjM4QzIwLjAzODMgNS41NTQzOCAyMC4zMDEzIDUuNDkzMDUgMjAuNTExNiA1LjQ4NTM5WiIgZmlsbD0iIzEwQjk4MSIvPgo8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTE5LjQ3NDggMC4wMTE0OTk4QzE5LjkzMzEgMC4wMjY4MzI4IDIwLjU4NjggMC4wOTU4MzEzIDIwLjkzOTkgMC4xNjQ4M0MyMS4yOTMgMC4yMzM4MjggMjEuODY0IDAuMzk0ODI1IDIyLjIxNzEgMC41MTc0ODlDMjIuNTcwMiAwLjY0NzgyIDIzLjEyNjIgMC44ODU0ODIgMjMuNDU2OCAxLjA1NDE0QzIzLjc4NzQgMS4yMjI4MSAyNC4zNTg0IDEuNTc1NDcgMjQuNzM0IDEuODM2MTNDMjUuMTAyMiAyLjA4OTEyIDI1LjczMzMgMi42MzM0NSAyNi4xMjQgMy4wMzIxQzI2LjUxNDYgMy40MzA3NiAyNy4wMzMxIDQuMDUxNzUgMjcuMjY2IDQuNDEyMDhDMjcuNDkxNCA0Ljc3MjQgMjcuNzg0NCA1LjI3MDcyIDI3LjkxMjEgNS41MjM3MkMyOC4wMzIzIDUuNzc2NzEgMjguMjIwMSA2LjI0NDM3IDI4LjMyNTMgNi41NTg3QzI4LjQzMDUgNi44NzMwMiAyOC41NzMzIDcuNDQ4MDEgMjguNjQwOSA3LjgyMzY3QzI4LjcwMSA4LjE5OTMzIDI4Ljc1MzYgOC42NTE2NSAyOC43NDYxIDguODIwMzJDMjguNzM4NSA4Ljk4ODk4IDI4LjcyMzUgOS4wNzMzMSAyOC43MDg1IDkuMDExOThDMjguNjg1OSA4LjkyNzY1IDI4LjU4ODMgOC45MDQ2NSAyOC4zNTU0IDguOTE5OThDMjguMTgyNiA4LjkyNzY1IDI3Ljk5NDcgOC45NTA2NSAyNy45NDk3IDguOTczNjVDMjcuODk3MSA4Ljk5NjY1IDI3Ljg1MiA4Ljk4MTMxIDI3Ljg1MiA4LjkzNTMxQzI3Ljg1MiA4Ljg4OTMyIDI3LjczMTggOC44NzM5OCAyNy41NzQgOC44ODkzMUMyNy40MTYyIDguOTA0NjUgMjcuMjY2IDguOTI3NjUgMjcuMjM1OSA4LjkyNzY1QzI3LjE5ODMgOC45MzUzMSAyNy4xNjgzIDkuMDExOTggMjcuMTUzMyA5LjExMTY0QzI3LjEzODIgOS4yMjY2NCAyNy4xMDgyIDkuMTg4MzEgMjcuMDcwNiA4Ljk3MzY1QzI3LjA0MDYgOC44MDQ5OCAyNi45Mjc5IDguMzc1NjYgMjYuODIyNyA4LjAxNTMzQzI2LjcxNzUgNy42NTUwMSAyNi41MzcyIDcuMTQxMzUgMjYuNDA5NSA2Ljg2NTM2QzI2LjI4OTMgNi41ODkzNiAyNS45OTYyIDYuMDc1NzEgMjUuNzYzMyA1LjcxNTM4QzI1LjUzMDQgNS4zNTUwNiAyNS4wNjQ2IDQuNzg3NzMgMjQuNzM0IDQuNDUwNDFDMjQuNDAzNSA0LjExMzA4IDIzLjg5MjYgMy42NzYwOSAyMy42MDcxIDMuNDc2NzZDMjMuMzE0IDMuMjg1MSAyMi43OTU2IDIuOTc4NDQgMjIuNDQyNSAyLjgwOTc4QzIyLjA4OTQgMi42MzM0NSAyMS40NjU4IDIuNDExMTIgMjEuMDUyNiAyLjMwMzc5QzIwLjYzOTQgMi4xOTY0NSAxOS45NDgyIDIuMDg5MTIgMTkuNTEyNCAyLjA1ODQ2QzE5LjAzMTYgMi4wMzU0NiAxOC40MzA1IDIuMDUwNzkgMTcuOTcyMiAyLjExMjEyQzE3LjU1OSAyLjE1ODEyIDE2Ljk1MDQgMi4yODg0NSAxNi42MTk4IDIuMzk1NzhDMTYuMjg5MyAyLjUwMzExIDE1Ljc2MzMgMi43MTc3OCAxNS40NTUzIDIuODcxMTFDMTUuMTQ3MyAzLjAyNDQ0IDE0LjcxOSAzLjI2OTc3IDE0LjUxNjIgMy40MTU0M0MxNC4zMTMzIDMuNTYxMDkgMTMuOTUyNyAzLjgzNzA5IDEzLjcyNzMgNC4wMjg3NUMxMy41MDE5IDQuMjI4MDggMTMuMDgxMSA0LjY3Mjc0IDEyLjgwMzIgNS4wMzMwNkMxMi41MjUyIDUuMzg1NzIgMTIuMTI3IDYuMDA2NzEgMTEuOTMxNiA2LjQwNTM3QzExLjcyODggNi44MDQwMyAxMS40NjU4IDcuNDQ4MDEgMTEuMzUzMSA3LjgyMzY3QzExLjI0MDQgOC4xOTkzMyAxMS4xMDUyIDguNTgyNjUgMTEuMDUyNiA4LjY2Njk5QzExLjAwNzUgOC43NTEzMiAxMC44NDIyIDguODgxNjUgMTAuNjkyIDguOTU4MzFDMTAuNDgxNiA5LjA1Nzk4IDEwLjIyNjEgOS4wODg2NCA5LjU1NzQ4IDkuMDg4NjRDOS4wNjkxMiA5LjA4ODY0IDguNDQ1NTMgOS4xNDIzMSA4LjEwNzQ0IDkuMjExMzFDNy43OTE4OSA5LjI3MjY0IDcuMjk2MDIgOS40MzM2NCA3LjAwMzAxIDkuNTU2M0M2LjcwOTk5IDkuNjc4OTcgNi4yNTkyIDkuOTE2NjMgNS45ODg3MyAxMC4wNzc2QzUuNzE4MjYgMTAuMjQ2MyA1LjI4MjQ5IDEwLjU4MzYgNS4wMTIwMiAxMC44Mjg5QzQuNzQxNTUgMTEuMDgxOSA0LjM1MDg2IDExLjUyNjYgNC4xMzI5OCAxMS44MTc5QzMuOTIyNjEgMTIuMTA5MiAzLjYyOTYgMTIuNTg0NiAzLjQ4Njg1IDEyLjg4MzZDMy4zMzY1OSAxMy4xODI2IDMuMTI2MjIgMTMuNzM0NSAzLjAxMzUyIDE0LjExMDJDMi44MzMyMSAxNC43MTU5IDIuODEwNjcgMTQuOTMwNSAyLjgwMzE2IDE1Ljg3MzVDMi44MDMxNiAxNi43NjI4IDIuODI1NjkgMTcuMDQ2NSAyLjk2ODQ0IDE3LjU0NDhDMy4wNTg2IDE3Ljg2NjggMy4yNjE0NiAxOC40MDM1IDMuNDI2NzUgMTguNzMzMUMzLjU4NDUyIDE5LjA1NTEgMy44OTI1NiAxOS41NDU4IDQuMTAyOTMgMTkuODIxOEM0LjMxMzMgMjAuMDk3NyA0LjY3MzkzIDIwLjQ3MzQgNC44OTkzMiAyMC42NjUxQzUuMTE3MjEgMjAuODU2NyA1LjQ4NTM1IDIxLjEyNTEgNS43MDMyMyAyMS4yNTU0QzUuOTIxMTEgMjEuMzkzNCA2LjMwNDI4IDIxLjU5MjcgNi41NTIyMiAyMS42OTI0QzYuODAwMTUgMjEuNzk5NyA3LjI2NTk2IDIxLjkzNzcgNy41ODkwMyAyMS45OTlDOC4wOTI0MSAyMi4xMDY0IDkuMTIxNzEgMjIuMTIxNyAxNS41NTMgMjIuMTIxN0MyMS43OTY0IDIyLjEyMTcgMjIuOTkxIDIyLjEwNjQgMjMuMzA2NSAyMi4wMTQ0QzIzLjUwOTQgMjEuOTUzIDIzLjgyNDkgMjEuNzkyIDIzLjk5NzcgMjEuNjY5NEMyNC4xOTMxIDIxLjUyMzcgMjQuMzQzMyAyMS4zNDc0IDI0LjM3MzQgMjEuMjI0N0MyNC4zOTU5IDIxLjEwMjEgMjQuMzY1OSAyMC44MTA3IDI0LjMwNTggMjAuNTUwMUMyNC4yMzgyIDIwLjI5NzEgMjMuNDk0NCAxOC4wODkxIDIyLjY0NTQgMTUuNjQzNUMyMS43OTY0IDEzLjE5NzkgMjEuMDgyNiAxMS4xMzU2IDIxLjA2MDEgMTEuMDY2NkMyMS4wMTUgMTAuOTM2MyAyMS4xMTI3IDEwLjkyODYgMjIuMjkyMyAxMC45Mjg2QzIzLjE3MTMgMTAuOTI4NiAyMy42NDQ2IDEwLjk1OTMgMjMuODE3NCAxMS4wMjgzQzIzLjk0NTIgMTEuMDgxOSAyNC4xNjMgMTEuMjU4MyAyNC4yODMyIDExLjQxMTZDMjQuNDU2IDExLjYzMzkgMjQuNzQ5MSAxMi40MzEyIDI1LjUwMDQgMTQuNzA4MkMyNi4wNDg4IDE2LjM1NjUgMjYuNTQ0NyAxNy43NjcxIDI2LjYxMjMgMTcuODI4NUMyNi43MSAxNy45MjgxIDI2Ljc0IDE3LjkyODEgMjYuODY3OCAxNy43OTAxQzI2Ljk0MjkgMTcuNzA1OCAyNy41NTE1IDE2LjY3MDggMjguMjI3NiAxNS40OTAyQzI4Ljg5NjMgMTQuMzA5NSAyOS42MDI2IDEzLjEwNTkgMjkuNzk3OSAxMi44MDY5QzMwLjA3NTkgMTIuMzc3NiAzMC4yMjYxIDEyLjIzMTkgMzAuNTU2NyAxMi4wNTU2QzMwLjg5NDggMTEuODcxNiAzMS4wMzAxIDExLjg0ODYgMzEuMzA4IDExLjg4NjlDMzEuNDk1OSAxMS45MDk5IDMxLjc1ODggMTIuMDA5NiAzMS45MDE2IDEyLjEwMTZDMzIuMDQ0MyAxMi4xOTM2IDMyLjIzMjIgMTIuNDA4MiAzMi4zMjk4IDEyLjU3NjlDMzIuNDI3NSAxMi43NDU2IDMyLjkxNTkgMTQuMTI1NSAzMy40MTkyIDE1LjY0MzVDMzMuOTIyNiAxNy4xNjE1IDM0LjM4MDkgMTguNDk1NCAzNC40MzM1IDE4LjYxODFDMzQuNDkzNiAxOC43MzMxIDM0LjU4MzggMTguODA5OCAzNC42MzY0IDE4Ljc5NDRDMzQuNjgxNCAxOC43ODY4IDM0Ljc0OTEgMTguNzI1NCAzNC43ODY2IDE4LjY2NDFDMzQuODE2NyAxOC42MDI4IDM1LjQzMjggMTYuOTU0NSAzNi4xNjE1IDE0Ljk5MTlDMzYuODkwMyAxMy4wMjkyIDM3LjU2NjUgMTEuMjczNiAzNy42NTY2IDExLjA4MTlDMzcuNzQ2OCAxMC44OTAzIDM3Ljk0MjEgMTAuNjIxOSAzOC4wNzc0IDEwLjQ4MzlDMzguMjIwMSAxMC4zNDYgMzguNDgzMSAxMC4xNTQzIDM4LjY3MDkgMTAuMDYyM0MzOC45NTY0IDkuOTE2NjMgMzkuMTUxOCA5Ljg5MzYzIDQwLjAwODMgOS44NzgyOUM0MC41NDkyIDkuODYyOTYgNDEgOS44NzA2MyA0MSA5Ljg5MzYzQzQxIDkuOTE2NjMgNDAuODA0NyAxMC40NzYzIDQwLjU1NjcgMTEuMTQzM0M0MC4zMTYzIDExLjgwMjYgMzkuMzQ3MSAxNC40MTY5IDM4LjQwOCAxNi45NDY4QzM3LjQ2ODggMTkuNDc2OCAzNi41ODk4IDIxLjc4NDQgMzYuNDYyMSAyMi4wODM0QzM2LjMyNjggMjIuMzgyNCAzNi4xMDE0IDIyLjczNSAzNS45NTg3IDIyLjg4MDdDMzUuODE1OSAyMy4wMTg3IDM1LjU2OCAyMy4yMTA0IDM1LjQwMjcgMjMuMjk0N0MzNS4yMzc0IDIzLjM3MTMgMzQuOTM2OSAyMy40NTU3IDM0LjcyNjUgMjMuNDc4N0MzNC40NTYgMjMuNTAxNyAzNC4yNzU3IDIzLjQ3MSAzNC4wOTU0IDIzLjM3MTNDMzMuOTUyNyAyMy4yOTQ3IDMzLjc0MjMgMjMuMTEwNyAzMy42Mjk2IDIyLjk2NUMzMy40OTQ0IDIyLjc4ODcgMzMuMTMzNyAyMS44MzggMzIuNTYyNyAyMC4xNjY3QzMyLjA4OTQgMTguNzc5MSAzMS42NDYxIDE3LjQ2ODEgMzEuNTc4NSAxNy4yNTM1QzMxLjUxMDkgMTcuMDQ2NSAzMS4zOTA3IDE2Ljc1NTIgMzEuMzA4IDE2LjYyNDhDMzEuMjI1NCAxNi40ODY4IDMxLjA5NzcgMTYuMzQ4OCAzMS4wMzAxIDE2LjMyNThDMzAuOTU0OSAxNi4yOTUyIDMwLjgxOTcgMTYuMzE4MiAzMC43Mjk1IDE2LjM2NDJDMzAuNjMxOSAxNi40MTAyIDMwLjQyMTUgMTYuNjMyNSAzMC4yNjM3IDE2Ljg1NDhDMzAuMDk4NCAxNy4wNjk1IDI5LjQzNzMgMTguMjM0OCAyOC43ODM2IDE5LjQzODRDMjguMTM3NSAyMC42NDIxIDI3LjUxMzkgMjEuNzYxNCAyNy40MDEyIDIxLjkzQzI3LjI4ODUgMjIuMDk4NyAyNy4wNDA2IDIyLjM5NzcgMjYuODQ1MiAyMi42MDQ3QzI2LjY1NzQgMjIuODA0IDI2LjI4OTMgMjMuMTAzIDI2LjAzMzggMjMuMjc5M0MyNS43NzA4IDIzLjQ0OCAyNS4yNzUgMjMuNjc4IDI0LjI4MzIgMjRIMTYuMjQ0MkM5Ljc1MjgyIDI0IDguMDk5OTIgMjMuOTc3IDcuNjQxNjIgMjMuODkyN0M3LjMzMzU4IDIzLjgzOSA2Ljc5MjY0IDIzLjY5MzMgNi40Mzk1MiAyMy41NzgzQzYuMDg2NCAyMy40NjMzIDUuNTgzMDIgMjMuMjU2MyA1LjMxMjU1IDIzLjExODRDNS4wNDIwNyAyMi45ODA0IDQuNTkxMjggMjIuNzA0NCA0LjI5ODI3IDIyLjQ5NzRDNC4wMDUyNiAyMi4yOTggMy41MzE5MyAyMS44NzY0IDMuMjM4OTIgMjEuNTY5N0MyLjk0NTkxIDIxLjI2MzEgMi41NjI3MyAyMC43ODc3IDIuMzgyNDIgMjAuNTExN0MyLjIwMjEgMjAuMjM1NyAxLjkwOTA5IDE5LjY5OTEgMS43MzYyOSAxOS4zMjM0QzEuNTU1OTcgMTguOTQ3OCAxLjMyMzA3IDE4LjI4ODUgMS4yMTAzNyAxNy44NjY4QzEuMDIyNTQgMTcuMTg0NSAxIDE2Ljk2MjEgMSAxNS44NzM1QzEgMTQuODMwOSAxLjAyMjU0IDE0LjUzOTUgMS4xNzI4IDEzLjk1NjlDMS4yNzA0NyAxMy41ODEyIDEuNDU4MyAxMi45OTA5IDEuNTkzNTQgMTIuNjUzNkMxLjcyODc4IDEyLjMxNjIgMS45NjkyIDExLjgxMDMgMi4xMjY5NyAxMS41MjY2QzIuMjkyMjYgMTEuMjUwNiAyLjYzNzg3IDEwLjczNjkgMi45MDgzNCAxMC4zOTJDMy4xNzg4MSAxMC4wMzkzIDMuNTk5NTUgOS41NzkzIDMuODQ3NDggOS4zNjQ2NEM0LjA5NTQyIDkuMTQ5OTggNC40MTg0OCA4Ljg4MTY1IDQuNTYxMjMgOC43NzQzMkM0LjcwMzk4IDguNjY2OTkgNS4wNDIwNyA4LjQ0NDY2IDUuMzEyNTUgOC4yOTEzM0M1LjU4MzAyIDguMTMwMzMgNi4wNzEzNyA3Ljg4NSA2LjQwMTk1IDcuNzM5MzRDNi43MzI1MyA3LjYwMTM0IDcuMjg4NSA3LjQxNzM1IDcuNjQxNjIgNy4zMzMwMUM3Ljk5NDc0IDcuMjQ4NjggOC41NzMyNSA3LjE0OTAyIDkuNTg3NTMgNy4wNTcwMkw5Ljg1MDQ5IDYuMzY3MDNDMTAuMDAwOCA1Ljk5MTM4IDEwLjI3MTIgNS40MDEwNSAxMC40NTkxIDUuMDYzNzNDMTAuNjQ2OSA0LjcyNjQgMTAuOTg1IDQuMjEyNzUgMTEuMjAyOSAzLjkxMzc1QzExLjQyODIgMy42MTQ3NiAxMS44NTY1IDMuMTMxNzcgMTIuMTU3IDIuODQwNDRDMTIuNDY1MSAyLjU0MTQ1IDEyLjk0NTkgMi4xMjc0NiAxMy4yMzg5IDEuOTIwNDZDMTMuNTMxOSAxLjcxMzQ2IDE0LjExOCAxLjM1MzE0IDE0LjU1MzcgMS4xMzA4MUMxNC45ODk1IDAuOTA4NDgxIDE1LjY1MDYgMC42MjQ4MiAxNi4wMTg4IDAuNTAyMTU2QzE2LjM4NjkgMC4zNzk0OTIgMTcuMDE4IDAuMjI2MTYyIDE3LjQwODcgMC4xNjQ4M0MxNy43OTk0IDAuMDk1ODMxMyAxOC4yNDI3IDAuMDI2ODMyOCAxOC4zODU0IDAuMDExNDk5OEMxOC41MjgyIC0wLjAwMzgzMzI1IDE5LjAxNjUgLTAuMDAzODMzMjUgMTkuNDc0OCAwLjAxMTQ5OThaTTIwLjUxMTYgNS40ODUzOUMyMC43MDcgNS40ODUzOSAyMC45NTQ5IDUuNTIzNzIgMjEuMDc1MSA1LjU2OTcyQzIxLjE4NzggNS42MDgwNSAyMS4zNzU3IDUuNzM4MzggMjEuNDk1OSA1Ljg1MzM4QzIxLjYxNjEgNS45NjgzOCAyMS43NzM5IDYuMTk4MzcgMjEuODQ5IDYuMzY3MDNDMjEuOTI0MSA2LjUzNTcgMjEuOTkxNyA2Ljc1ODAzIDIxLjk5MTcgNi44NjUzNkMyMS45OTE3IDYuOTcyNjkgMjEuOTU0MiA3LjE4NzM1IDIxLjkxNjYgNy4zNDA2OEMyMS44NzE1IDcuNTAxNjggMjEuNzUxMyA3LjczOTM0IDIxLjYzODYgNy44NzczNEMyMS41MTg0IDguMDA3NjcgMjEuMjkzIDguMTg0IDIxLjEyNzcgOC4yNTNDMjAuOTYyNCA4LjMyOTY2IDIwLjcyMiA4LjM5ODY2IDIwLjYwMTggOC4zOTg2NkMyMC40ODE2IDguMzk4NjYgMjAuMjQxMiA4LjM1MjY2IDE5Ljc3NTQgOC4xODRMMTYuNjQyNCAxMS4zNTAzTDE2LjcyNSAxMS43MTA2QzE2Ljc4NTEgMTEuOTYzNiAxNi43ODUxIDEyLjE3MDYgMTYuNzMyNSAxMi4zODUyQzE2LjY4NzUgMTIuNTUzOSAxNi41NjcyIDEyLjc5OTIgMTYuNDU0NSAxMi45Mjk2QzE2LjMzNDMgMTMuMDY3NiAxNi4xNTQgMTMuMjIwOSAxNi4wNDEzIDEzLjI3NDZDMTUuOTIxMSAxMy4zMzU5IDE1LjY4MDcgMTMuMzgxOSAxNS40OTI5IDEzLjM4MTlDMTUuMzA1IDEzLjM4MTkgMTUuMDc5NiAxMy4zNTEyIDE0Ljk4OTUgMTMuMzEyOUMxNC44MzE3IDEzLjI1MTYgMTQuNjg5IDEzLjM3NDIgMTIuNDQyNSAxNS42NDM1TDEzLjYyOTYgMTYuODcwMUMxNC4yODMyIDE3LjU0NDggMTQuODY5MyAxOC4xMDQ1IDE0LjkyOTQgMTguMTE5OEMxNC45ODk1IDE4LjEyNzUgMTUuMzgwMiAxNy43OTAxIDE2LjU0NDcgMTYuNjAxOFYxNi4xNTcyQzE2LjU0NDcgMTUuODI3NSAxNi41ODk4IDE1LjY1ODggMTYuNzE3NSAxNS40NjcyQzE2LjgwNzcgMTUuMzM2OCAxNi45ODggMTUuMTY4MiAxNy4xMDgyIDE1LjEwNjlDMTcuMjI4NCAxNS4wNDU1IDE3LjQ5MTQgMTQuOTkxOSAxNy42OTQyIDE0Ljk5MTlDMTcuOTA0NiAxNC45OTE5IDE4LjEzNzUgMTUuMDUzMiAxOC4yNzI3IDE1LjEzNzVDMTguMzkyOSAxNS4yMTQyIDE4LjU3MzMgMTUuNDI4OCAxOC42NzA5IDE1LjYxMjhDMTguODEzNyAxNS44ODg4IDE4LjgzNjIgMTYuMDExNSAxOC43OTExIDE2LjI5NTJDMTguNzUzNiAxNi41NDA1IDE4LjY1NTkgMTYuNzI0NSAxOC40NjgxIDE2LjkzMTVDMTguMzE3OCAxNy4wOTI1IDE4LjA3NzQgMTcuMjYxMSAxNy45MzQ2IDE3LjI5OTVDMTcuNzkxOSAxNy4zMzc4IDE3LjU1MTUgMTcuMzQ1NSAxNy40MDg3IDE3LjMyMjVDMTcuMTUzMyAxNy4yNzY1IDE3LjExNTcgMTcuMzA3MSAxNi4xMzE1IDE4LjMxOTFDMTUuMzcyNyAxOS4xMDExIDE1LjA3MjEgMTkuMzU0MSAxNC45Mjk0IDE5LjM2MThDMTQuNzg2NiAxOS4zNjE4IDE0LjM4ODQgMTkuMDAxNCAxMS43MzYzIDE2LjMxMDVMMTAuNjYxOSAxNy4zNTMxQzkuNjMyNjEgMTguMzY1MSA5LjU4NzUzIDE4LjQxMTEgOS41OTUwNCAxOC43MTAxQzkuNTk1MDQgMTguODg2NCA5LjUyNzQyIDE5LjEyNDEgOS40NDQ3OCAxOS4yNjIxQzkuMzYyMTMgMTkuNDAwMSA5LjIxOTM4IDE5LjU1MzQgOS4xMjkyMyAxOS41OTk0QzkuMDMxNTUgMTkuNjQ1NCA4LjgyMTE5IDE5LjY5MTQgOC42NTU5IDE5LjY5MTRDOC40OTA2MSAxOS42OTE0IDguMjQyNjcgMTkuNjM3OCA4LjExNDk1IDE5LjU2ODhDNy45Nzk3MSAxOS40OTIxIDcuODE0NDIgMTkuMzYxOCA3Ljc1NDMyIDE5LjI2MjFDNy42OTQyMSAxOS4xNzAxIDcuNjE5MDggMTguOTU1NCA3LjU5NjU0IDE4Ljc4NjhDNy41NTg5OCAxOC41NjQ0IDcuNTg5MDMgMTguMzk1OCA3LjY4NjcgMTguMTgxMUM3Ljc3Njg2IDE3Ljk4OTUgNy45MjcxMiAxNy44MzYxIDguMTE0OTUgMTcuNzQ0MUM4LjI4Nzc1IDE3LjY1MjEgOC41MjA2NiAxNy42MDYxIDguNzIzNTIgMTcuNjEzOEM5LjA0NjU4IDE3LjYzNjggOS4wNTQwOSAxNy42MjkxIDEwLjAzODMgMTYuNjU1NUMxMC41NzkzIDE2LjExODggMTEuMDIyNSAxNS42NTg4IDExLjAyMjUgMTUuNjIwNUMxMS4wMjI1IDE1LjU4OTggMTAuNTg2OCAxNS4xMjk5IDEwLjA0NTggMTQuNTg1NUM5LjE0NDI1IDEzLjY4ODUgOS4wNTQwOSAxMy42MTk1IDguOTAzODMgMTMuNjk2MkM4LjgwNjE2IDEzLjc0OTkgOC41NTgyMyAxMy43NzI5IDguMzQ3ODYgMTMuNzU3NUM4LjA5MjQxIDEzLjczNDUgNy44ODk1NiAxMy42NjU1IDcuNzA5MjQgMTMuNTI3NkM3LjU2NjQ5IDEzLjQyMDIgNy4zOTM2OSAxMy4yMDU2IDcuMzI2MDcgMTMuMDUyMkM3LjI1MDk0IDEyLjg5ODkgNy4xOTA4MyAxMi42MDc2IDcuMTkwODMgMTIuNDAwNkM3LjE5MDgzIDEyLjE1NTIgNy4yNTA5NCAxMS45MzI5IDcuMzc4NjYgMTEuNzEwNkM3LjUxMzkgMTEuNDgwNiA3LjY2NDE2IDExLjM0MjYgNy45MjcxMiAxMS4yMTk5QzguMTY3NTQgMTEuMTEyNiA4LjM3MDQgMTEuMDY2NiA4LjU4MDc3IDExLjA5NzNDOC43NDYwNiAxMS4xMTI2IDkuMDA5MDIgMTEuMjA0NiA5LjE2Njc5IDExLjI5NjZDOS4zMzIwOCAxMS4zOTYzIDkuNTA0ODggMTEuNTk1NiA5LjYwMjU1IDExLjc4NzNDOS43MzAyOCAxMi4wNDc5IDkuNzUyODIgMTIuMjAxMiA5LjY3NzY5IDEyLjg4MzZMMTAuNjY5NCAxMy45MTA5QzExLjIxNzkgMTQuNDcwNSAxMS42OTg3IDE0LjkxNTIgMTEuNzQzOCAxNC45MDc1QzExLjc5NjQgMTQuODkyMiAxMi4zNTk5IDE0LjM1NTUgMTQuMTcwNSAxMi41NzY5TDE0LjEyNTUgMTIuMTU1MkMxNC4wOTU0IDExLjgxNzkgMTQuMTE4IDExLjY3MjMgMTQuMjQ1NyAxMS40MDM5QzE0LjMyODMgMTEuMjI3NiAxNC40OTM2IDExLjAxMjkgMTQuNjEzOCAxMC45MjA5QzE0LjcyNjUgMTAuODM2NiAxNC45MzY5IDEwLjczNjkgMTUuMDc5NiAxMC42OTg2QzE1LjIyMjQgMTAuNjUyNiAxNS40OTI5IDEwLjY0NDkgMTYuMDE4OCAxMC43MDYzTDE5LjE3NDMgNy40Nzg2OFY2Ljk1NzM2QzE5LjE3NDMgNi41MDUwMyAxOS4yMDQ0IDYuMzkwMDMgMTkuMzkyMiA2LjExNDA0QzE5LjUxMjQgNS45Mzc3MSAxOS43MzAzIDUuNzMwNzEgMTkuODgwNSA1LjY0NjM4QzIwLjAzODMgNS41NTQzOCAyMC4zMDEzIDUuNDkzMDUgMjAuNTExNiA1LjQ4NTM5WiIgZmlsbD0idXJsKCNwYWludDBfbGluZWFyXzEwMDhfODQyMCkiLz4KPHBhdGggZD0iTTQ5LjU5NjYgMjBMNDYuMzEyNSA4LjM2MzY0SDQ4LjU3OTVMNTAuNjc2MSAxNi45MTQ4SDUwLjc4NDFMNTMuMDIyNyA4LjM2MzY0SDU1LjA4NTJMNTcuMzI5NSAxNi45MjA1SDU3LjQzMThMNTkuNTI4NCA4LjM2MzY0SDYxLjc5NTVMNTguNTExNCAyMEg1Ni40MzE4TDU0LjEwMjMgMTEuODM1Mkg1NC4wMTE0TDUxLjY3NjEgMjBINDkuNTk2NlpNNjYuMDgyNCAyMC4xNzA1QzY1LjIzMDEgMjAuMTcwNSA2NC40OTE1IDE5Ljk4MyA2My44NjY1IDE5LjYwOEM2My4yNDE1IDE5LjIzMyA2Mi43NTY2IDE4LjcwODMgNjIuNDExOSAxOC4wMzQxQzYyLjA3MSAxNy4zNTk4IDYxLjkwMDYgMTYuNTcyIDYxLjkwMDYgMTUuNjcwNUM2MS45MDA2IDE0Ljc2ODkgNjIuMDcxIDEzLjk3OTIgNjIuNDExOSAxMy4zMDExQzYyLjc1NjYgMTIuNjIzMSA2My4yNDE1IDEyLjA5NjYgNjMuODY2NSAxMS43MjE2QzY0LjQ5MTUgMTEuMzQ2NiA2NS4yMzAxIDExLjE1OTEgNjYuMDgyNCAxMS4xNTkxQzY2LjkzNDcgMTEuMTU5MSA2Ny42NzMzIDExLjM0NjYgNjguMjk4MyAxMS43MjE2QzY4LjkyMzMgMTIuMDk2NiA2OS40MDYzIDEyLjYyMzEgNjkuNzQ3MiAxMy4zMDExQzcwLjA5MTkgMTMuOTc5MiA3MC4yNjQyIDE0Ljc2ODkgNzAuMjY0MiAxNS42NzA1QzcwLjI2NDIgMTYuNTcyIDcwLjA5MTkgMTcuMzU5OCA2OS43NDcyIDE4LjAzNDFDNjkuNDA2MyAxOC43MDgzIDY4LjkyMzMgMTkuMjMzIDY4LjI5ODMgMTkuNjA4QzY3LjY3MzMgMTkuOTgzIDY2LjkzNDcgMjAuMTcwNSA2Ni4wODI0IDIwLjE3MDVaTTY2LjA5MzggMTguNTIyN0M2Ni41NTU5IDE4LjUyMjcgNjYuOTQyMiAxOC4zOTU4IDY3LjI1MjggMTguMTQyQzY3LjU2MzQgMTcuODg0NSA2Ny43OTQ1IDE3LjUzOTggNjcuOTQ2IDE3LjEwOEM2OC4xMDEzIDE2LjY3NjEgNjguMTc5IDE2LjE5NTEgNjguMTc5IDE1LjY2NDhDNjguMTc5IDE1LjEzMDcgNjguMTAxMyAxNC42NDc3IDY3Ljk0NiAxNC4yMTU5QzY3Ljc5NDUgMTMuNzgwMyA2Ny41NjM0IDEzLjQzMzcgNjcuMjUyOCAxMy4xNzYxQzY2Ljk0MjIgMTIuOTE4NiA2Ni41NTU5IDEyLjc4OTggNjYuMDkzOCAxMi43ODk4QzY1LjYyMDMgMTIuNzg5OCA2NS4yMjYzIDEyLjkxODYgNjQuOTExOSAxMy4xNzYxQzY0LjYwMTMgMTMuNDMzNyA2NC4zNjg0IDEzLjc4MDMgNjQuMjEzMSAxNC4yMTU5QzY0LjA2MTYgMTQuNjQ3NyA2My45ODU4IDE1LjEzMDcgNjMuOTg1OCAxNS42NjQ4QzYzLjk4NTggMTYuMTk1MSA2NC4wNjE2IDE2LjY3NjEgNjQuMjEzMSAxNy4xMDhDNjQuMzY4NCAxNy41Mzk4IDY0LjYwMTMgMTcuODg0NSA2NC45MTE5IDE4LjE0MkM2NS4yMjYzIDE4LjM5NTggNjUuNjIwMyAxOC41MjI3IDY2LjA5MzggMTguNTIyN1pNNzIuMDA5OSAyMFYxMS4yNzI3SDc0LjAwNDNWMTIuNzI3M0g3NC4wOTUyQzc0LjI1NDMgMTIuMjIzNSA3NC41MjcgMTEuODM1MiA3NC45MTM0IDExLjU2MjVDNzUuMzAzNSAxMS4yODYgNzUuNzQ4NiAxMS4xNDc3IDc2LjI0ODYgMTEuMTQ3N0M3Ni4zNjIyIDExLjE0NzcgNzYuNDg5MSAxMS4xNTM0IDc2LjYyOTMgMTEuMTY0OEM3Ni43NzMyIDExLjE3MjMgNzYuODkyNSAxMS4xODU2IDc2Ljk4NzIgMTEuMjA0NVYxMy4wOTY2Qzc2LjkwMDEgMTMuMDY2MyA3Ni43NjE4IDEzLjAzOTggNzYuNTcyNCAxMy4wMTdDNzYuMzg2OCAxMi45OTA1IDc2LjIwNjkgMTIuOTc3MyA3Ni4wMzI3IDEyLjk3NzNDNzUuNjU3NyAxMi45NzczIDc1LjMyMDUgMTMuMDU4NyA3NS4wMjEzIDEzLjIyMTZDNzQuNzI1OSAxMy4zODA3IDc0LjQ5MjkgMTMuNjAyMyA3NC4zMjI0IDEzLjg4NjRDNzQuMTUyIDE0LjE3MDUgNzQuMDY2OCAxNC40OTgxIDc0LjA2NjggMTQuODY5M1YyMEg3Mi4wMDk5Wk04MC4yMjg3IDE3LjI2MTRMODAuMjIzIDE0Ljc3ODRIODAuNTUyNkw4My42ODg5IDExLjI3MjdIODYuMDkyM0w4Mi4yMzQ0IDE1LjU2ODJIODEuODA4Mkw4MC4yMjg3IDE3LjI2MTRaTTc4LjM1MzcgMjBWOC4zNjM2NEg4MC40MTA1VjIwSDc4LjM1MzdaTTgzLjgzMSAyMEw4MC45OTAxIDE2LjAyODRMODIuMzc2NCAxNC41Nzk1TDg2LjI5MTIgMjBIODMuODMxWk04Ny40NjMxIDIwVjExLjI3MjdIODkuNDI5VjEyLjc1NTdIODkuNTMxMkM4OS43MTMxIDEyLjI1NTcgOTAuMDE0MiAxMS44NjU1IDkwLjQzNDcgMTEuNTg1MkM5MC44NTUxIDExLjMwMTEgOTEuMzU3IDExLjE1OTEgOTEuOTQwMyAxMS4xNTkxQzkyLjUzMTIgMTEuMTU5MSA5My4wMjk0IDExLjMwMyA5My40MzQ3IDExLjU5MDlDOTMuODQzOCAxMS44NzUgOTQuMTMxNiAxMi4yNjMzIDk0LjI5ODMgMTIuNzU1N0g5NC4zODkyQzk0LjU4MjQgMTIuMjcwOCA5NC45MDgxIDExLjg4NDUgOTUuMzY2NSAxMS41OTY2Qzk1LjgyODYgMTEuMzA0OSA5Ni4zNzU5IDExLjE1OTEgOTcuMDA4NSAxMS4xNTkxQzk3LjgxMTYgMTEuMTU5MSA5OC40NjY5IDExLjQxMjkgOTguOTc0NCAxMS45MjA1Qzk5LjQ4MiAxMi40MjggOTkuNzM1OCAxMy4xNjg2IDk5LjczNTggMTQuMTQyVjIwSDk3LjY3MzNWMTQuNDYwMkM5Ny42NzMzIDEzLjkxODYgOTcuNTI5NCAxMy41MjI3IDk3LjI0MTUgMTMuMjcyN0M5Ni45NTM2IDEzLjAxODkgOTYuNjAxMyAxMi44OTIgOTYuMTg0NyAxMi44OTJDOTUuNjg4NCAxMi44OTIgOTUuMzAwMiAxMy4wNDczIDk1LjAxOTkgMTMuMzU4Qzk0Ljc0MzQgMTMuNjY0OCA5NC42MDUxIDE0LjA2NDQgOTQuNjA1MSAxNC41NTY4VjIwSDkyLjU4ODFWMTQuMzc1QzkyLjU4ODEgMTMuOTI0MiA5Mi40NTE3IDEzLjU2NDQgOTIuMTc5IDEzLjI5NTVDOTEuOTEgMTMuMDI2NSA5MS41NTc4IDEyLjg5MiA5MS4xMjIyIDEyLjg5MkM5MC44MjY3IDEyLjg5MiA5MC41NTc4IDEyLjk2NzggOTAuMzE1MyAxMy4xMTkzQzkwLjA3MjkgMTMuMjY3IDg5Ljg3OTcgMTMuNDc3MyA4OS43MzU4IDEzLjc1Qzg5LjU5MTkgMTQuMDE4OSA4OS41MTk5IDE0LjMzMzMgODkuNTE5OSAxNC42OTMyVjIwSDg3LjQ2MzFaTTEwNC4zMzQgMjAuMTc2MUMxMDMuNzgxIDIwLjE3NjEgMTAzLjI4MyAyMC4wNzc3IDEwMi44MzkgMTkuODgwN0MxMDIuNCAxOS42Nzk5IDEwMi4wNTIgMTkuMzg0NSAxMDEuNzk0IDE4Ljk5NDNDMTAxLjU0IDE4LjYwNDIgMTAxLjQxMyAxOC4xMjMxIDEwMS40MTMgMTcuNTUxMUMxMDEuNDEzIDE3LjA1ODcgMTAxLjUwNCAxNi42NTE1IDEwMS42ODYgMTYuMzI5NUMxMDEuODY4IDE2LjAwNzYgMTAyLjExNiAxNS43NSAxMDIuNDMgMTUuNTU2OEMxMDIuNzQ1IDE1LjM2MzYgMTAzLjA5OSAxNS4yMTc4IDEwMy40OTMgMTUuMTE5M0MxMDMuODkxIDE1LjAxNyAxMDQuMzAyIDE0Ljk0MzIgMTA0LjcyNiAxNC44OTc3QzEwNS4yMzcgMTQuODQ0NyAxMDUuNjUyIDE0Ljc5NzMgMTA1Ljk3IDE0Ljc1NTdDMTA2LjI4OCAxNC43MTAyIDEwNi41MTkgMTQuNjQyIDEwNi42NjMgMTQuNTUxMUMxMDYuODExIDE0LjQ1NjQgMTA2Ljg4NSAxNC4zMTA2IDEwNi44ODUgMTQuMTEzNlYxNC4wNzk1QzEwNi44ODUgMTMuNjUxNSAxMDYuNzU4IDEzLjMyMDEgMTA2LjUwNCAxMy4wODUyQzEwNi4yNSAxMi44NTA0IDEwNS44ODUgMTIuNzMzIDEwNS40MDggMTIuNzMzQzEwNC45MDQgMTIuNzMzIDEwNC41MDQgMTIuODQyOCAxMDQuMjA5IDEzLjA2MjVDMTAzLjkxNyAxMy4yODIyIDEwMy43MiAxMy41NDE3IDEwMy42MTggMTMuODQwOUwxMDEuNjk3IDEzLjU2ODJDMTAxLjg0OSAxMy4wMzc5IDEwMi4wOTkgMTIuNTk0NyAxMDIuNDQ3IDEyLjIzODZDMTAyLjc5NiAxMS44Nzg4IDEwMy4yMjIgMTEuNjA5OCAxMDMuNzI2IDExLjQzMThDMTA0LjIzIDExLjI1IDEwNC43ODYgMTEuMTU5MSAxMDUuMzk2IDExLjE1OTFDMTA1LjgxNyAxMS4xNTkxIDEwNi4yMzUgMTEuMjA4MyAxMDYuNjUyIDExLjMwNjhDMTA3LjA2OSAxMS40MDUzIDEwNy40NDkgMTEuNTY4MiAxMDcuNzk0IDExLjc5NTVDMTA4LjEzOSAxMi4wMTg5IDEwOC40MTUgMTIuMzIzOSAxMDguNjI0IDEyLjcxMDJDMTA4LjgzNiAxMy4wOTY2IDEwOC45NDIgMTMuNTc5NSAxMDguOTQyIDE0LjE1OTFWMjBIMTA2Ljk2NFYxOC44MDExSDEwNi44OTZDMTA2Ljc3MSAxOS4wNDM2IDEwNi41OTUgMTkuMjcwOCAxMDYuMzY4IDE5LjQ4M0MxMDYuMTQ0IDE5LjY5MTMgMTA1Ljg2MiAxOS44NTk4IDEwNS41MjEgMTkuOTg4NkMxMDUuMTg0IDIwLjExMzYgMTA0Ljc4OCAyMC4xNzYxIDEwNC4zMzQgMjAuMTc2MVpNMTA0Ljg2OCAxOC42NjQ4QzEwNS4yODEgMTguNjY0OCAxMDUuNjM5IDE4LjU4MzMgMTA1Ljk0MiAxOC40MjA1QzEwNi4yNDUgMTguMjUzOCAxMDYuNDc4IDE4LjAzNDEgMTA2LjY0MSAxNy43NjE0QzEwNi44MDcgMTcuNDg4NiAxMDYuODkxIDE3LjE5MTMgMTA2Ljg5MSAxNi44NjkzVjE1Ljg0MDlDMTA2LjgyNiAxNS44OTM5IDEwNi43MTYgMTUuOTQzMiAxMDYuNTYxIDE1Ljk4ODZDMTA2LjQxIDE2LjAzNDEgMTA2LjIzOSAxNi4wNzM5IDEwNi4wNSAxNi4xMDhDMTA1Ljg2IDE2LjE0MiAxMDUuNjczIDE2LjE3MjMgMTA1LjQ4NyAxNi4xOTg5QzEwNS4zMDIgMTYuMjI1NCAxMDUuMTQxIDE2LjI0ODEgMTA1LjAwNCAxNi4yNjdDMTA0LjY5NyAxNi4zMDg3IDEwNC40MjMgMTYuMzc2OSAxMDQuMTggMTYuNDcxNkMxMDMuOTM4IDE2LjU2NjMgMTAzLjc0NyAxNi42OTg5IDEwMy42MDcgMTYuODY5M0MxMDMuNDY2IDE3LjAzNiAxMDMuMzk2IDE3LjI1MTkgMTAzLjM5NiAxNy41MTdDMTAzLjM5NiAxNy44OTU4IDEwMy41MzUgMTguMTgxOCAxMDMuODExIDE4LjM3NUMxMDQuMDg4IDE4LjU2ODIgMTA0LjQ0IDE4LjY2NDggMTA0Ljg2OCAxOC42NjQ4Wk0xMTUuMzY4IDExLjI3MjdWMTIuODYzNkgxMTAuMzUxVjExLjI3MjdIMTE1LjM2OFpNMTExLjU4OSA5LjE4MTgySDExMy42NDZWMTcuMzc1QzExMy42NDYgMTcuNjUxNSAxMTMuNjg4IDE3Ljg2MzYgMTEzLjc3MSAxOC4wMTE0QzExMy44NTggMTguMTU1MyAxMTMuOTcyIDE4LjI1MzggMTE0LjExMiAxOC4zMDY4QzExNC4yNTIgMTguMzU5OCAxMTQuNDA4IDE4LjM4NjQgMTE0LjU3OCAxOC4zODY0QzExNC43MDcgMTguMzg2NCAxMTQuODI0IDE4LjM3NjkgMTE0LjkzIDE4LjM1OEMxMTUuMDQgMTguMzM5IDExNS4xMjQgMTguMzIyIDExNS4xOCAxOC4zMDY4TDExNS41MjcgMTkuOTE0OEMxMTUuNDE3IDE5Ljk1MjcgMTE1LjI2IDE5Ljk5NDMgMTE1LjA1NSAyMC4wMzk4QzExNC44NTUgMjAuMDg1MiAxMTQuNjA4IDIwLjExMTcgMTE0LjMxNyAyMC4xMTkzQzExMy44MDIgMjAuMTM0NSAxMTMuMzM4IDIwLjA1NjggMTEyLjkyNSAxOS44ODY0QzExMi41MTIgMTkuNzEyMSAxMTIuMTg0IDE5LjQ0MzIgMTExLjk0MiAxOS4wNzk1QzExMS43MDMgMTguNzE1OSAxMTEuNTg2IDE4LjI2MTQgMTExLjU4OSAxNy43MTU5VjkuMTgxODJaTTExNy4wODggMjBWMTEuMjcyN0gxMTkuMTQ1VjIwSDExNy4wODhaTTExOC4xMjIgMTAuMDM0MUMxMTcuNzk2IDEwLjAzNDEgMTE3LjUxNiA5LjkyNjE0IDExNy4yODEgOS43MTAyM0MxMTcuMDQ2IDkuNDkwNTMgMTE2LjkyOSA5LjIyNzI3IDExNi45MjkgOC45MjA0NUMxMTYuOTI5IDguNjA5ODUgMTE3LjA0NiA4LjM0NjU5IDExNy4yODEgOC4xMzA2OEMxMTcuNTE2IDcuOTEwOTggMTE3Ljc5NiA3LjgwMTE0IDExOC4xMjIgNy44MDExNEMxMTguNDUyIDcuODAxMTQgMTE4LjczMiA3LjkxMDk4IDExOC45NjMgOC4xMzA2OEMxMTkuMTk4IDguMzQ2NTkgMTE5LjMxNSA4LjYwOTg1IDExOS4zMTUgOC45MjA0NUMxMTkuMzE1IDkuMjI3MjcgMTE5LjE5OCA5LjQ5MDUzIDExOC45NjMgOS43MTAyM0MxMTguNzMyIDkuOTI2MTQgMTE4LjQ1MiAxMC4wMzQxIDExOC4xMjIgMTAuMDM0MVpNMTI1LjA2NyAyMC4xNzA1QzEyNC4xOTYgMjAuMTcwNSAxMjMuNDQ3IDE5Ljk3OTIgMTIyLjgyMiAxOS41OTY2QzEyMi4yMDEgMTkuMjE0IDEyMS43MjIgMTguNjg1NiAxMjEuMzg1IDE4LjAxMTRDMTIxLjA1MiAxNy4zMzMzIDEyMC44ODUgMTYuNTUzIDEyMC44ODUgMTUuNjcwNUMxMjAuODg1IDE0Ljc4NDEgMTIxLjA1NSAxNC4wMDE5IDEyMS4zOTYgMTMuMzIzOUMxMjEuNzM3IDEyLjY0MiAxMjIuMjE4IDEyLjExMTcgMTIyLjgzOSAxMS43MzNDMTIzLjQ2NCAxMS4zNTA0IDEyNC4yMDMgMTEuMTU5MSAxMjUuMDU1IDExLjE1OTFDMTI1Ljc2NCAxMS4xNTkxIDEyNi4zOTEgMTEuMjg5OCAxMjYuOTM2IDExLjU1MTFDMTI3LjQ4NSAxMS44MDg3IDEyNy45MjMgMTIuMTc0MiAxMjguMjQ5IDEyLjY0NzdDMTI4LjU3NCAxMy4xMTc0IDEyOC43NiAxMy42NjY3IDEyOC44MDUgMTQuMjk1NUgxMjYuODM5QzEyNi43NiAxMy44NzUgMTI2LjU3MSAxMy41MjQ2IDEyNi4yNzEgMTMuMjQ0M0MxMjUuOTc2IDEyLjk2MDIgMTI1LjU4IDEyLjgxODIgMTI1LjA4NCAxMi44MTgyQzEyNC42NjMgMTIuODE4MiAxMjQuMjk0IDEyLjkzMTggMTIzLjk3NiAxMy4xNTkxQzEyMy42NTggMTMuMzgyNiAxMjMuNDEgMTMuNzA0NSAxMjMuMjMyIDE0LjEyNUMxMjMuMDU3IDE0LjU0NTUgMTIyLjk3IDE1LjA0OTIgMTIyLjk3IDE1LjYzNjRDMTIyLjk3IDE2LjIzMTEgMTIzLjA1NyAxNi43NDI0IDEyMy4yMzIgMTcuMTcwNUMxMjMuNDA2IDE3LjU5NDcgMTIzLjY1IDE3LjkyMjMgMTIzLjk2NCAxOC4xNTM0QzEyNC4yODMgMTguMzgwNyAxMjQuNjU2IDE4LjQ5NDMgMTI1LjA4NCAxOC40OTQzQzEyNS4zODcgMTguNDk0MyAxMjUuNjU4IDE4LjQzNzUgMTI1Ljg5NiAxOC4zMjM5QzEyNi4xMzkgMTguMjA2NCAxMjYuMzQxIDE4LjAzNzkgMTI2LjUwNCAxNy44MTgyQzEyNi42NjcgMTcuNTk4NSAxMjYuNzc5IDE3LjMzMTQgMTI2LjgzOSAxNy4wMTdIMTI4LjgwNUMxMjguNzU2IDE3LjYzNDUgMTI4LjU3NCAxOC4xODE4IDEyOC4yNiAxOC42NTkxQzEyNy45NDYgMTkuMTMyNiAxMjcuNTE4IDE5LjUwMzggMTI2Ljk3NiAxOS43NzI3QzEyNi40MzQgMjAuMDM3OSAxMjUuNzk4IDIwLjE3MDUgMTI1LjA2NyAyMC4xNzA1WiIgZmlsbD0idXJsKCNwYWludDFfbGluZWFyXzEwMDhfODQyMCkiLz4KPGRlZnM+CjxsaW5lYXJHcmFkaWVudCBpZD0icGFpbnQwX2xpbmVhcl8xMDA4Xzg0MjAiIHgxPSIxIiB5MT0iMCIgeDI9IjIyLjE3NjUiIHkyPSIzNS4yOTQxIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CjxzdG9wLz4KPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOEI4QjhCIi8+CjwvbGluZWFyR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0icGFpbnQxX2xpbmVhcl8xMDA4Xzg0MjAiIHgxPSI0NiIgeTE9IjUiIHgyPSI1NC4xNzY5IiB5Mj0iNDEuMTUwNSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgo8c3RvcC8+CjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzhCOEI4QiIvPgo8L2xpbmVhckdyYWRpZW50Pgo8L2RlZnM+Cjwvc3ZnPgo=" alt="Workmatic"></div><div class="sidebar-scroll"><nav><section class="nav-section"><span class="nav-heading">${t('app.menu')}</span><ul class="nav-list">${primary}</ul></section><section class="nav-section"><span class="nav-heading">${t('app.settings')}</span><ul class="nav-list"><li><a class="nav-link ${state.route === 'settings' ? 'is-active' : ''}" href="#settings" data-route="settings"><span class="nav-icon">${icon('cog')}</span><span>${t('nav.settings')}</span></a><ul class="nav-list nav-submenu">${settings}</ul></li></ul></section></nav></div>`
 }
 
 function renderTopbar() {
   const meta = routes[state.route] || routes.dashboard
-  return `<div class="topbar-left"><button type="button" class="icon-button menu-toggle" data-action="toggle-sidebar" aria-label="${t('app.openMenu')}">${icon('menu')}</button><div class="page-context"><strong>${t(meta[0])}</strong><span>${t(meta[1])}</span></div><span class="demo-badge"><span>${t('app.demo')}</span></span></div><div class="topbar-actions"><button type="button" class="tenant-control" data-action="demo-toast">${icon('building')}<span>${t('app.tenant')}</span>${icon('chevron')}</button><button type="button" class="icon-button" data-action="theme" aria-label="${t('app.theme')}" title="${t('app.theme')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button><button type="button" class="icon-button" data-action="reset-request" aria-label="${t('crud.reset')}" title="${t('crud.reset')}">${icon('refresh')}</button><button type="button" class="language-button" data-action="language" aria-label="${t('app.language')}">${state.locale === 'nb' ? 'EN' : 'NO'}</button><button type="button" class="icon-button" data-action="demo-toast" aria-label="${t('app.notifications')}" title="${t('app.notifications')}">${icon('bell')}</button><button type="button" class="user-control" data-action="demo-toast"><span class="avatar">DA</span><span>${t('app.user')}</span></button></div>`
+  // Klokken viser antall uleste varsler, avledet idempotent fra arbeidsflytens
+  // hendelser og tilstand (§23-§24). Å åpne panelet endrer aldri fagdata.
+  const unread = syncNotifications().filter(item => !item.readAt).length
+  const bell = `<span class="notification-bell"><button type="button" class="icon-button" data-action="toggle-notifications" aria-label="${t('app.notifications')}" title="${t('app.notifications')}">${icon('bell')}${unread ? `<span class="notification-badge">${unread}</span>` : ''}</button>${state.notificationsOpen ? notificationPanel() : ''}</span>`
+  return `<div class="topbar-left"><button type="button" class="icon-button menu-toggle" data-action="toggle-sidebar" aria-label="${t('app.openMenu')}">${icon('menu')}</button><div class="page-context"><strong>${t(meta[0])}</strong><span>${t(meta[1])}</span></div><span class="demo-badge"><span>${t('app.demo')}</span></span></div><div class="topbar-actions"><button type="button" class="tenant-control" data-action="demo-toast">${icon('building')}<span>${t('app.tenant')}</span>${icon('chevron')}</button><button type="button" class="icon-button" data-action="theme" aria-label="${t('app.theme')}" title="${t('app.theme')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button><button type="button" class="icon-button" data-action="reset-request" aria-label="${t('crud.reset')}" title="${t('crud.reset')}">${icon('refresh')}</button><button type="button" class="language-button" data-action="language" aria-label="${t('app.language')}">${state.locale === 'nb' ? 'EN' : 'NO'}</button>${bell}<button type="button" class="user-control" data-action="demo-toast"><span class="avatar">DA</span><span>${t('app.user')}</span></button></div>`
 }
 
 function dashboardNavigation(active = 'overview') {
@@ -5932,46 +6174,45 @@ function dashboardNavigation(active = 'overview') {
 
 function renderDashboard() {
   if (state.dashboardLoading) return `<section class="page">${dashboardNavigation()}${pageHeading('nav.dashboard', 'page.dashboard.desc', button('dashboard.toggleLoading', 'toggle-loading', 'secondary'))}<div class="loading-grid">${Array(8).fill('<div class="skeleton"></div>').join('')}</div></section>`
-  // Tallene leses fra lageret, slik at det teamet oppretter faktisk vises her.
-  const employeeCount = collection('employees').filter(item => item.status === 'active').length
-  const openSlots = collection('assignments').reduce((sum, item) => sum + Math.max(0, item.slots - (item.employeeIds?.length ?? 0)), 0)
-  const filledSlots = collection('assignments').reduce((sum, item) => sum + Math.min(item.slots, item.employeeIds?.length ?? 0), 0)
-  const totalSlots = collection('assignments').reduce((sum, item) => sum + item.slots, 0)
-  const fillRate = totalSlots ? Math.round((filledSlots / totalSlots) * 100) : 0
-  const stats = [
-    ['dashboard.employees', String(employeeCount), `+${collection('employees').length - employeeCount || 0}`],
-    ['dashboard.newEmployees', String(collection('employees').filter(item => item.start >= '2026-01-01').length), '+2'],
-    ['dashboard.openJobs', String(openSlots), `+${collection('assignments').length}`],
-    ['dashboard.candidates', String(collection('candidates').length), `+${collection('positions').length}`],
-    ['dashboard.fillRate', formatPercent(fillRate, 0), `+${formatPercent(3, 0)}`],
-    ['dashboard.utilization', formatPercent(87, 0), `+${formatPercent(1, 0)}`]
+  // Pilotdashboardet svarer på «hva krever handling nå?». Hvert tall utledes fra
+  // de kanoniske kildene via de samme hjelperne som fagsidene bruker (§2, §53),
+  // og hvert kort navigerer til listen bak tallet med eksplisitt filter (§12-§13).
+  // HR-demografien (kjønn, alder, harde trendtall) er fjernet fra primærflaten.
+  const counts = dashboardActionCounts()
+  const cards = [
+    ['dashboard.card.openSlots', counts.openSlots, 'dashboard-filter-slots', 'open'],
+    ['dashboard.card.requestsWaiting', counts.requestsWaiting, 'dashboard-filter-slots', 'requested'],
+    ['dashboard.card.awaitingConfirmation', counts.awaitingConfirmation, 'dashboard-filter-slots', 'awaiting_confirmation'],
+    ['dashboard.card.pendingReconfirmation', counts.pendingReconfirmation, 'dashboard-filter-slots', 'pending_reconfirmation'],
+    ['dashboard.card.timesheetsToApprove', counts.timesheetsToApprove, 'dashboard-filter-timesheets', 'submitted'],
+    ['dashboard.card.timesheetsToCorrect', counts.timesheetsToCorrect, 'dashboard-filter-timesheets', 'needs_correction'],
+    ['dashboard.card.payrollBlocked', counts.payrollBlocked, 'dashboard-open-payroll', ''],
+    ['dashboard.card.invoiceBlocked', counts.invoiceBlocked, 'dashboard-open-invoicing', '']
   ]
+  const metrics = cards.map(([key, value, action, status]) => `<button type="button" class="stat-card stat-action" data-action="${action}"${status ? ` data-status="${status}"` : ''}><span class="stat-label">${t(key)}</span><strong class="stat-value">${value}</strong></button>`).join('')
   const chart = (title, content, extra = '') => `<article class="card chart-card ${extra}"><h2>${title}</h2>${content}</article>`
-  const donut = `<div class="donut-row"><div class="donut-chart" aria-hidden="true"></div><dl><div><dt>${t('dashboard.new')}</dt><dd>6</dd></div><div><dt>${t('dashboard.total')}</dt><dd>84</dd></div></dl></div>`
   // Operativ bemanningsstatus, utledet fra de kanoniske bemanningsplassene -
-  // aldri fra en permanent avdelingskobling på den ansatte.
-  const slotTallies = { open: 0, requested: 0, awaiting: 0, assigned: 0 }
-  collection('assignments').forEach(item => {
-    if (item.status === 'cancelled') return
-    for (const slot of item.staffingSlots ?? []) {
-      if (slot.status === 'open') slotTallies.open += 1
-      else if (slot.status === 'requested') slotTallies.requested += 1
-      else if (slot.status === 'awaiting_confirmation') slotTallies.awaiting += 1
-      else if (slot.status !== 'cancelled') slotTallies.assigned += 1
-    }
-  })
+  // aldri fra en permanent avdelingskobling på den ansatte (§55).
   const staffingBars = [
-    ['staffing.slotOpen', slotTallies.open],
-    ['staffing.awaitingResponse', slotTallies.requested],
-    ['staffing.awaitingConfirmation', slotTallies.awaiting],
-    ['staffing.slotAssigned', slotTallies.assigned]
+    ['staffing.slotOpen', counts.openSlots],
+    ['staffing.awaitingResponse', counts.requestsWaiting],
+    ['staffing.awaitingConfirmation', counts.awaitingConfirmation],
+    ['staffing.slotAssigned', activeStaffingSlots().filter(({ slot }) => slot.status === 'assigned').length]
   ]
   const peak = Math.max(1, ...staffingBars.map(([, count]) => count))
-  const departments = `<div class="bar-chart">${staffingBars.map(([key, count]) => `<div><span>${t(key)}</span><i style="--bar:${Math.round((count / peak) * 100)}%"></i><strong>${count}</strong></div>`).join('')}</div>`
-  const gender = `<div class="donut-row"><div class="donut-chart gender" aria-hidden="true"></div><dl><div><dt>${t('dashboard.women')}</dt><dd>${formatPercent(68, 0)}</dd></div><div><dt>${t('dashboard.men')}</dt><dd>${formatPercent(32, 0)}</dd></div></dl></div>`
-  const age = `<div class="mini-columns">${[34, 62, 88, 70, 42].map((value, i) => `<div><i style="--column:${value}%"></i><span>${['20–29', '30–39', '40–49', '50–59', '60+'][i]}</span></div>`).join('')}</div>`
-  const jobs = `<div class="line-chart" aria-hidden="true"><span style="--point:58%"></span><span style="--point:35%"></span><span style="--point:68%"></span><span style="--point:25%"></span><span style="--point:46%"></span></div><ul class="compact-jobs">${['dashboard.shift1', 'dashboard.shift2'].map(key => `<li>${t(key)}</li>`).join('')}</ul>`
-  return `<section><div class="page dashboard-nav-wrap">${dashboardNavigation()}</div><div class="dashboard-controls"><div class="tabs"><button class="tab ${state.dashboardTab === 'overview' ? 'is-active' : ''}" data-action="dashboard-overview">${t('dashboard.today')}</button><button class="tab ${state.dashboardTab === 'week' ? 'is-active' : ''}" data-action="dashboard-week">${t('dashboard.week')}</button><button class="tab ${state.dashboardTab === 'month' ? 'is-active' : ''}" data-action="dashboard-month">${t('dashboard.month')}</button></div><label class="dashboard-date-range">${icon('calendar')}<input type="text" value="${t('dashboard.range')}" readonly aria-label="${t('dashboard.range')}"></label></div><div class="page dashboard-page"><div class="dashboard-metrics">${stats.map(item => `<article class="stat-card"><span class="stat-label">${t(item[0])}</span><strong class="stat-value">${item[1]}</strong><span class="stat-trend">${item[2]}</span></article>`).join('')}</div><div class="dashboard-charts">${chart(t('dashboard.newEmployees'), donut)}${chart(t('dashboard.byDepartment'), departments)}${chart(t('dashboard.gender'), gender)}${chart(t('dashboard.age'), age)}${chart(t('dashboard.schedule'), jobs, 'chart-span-2')}</div></div></section>`
+  const staffingChart = `<div class="bar-chart">${staffingBars.map(([key, count]) => `<div><span>${t(key)}</span><i style="--bar:${Math.round((count / peak) * 100)}%"></i><strong>${count}</strong></div>`).join('')}</div>`
+  // Kommende vakter: dato, tid, klient, avdeling, rolle, bemannet X/Y og status.
+  const upcoming = upcomingAssignments()
+  const upcomingRows = upcoming.map(item => {
+    const staffed = activeEmployeeIdsForAssignment(item).length
+    return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${formatDate(item.date)}</button></td><td>${escapeHtml(item.startTime ?? '')}–${escapeHtml(item.endTime ?? '')}</td><td>${escapeHtml(record('clients', item.clientId)?.name ?? '')}</td><td>${lab(record('departments', item.departmentId)?.name ?? '')}</td><td>${escapeHtml(taxonomy(item.role))}</td><td>${t('staffing.assignedOf', { assigned: staffed, total: item.slots })}</td><td>${statusTag(item.status)}</td></tr>`
+  })
+  const upcomingCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.upcoming')}</h2><span class="tag info">${upcoming.length}</span></div>${upcoming.length ? table(['common.date', 'shifts.time', 'rel.client', 'rel.department', 'staffing.role', 'staffing.assigned', 'common.status'], upcomingRows) : `<p class="muted">${t('dashboard.noUpcoming')}</p>`}</article>`
+  // Kritiske avvik: deterministiske regler, hver rad peker på konteksten sin.
+  const deviations = criticalDeviations()
+  const deviationRows = deviations.map(item => `<div class="file-row"><div class="file-name"><strong>${t(item.key)}</strong><span>${escapeHtml(item.context)}</span></div><button type="button" class="button ghost small" ${item.id ? `data-route="${item.route}" data-id="${item.id}"` : `data-action="dashboard-go-${item.route}"`}>${t('common.view')}</button></div>`).join('')
+  const deviationCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.deviations')}</h2><span class="tag ${deviations.length ? 'warning' : 'success'}">${deviations.length}</span></div>${deviations.length ? deviationRows : `<p class="muted">${t('dashboard.noDeviations')}</p>`}</article>`
+  return `<section><div class="page dashboard-nav-wrap">${dashboardNavigation()}</div><div class="page dashboard-page">${pageHeading('dashboard.actionTitle', 'page.dashboard.desc')}<div class="dashboard-metrics">${metrics}</div>${upcomingCard}${deviationCard}<div class="dashboard-charts">${chart(t('dashboard.byDepartment'), staffingChart)}</div></div></section>`
 }
 
 function renderClients() {
@@ -6354,8 +6595,23 @@ function assignedEmployeesCell(assignment) {
   return `${relationLink('employee-detail', team[0].id, team[0].name)}${extra}`
 }
 
+// Etiketten for et aktivt plass-statusfilter fra dashboardet.
+function slotFilterLabelKey(filter) {
+  return filter === 'open' ? 'staffing.slotOpen'
+    : filter === 'requested' ? 'staffing.awaitingResponse'
+    : filter === 'awaiting_confirmation' ? 'staffing.awaitingConfirmation'
+    : 'staffing.pendingReconfirmation'
+}
+
 function renderStaffing() {
+  // Dashboardkortet leverer et eksplisitt plass-statusfilter: listen viser da
+  // nøyaktig vaktene som har en plass i den statusen (§12-§13).
+  const slotFilter = state.staffingSlotFilter
   const visible = filterList('assignments', ['assignmentNumber', 'name'])
+    .filter(item => !slotFilter || (item.status !== 'cancelled' && staffingSlotsFor(item).some(slot => slot.status !== 'cancelled' && slotMatchesFilter(slot, slotFilter))))
+  const filterBanner = slotFilter
+    ? `<div class="banner info">${icon('bell')}<span>${t('staffing.slotFilterActive')}: <strong>${t(slotFilterLabelKey(slotFilter))}</strong> (${visible.length})</span><button type="button" class="button ghost small" data-action="clear-slot-filter">${t('staffing.clearFilter')}</button></div>`
+    : ''
   const rows = visible.map(item => {
     const client = record('clients', item.clientId)
     const department = record('departments', item.departmentId)
@@ -6366,7 +6622,7 @@ function renderStaffing() {
     const need = `<div class="file-name"><strong>${formatNumber(item.slots, 0)}</strong><span>${t('staffing.open')}: ${formatNumber(Math.max(0, item.slots - assigned), 0)}</span></div>`
     return `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${template ? escapeHtml(template.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${schedule}</td><td>${need}</td><td>${assignedEmployeesCell(item)}</td><td>${statusTag(item.status)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
-  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${searchToolbar()}${dataTable('assignments', ['staffing.assignmentId', 'staffing.client', 'rel.department', 'shiftTemplates.template', 'assignment.date', 'staffing.slots', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)}</section>`
+  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${filterBanner}${searchToolbar()}${dataTable('assignments', ['staffing.assignmentId', 'staffing.client', 'rel.department', 'shiftTemplates.template', 'assignment.date', 'staffing.slots', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)}</section>`
 }
 
 function renderJobDetail() {
@@ -6445,7 +6701,7 @@ function renderJobDetail() {
     return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions"><span class="tag ${tone}">${t(statusKey)}</span>${slotActions}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
-  return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${assignmentHistoryCard(assignment)}</section>`
+  return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
 }
 
 // Forespørselen til én eller flere ansatte. Teksten er forhåndsutfylt av
@@ -6806,7 +7062,9 @@ function assignmentHasHistory(assignment) {
 
 // Append-only hendelseslogg med uforanderlige før/etter-verdier (§31).
 function logAssignmentEvent(assignment, event) {
-  assignment.events = [...(assignment.events ?? []), { id: nextId('ev'), at: new Date().toISOString(), ...event }]
+  // Nye hendelses-id-er følger den kanoniske numeriske regelen; historiske
+  // id-er med prefiks beholdes urørt der de allerede finnes (§37).
+  assignment.events = [...(assignment.events ?? []), { id: nextNumericSlotId(), at: new Date().toISOString(), ...event }]
 }
 
 // === Kanoniske bemanningsplasser ===
@@ -7248,7 +7506,13 @@ function timesheetEmptyState() {
 // Én rad per ansatt + konkret vakt, fra de kanoniske slot-timelistene. Klient og
 // avdeling utledes av oppdraget - aldri av den ansatte (§24).
 function slotTimesheetTable() {
-  const rows = collection('slotTimesheets').filter(item => !item.voided && !item.superseded).map(item => {
+  // Dashboardets timelistekort leverer et eksplisitt statusfilter: tabellen
+  // viser da bare de kanoniske timelistene i den statusen (§13, §45).
+  const statusFilter = state.slotTimesheetFilter
+  const filterBanner = statusFilter
+    ? `<div class="banner info">${icon('bell')}<span>${t('timesheets.filterActive')}: <strong>${t(`timesheets.status.${statusFilter}`)}</strong></span><button type="button" class="button ghost small" data-action="clear-slot-timesheet-filter">${t('staffing.clearFilter')}</button></div>`
+    : ''
+  const rows = visibleSlotTimesheets().map(item => {
     const assignment = record('assignments', item.assignmentId)
     const employee = record('employees', item.employeeId)
     const deviation = timesheetDeviation(item)
@@ -7256,8 +7520,11 @@ function slotTimesheetTable() {
     const approver = timesheetApprover(assignment)
     return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approver ? escapeHtml(approver.name) : `<span class="tag warning">${t('timesheets.noApprover')}</span>`}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
   })
-  if (!rows.length) return ''
-  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)}</article>`
+  if (!rows.length && !statusFilter) return ''
+  const body = rows.length
+    ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)
+    : `<p class="muted">${t('timesheets.emptyFiltered')}</p>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${filterBanner}${body}</article>`
 }
 
 function renderTimesheets() {
@@ -8467,6 +8734,294 @@ function renderDrawer() {
   return ''
 }
 
+// === Fase 4: operativt dashboard, varsler og revisjonslogg ===
+// Alt her er AVLEDET lesning av de kanoniske kildene: staffingSlots,
+// requestQueue, slotTimesheets, assignment.events, timesheet.events og lønns-/
+// fakturagrunnlaget. Ingen egen dashboard-database, ingen ny meldingssannhet,
+// ingen egen økonomisjekk - og revisjonsloggen er en ren visning (§17-§18, §30).
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+// Aktive plasser på ikke-kansellerte vakter. Kansellerte plasser teller aldri.
+function activeStaffingSlots() {
+  return collection('assignments')
+    .filter(assignment => assignment.status !== 'cancelled')
+    .flatMap(assignment => staffingSlotsFor(assignment).map(slot => ({ assignment, slot })))
+    .filter(({ slot }) => slot.status !== 'cancelled')
+}
+
+function activeSlotTimesheets() {
+  return collection('slotTimesheets').filter(item => !item.voided && !item.superseded)
+}
+
+// Timelister-tabellen og testene deler samme utvalg: det aktive settet, snevret
+// inn av det eksplisitte statusfilteret fra dashboardet (§13, §45).
+function visibleSlotTimesheets() {
+  return activeSlotTimesheets().filter(item => !state.slotTimesheetFilter || item.status === state.slotTimesheetFilter)
+}
+
+// Matcher en plass dashboardfilteret? «Forespørsler venter» krever en aktiv
+// utsendt forespørsel - ikke kø, ikke aksept (§5).
+function slotMatchesFilter(slot, filter) {
+  if (filter === 'requested') return Boolean(activeSlotRequest(slot))
+  return slot.status === filter
+}
+
+// KPI-ene svarer på «hva krever handling nå?» - og bruker NØYAKTIG de samme
+// hjelperne som fagsidene, så dashboardet aldri kan avvike fra kilden (§53).
+function dashboardActionCounts() {
+  const slots = activeStaffingSlots()
+  const sheets = activeSlotTimesheets()
+  const payroll = timesheetPayrollBasis()
+  const invoice = timesheetInvoiceBasis()
+  return {
+    openSlots: slots.filter(({ slot }) => slot.status === 'open').length,
+    requestsWaiting: slots.filter(({ slot }) => Boolean(activeSlotRequest(slot))).length,
+    awaitingConfirmation: slots.filter(({ slot }) => slot.status === 'awaiting_confirmation').length,
+    pendingReconfirmation: slots.filter(({ slot }) => slot.status === 'pending_reconfirmation').length,
+    timesheetsToApprove: sheets.filter(item => item.status === 'submitted').length,
+    timesheetsToCorrect: sheets.filter(item => item.status === 'needs_correction').length,
+    payrollBlocked: payroll.blocked.length,
+    invoiceBlocked: invoice.priceBlocked.length + invoice.payBlocked.length
+  }
+}
+
+// Kommende vakter: ikke-kansellerte oppdrag med dato fra og med i dag.
+function upcomingAssignments(limit = 8) {
+  const today = todayIso()
+  return collection('assignments')
+    .filter(item => item.status !== 'cancelled' && item.date && item.date >= today)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime ?? '').localeCompare(String(b.startTime ?? '')))
+    .slice(0, limit)
+}
+
+// Kritiske avvik: deterministiske regler over kanonisk tilstand - ingen scoring.
+function criticalDeviations() {
+  const soon = addDays(todayIso(), 7)
+  const items = []
+  for (const { assignment, slot } of activeStaffingSlots()) {
+    if (slot.status === 'open' && assignment.date && assignment.date >= todayIso() && assignment.date <= soon) {
+      items.push({ key: 'dashboard.dev.openSoon', route: 'job-detail', id: assignment.id, context: `${assignment.assignmentNumber ?? ''} · ${formatDate(assignment.date)}` })
+    }
+    if (slot.status === 'awaiting_confirmation') {
+      items.push({ key: 'dashboard.dev.awaitingAdmin', route: 'job-detail', id: assignment.id, context: assignment.assignmentNumber ?? '' })
+    }
+  }
+  for (const sheet of activeSlotTimesheets().filter(item => item.status === 'submitted')) {
+    const employee = record('employees', sheet.employeeId)
+    items.push({ key: 'dashboard.dev.submittedWaiting', route: 'timesheets', id: null, context: `${employee?.name ?? ''} · ${sheet.plannedDate ? formatDate(sheet.plannedDate) : ''}` })
+  }
+  const invoice = timesheetInvoiceBasis()
+  for (const item of invoice.payBlocked) {
+    items.push({ key: 'dashboard.dev.payrollBlocked', route: 'payroll', id: null, context: `${item.employee?.name ?? ''} · ${formatDate(item.date)}` })
+  }
+  for (const item of invoice.priceBlocked) {
+    items.push({ key: 'dashboard.dev.invoiceBlocked', route: 'invoicing', id: null, context: `${item.employee?.name ?? ''} · ${formatDate(item.date)}` })
+  }
+  return items
+}
+
+// === Varsler ===
+// Varsel = intern, handlingsrettet oppmerksomhet. Forretningsfaktumet bor i
+// kilde-hendelsen/tilstanden; varselsposten bærer bare pekere og lest-status
+// (§17-§19). Dedup-nøkkelen er kilde-hendelsens id (eller tilstanden per
+// timeliste), så en re-rendring eller reload aldri dupliserer (§24).
+
+const ASSIGNMENT_NOTIFICATION_TYPES = {
+  request_accepted: 'awaiting_assignment_confirmation',
+  request_declined: 'request_response_received',
+  request_expired: 'request_expired',
+  reconfirmation_accepted: 'reconfirmation_response',
+  reconfirmation_declined: 'reconfirmation_response',
+  cancelled: 'shift_cancelled'
+}
+
+const TIMESHEET_NOTIFICATION_TYPES = {
+  timesheet_submitted: 'timesheet_submitted',
+  timesheet_returned: 'timesheet_returned'
+}
+
+function notificationsCollection() {
+  db.notifications = db.notifications ?? []
+  return db.notifications
+}
+
+// Idempotent avledning fra de kanoniske kildene. Hendelsesbaserte varsler
+// består historisk; tilstandsbaserte (blokkert lønn/faktura) fjernes når
+// blokkeringen er løst - faktumet deres finnes bare så lenge tilstanden gjør.
+function syncNotifications() {
+  const list = notificationsCollection()
+  const existing = new Set(list.map(item => item.dedupKey))
+  let changed = false
+  const add = (dedupKey, values) => {
+    if (existing.has(dedupKey)) return
+    list.push({ id: nextNumericSlotId(), dedupKey, createdAt: new Date().toISOString(), readAt: null, ...values })
+    existing.add(dedupKey)
+    changed = true
+  }
+  for (const assignment of collection('assignments')) {
+    for (const event of assignment.events ?? []) {
+      const type = ASSIGNMENT_NOTIFICATION_TYPES[event.type]
+      if (!type) continue
+      add(`ev:${event.id}`, { type, entityType: 'assignment', entityId: assignment.id, assignmentId: assignment.id, slotId: event.slotId ?? null, employeeId: event.employeeId ?? null, sourceEventId: event.id })
+    }
+  }
+  for (const timesheet of collection('slotTimesheets')) {
+    for (const event of timesheet.events ?? []) {
+      const type = TIMESHEET_NOTIFICATION_TYPES[event.type]
+      if (!type) continue
+      add(`ev:${event.id}`, { type, entityType: 'timesheet', entityId: timesheet.id, assignmentId: timesheet.assignmentId, slotId: timesheet.slotId, employeeId: timesheet.employeeId, sourceEventId: event.id })
+    }
+  }
+  const invoice = timesheetInvoiceBasis()
+  const stateKeys = new Set()
+  for (const item of invoice.payBlocked) {
+    const key = `payroll_blocked:${item.timesheetId}`
+    stateKeys.add(key)
+    add(key, { type: 'payroll_blocked', entityType: 'timesheet', entityId: item.timesheetId, assignmentId: item.assignmentId, slotId: item.slotId, employeeId: item.employeeId, sourceEventId: null })
+  }
+  for (const item of invoice.priceBlocked) {
+    const key = `invoice_blocked:${item.timesheetId}`
+    stateKeys.add(key)
+    add(key, { type: 'invoice_blocked', entityType: 'timesheet', entityId: item.timesheetId, assignmentId: item.assignmentId, slotId: item.slotId, employeeId: item.employeeId, sourceEventId: null })
+  }
+  const kept = list.filter(item => item.sourceEventId !== null || stateKeys.has(item.dedupKey))
+  if (kept.length !== list.length) changed = true
+  db.notifications = kept
+  if (changed) persist()
+  return db.notifications
+}
+
+function unreadNotificationCount() {
+  return notificationsCollection().filter(item => !item.readAt).length
+}
+
+// Én kort kontekstlinje per varsel - aldri interne statusnavn (§38).
+function notificationContext(item) {
+  const assignment = record('assignments', item.assignmentId)
+  const employee = item.employeeId ? record('employees', item.employeeId) : null
+  const timesheet = item.entityType === 'timesheet' ? collection('slotTimesheets').find(sheet => sheet.id === item.entityId) : null
+  return [assignment?.assignmentNumber, employee?.name, timesheet?.plannedDate ? formatDate(timesheet.plannedDate) : assignment?.date ? formatDate(assignment.date) : '']
+    .filter(Boolean).join(' · ')
+}
+
+// Klokkepanelet: uleste først, nyeste øverst. Å åpne et varsel markerer det
+// lest og navigerer til den eksakte konteksten - aldri noe mer (§22-§23).
+function notificationPanel() {
+  const list = [...notificationsCollection()].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  const rows = list.map(item => `<button type="button" class="notification-item ${item.readAt ? '' : 'is-unread'}" data-action="open-notification" data-id="${item.id}"><span class="notification-title">${t(`notif.type.${item.type}`)}</span><span class="notification-meta">${escapeHtml(notificationContext(item))}</span><span class="notification-meta">${item.createdAt ? `${formatDate(item.createdAt.slice(0, 10))} ${escapeHtml(item.createdAt.slice(11, 16))}` : ''}</span></button>`).join('')
+  const body = rows || `<p class="notification-empty muted">${t('notif.empty')}</p>`
+  const footer = list.some(item => !item.readAt) ? `<div class="notification-footer"><button type="button" class="button ghost small" data-action="read-all-notifications">${t('notif.markAllRead')}</button></div>` : ''
+  return `<div class="notification-panel" role="dialog" aria-label="${t('notif.title')}"><div class="notification-head"><strong>${t('notif.title')}</strong></div><div class="notification-list">${body}</div>${footer}</div>`
+}
+
+// === Revisjonslogg ===
+// Ren, lesbar visning aggregert fra assignment.events og timesheet.events -
+// forespørselskøens overganger ligger allerede i assignment.events. Ingen
+// hendelse kopieres til en ny forretningssannhet; modellen under er kun for
+// visning (§30-§32). Økonomien har ingen publiserings-/eksporthendelser ennå,
+// så ingen fabrikkeres (§34).
+function auditEntries() {
+  const entries = []
+  for (const assignment of collection('assignments')) {
+    for (const event of assignment.events ?? []) {
+      entries.push({
+        id: event.id,
+        at: event.at ?? '',
+        actor: event.actor ?? event.confirmedBy ?? event.assignedBy ?? '',
+        entityType: 'assignment',
+        entityId: assignment.id,
+        entityLabel: assignment.assignmentNumber ?? assignmentLabel(assignment),
+        eventType: event.type,
+        labelKey: `staffing.event.${event.type}`,
+        employeeId: event.employeeId ?? null,
+        slotId: event.slotId ?? null,
+        reasonKey: event.reason ? `staffing.cancelReason.${event.reason}` : null,
+        comment: event.comment ?? '',
+        fields: event.fields ?? [],
+        source: 'assignment.events'
+      })
+    }
+  }
+  for (const timesheet of collection('slotTimesheets')) {
+    for (const event of timesheet.events ?? []) {
+      entries.push({
+        id: event.id,
+        at: event.at ?? '',
+        actor: event.actor ?? '',
+        entityType: 'timesheet',
+        entityId: timesheet.id,
+        entityLabel: `${t('nav.timesheets')} ${timesheet.id}`,
+        eventType: event.type,
+        labelKey: `timesheets.event.${event.type}`,
+        employeeId: event.employeeId ?? timesheet.employeeId ?? null,
+        slotId: timesheet.slotId ?? null,
+        assignmentId: timesheet.assignmentId,
+        reasonKey: null,
+        comment: event.comment ?? event.reason ?? '',
+        fields: [],
+        source: 'timesheet.events'
+      })
+    }
+  }
+  return entries.sort((a, b) => String(a.at).localeCompare(String(b.at)) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
+}
+
+function auditEntryMatchesFilters(entry) {
+  const filters = state.auditFilters
+  if (filters.entityType !== 'all' && entry.entityType !== filters.entityType) return false
+  if (filters.eventType !== 'all' && entry.eventType !== filters.eventType) return false
+  if (filters.actor !== 'all' && (entry.actor || '') !== filters.actor) return false
+  const date = String(entry.at).slice(0, 10)
+  if (filters.startDate && date < filters.startDate) return false
+  if (filters.endDate && date > filters.endDate) return false
+  return true
+}
+
+// Lesbar visning: ingen redigering, ingen sletting, ingen omorganisering (§36).
+function renderAudit() {
+  const all = auditEntries()
+  const visible = all.filter(auditEntryMatchesFilters).reverse()
+  const filters = state.auditFilters
+  const eventTypes = [...new Set(all.map(entry => `${entry.entityType}:${entry.eventType}`))]
+  const actors = [...new Set(all.map(entry => entry.actor).filter(Boolean))]
+  const option = (value, text, selected) => `<option value="${escapeHtml(value)}"${selected ? ' selected' : ''}>${text}</option>`
+  const controls = `<div class="toolbar" style="margin-bottom:12px">
+    <select data-audit-filter="entityType" aria-label="${t('audit.module')}">${option('all', t('audit.filter.allModules'), filters.entityType === 'all')}${option('assignment', t('audit.module.assignment'), filters.entityType === 'assignment')}${option('timesheet', t('audit.module.timesheet'), filters.entityType === 'timesheet')}</select>
+    <select data-audit-filter="eventType" aria-label="${t('audit.event')}">${option('all', t('audit.filter.allEvents'), filters.eventType === 'all')}${eventTypes.map(pair => { const [entityType, eventType] = pair.split(':'); return option(eventType, t(`${entityType === 'assignment' ? 'staffing' : 'timesheets'}.event.${eventType}`), filters.eventType === eventType) }).join('')}</select>
+    <select data-audit-filter="actor" aria-label="${t('audit.actor')}">${option('all', t('audit.filter.allActors'), filters.actor === 'all')}${actors.map(actor => option(actor, escapeHtml(actor), filters.actor === actor)).join('')}</select>
+    <input type="date" data-audit-filter="startDate" value="${escapeHtml(filters.startDate)}" aria-label="${t('audit.from')}">
+    <input type="date" data-audit-filter="endDate" value="${escapeHtml(filters.endDate)}" aria-label="${t('audit.to')}">
+  </div>`
+  const rows = visible.map(entry => {
+    const employee = entry.employeeId ? record('employees', entry.employeeId) : null
+    const fields = entry.fields.map(({ field, oldValue, newValue }) => `${t(`staffing.field.${field}`)}: ${escapeHtml(String(oldValue || '—'))} → ${escapeHtml(String(newValue || '—'))}`).join('<br>')
+    const details = [entry.reasonKey ? t(entry.reasonKey) : '', entry.comment ? escapeHtml(entry.comment) : '', fields].filter(Boolean).join('<br>')
+    const context = entry.entityType === 'assignment'
+      ? relationLink('job-detail', entry.entityId, entry.entityLabel)
+      : `<button class="row-link" data-action="open-slot-timesheet" data-id="${entry.assignmentId}" data-slot-id="${entry.slotId}">${escapeHtml(entry.entityLabel)}</button>`
+    return `<tr><td>${entry.at ? `${formatDate(entry.at.slice(0, 10))} ${escapeHtml(entry.at.slice(11, 16))}` : '—'}</td><td>${t(entry.labelKey)}</td><td>${t(`audit.module.${entry.entityType}`)}</td><td><div class="file-name"><strong>${context}</strong>${employee ? `<span>${escapeHtml(employee.name)}</span>` : ''}</div></td><td>${entry.actor ? escapeHtml(entry.actor) : `<span class="muted">${t('audit.system')}</span>`}</td><td>${details || '—'}</td></tr>`
+  })
+  const body = rows.length
+    ? table(['audit.time', 'audit.event', 'audit.module', 'audit.context', 'audit.actor', 'audit.details'], rows)
+    : `<div class="empty-state"><span class="empty-icon">${icon('refresh')}</span><h3>${t('audit.empty')}</h3></div>`
+  return `<section class="page">${pageHeading('nav.audit', 'page.audit.desc')}<article class="card">${controls}${body}</article></section>`
+}
+
+// Forespørsels- og meldingshistorikken per vakt: hvem som fikk hva, på hvilken
+// kanal, når, og hva svaret ble - lest rett fra requestQueue (§25-§26). Ingen
+// egen meldingsdatabase.
+function requestHistoryCard(assignment) {
+  const rows = staffingSlotsFor(assignment).flatMap((slot, index) => (slot.requestQueue ?? []).map(request => {
+    const employee = record('employees', request.employeeId)
+    return `<tr><td>${t('staffing.slotLabel', { number: index + 1 })}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${t(request.channel === 'sms' ? 'staffing.channelSms' : request.channel === 'both' ? 'staffing.channelBoth' : 'staffing.channelEmail')}</td><td>${request.sentAt ? `${formatDate(request.sentAt.slice(0, 10))} ${escapeHtml(request.sentAt.slice(11, 16))}` : '—'}</td><td>${t(`staffing.reqStatus.${request.status}`)}</td><td>${request.respondedAt ? `${formatDate(request.respondedAt.slice(0, 10))} ${escapeHtml(request.respondedAt.slice(11, 16))}` : '—'}</td><td>${request.expiresAt ? formatDate(request.expiresAt) : '—'}</td></tr>`
+  }))
+  if (!rows.length) return ''
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('staffing.requestHistory')}</h2><span class="tag info">${rows.length}</span></div>${table(['staffing.slots', 'staffing.sentTo', 'staffing.channel', 'staffing.sentAtLabel', 'common.status', 'staffing.respondedAt', 'staffing.responseDeadline'], rows)}</article>`
+}
+
 // === Test og simulering ===
 // Segmentene er våre egne, generert deterministisk av valgt ansatt, ordning og
 // scenario. Ingen tall er hentet fra kompensasjons-prototypen.
@@ -8722,7 +9277,8 @@ const renderers = {
   'tariff-detail': renderTariffDetail, 'salary-table': renderSalaryTable, settings: renderSettings,
   premiums: renderPremiums, overtime: renderOvertime, invoicing: renderInvoicing, payroll: renderPayroll, 'payroll-employee': renderPayrollEmployee,
   simulation: renderSimulation, calculation: renderCalculation,
-  versions: renderVersions, 'version-compare': renderVersionCompare
+  versions: renderVersions, 'version-compare': renderVersionCompare,
+  audit: renderAudit
 }
 
 // Ordningene finnes ikke lenger som produktflate. En gammel bokmerket URL skal
@@ -8768,6 +9324,11 @@ function navigate(route, id = null) {
   state.route = route
   state.sidebarOpen = false
   state.rowMenu = null
+  // Varselpanelet lukkes ved navigasjon, og dashboardets plass-/timelistefilter
+  // gjelder bare så lenge man står i listen bak kortet (§13).
+  state.notificationsOpen = false
+  if (route !== 'staffing' && route !== 'job-detail') state.staffingSlotFilter = ''
+  if (route !== 'timesheets') state.slotTimesheetFilter = ''
   // Statusverdiene er ruteavhengige, så et filter fra forrige side ville gitt en
   // tom liste uten forklaring.
   if (!statusFilterOptions().some(([value]) => value === state.filters.status)) state.filters.status = 'all'
@@ -9382,6 +9943,40 @@ function actionHandlers(target = null) {
     'dashboard-overview': () => { state.dashboardTab = 'overview'; render() },
     'dashboard-week': () => { state.dashboardTab = 'week'; render() },
     'dashboard-month': () => { state.dashboardTab = 'month'; render() },
+    // Dashboardets handlingskort: naviger til listen bak tallet MED eksplisitt
+    // filter, slik at brukeren ser nøyaktig postene bak KPI-en (§12-§13).
+    'dashboard-filter-slots': () => { state.staffingSlotFilter = String(target?.dataset?.status ?? ''); navigate('staffing') },
+    'dashboard-filter-timesheets': () => { state.slotTimesheetFilter = String(target?.dataset?.status ?? ''); navigate('timesheets') },
+    'dashboard-open-payroll': () => navigate('payroll'),
+    'dashboard-open-invoicing': () => navigate('invoicing'),
+    'dashboard-go-payroll': () => navigate('payroll'),
+    'dashboard-go-invoicing': () => navigate('invoicing'),
+    'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; navigate('timesheets') },
+    'clear-slot-filter': () => { state.staffingSlotFilter = ''; render() },
+    'clear-slot-timesheet-filter': () => { state.slotTimesheetFilter = ''; render() },
+    // Varsler: å åpne panelet, lese eller merke lest endrer ALDRI fagdata (§23).
+    'toggle-notifications': () => { state.notificationsOpen = !state.notificationsOpen; render() },
+    'read-all-notifications': () => {
+      const now = new Date().toISOString()
+      notificationsCollection().forEach(item => { if (!item.readAt) item.readAt = now })
+      persist(); render()
+    },
+    'open-notification': () => {
+      const item = notificationsCollection().find(entry => String(entry.id) === String(target?.dataset?.id))
+      if (!item) return
+      if (!item.readAt) { item.readAt = new Date().toISOString(); persist() }
+      state.notificationsOpen = false
+      // Hvert varsel vet hvor det skal: vakten og plassen, den konkrete
+      // timelisten, eller det relevante grunnlaget (§22).
+      if (item.type === 'payroll_blocked') { navigate('payroll'); return }
+      if (item.type === 'invoice_blocked') { navigate('invoicing'); return }
+      if (item.entityType === 'timesheet') {
+        navigate('timesheets')
+        handleAction('open-slot-timesheet', { dataset: { id: item.assignmentId, slotId: String(item.slotId) } })
+        return
+      }
+      navigate('job-detail', item.entityId)
+    },
     ...crudHandlers(target),
     'client-row-menu': () => { const row = target?.dataset?.rowIndex ?? '0'; state.rowMenu = state.rowMenu === `client-${row}` ? null : `client-${row}`; render() },
     'run-simulation': () => { state.lastSimulation = simulate(state.simulationForm); render(); showToast(state.lastSimulation ? 'comp.calculation.calculated' : 'comp.simulation.empty') },
@@ -10935,6 +11530,12 @@ document.addEventListener('change', event => {
     setTimesheetFilter(event.target.dataset.timesheetFilter, event.target.value)
     return
   }
+  // Revisjonsloggens filtre: periode, modul, hendelsestype og utfører (§35).
+  if (event.target.dataset?.auditFilter) {
+    state.auditFilters[event.target.dataset.auditFilter] = String(event.target.value)
+    render()
+    return
+  }
   if (event.target.matches('[data-filter]')) setFilter(event.target.dataset.filter, event.target.value)
   if (event.target.matches('[data-excel-file]')) {
     const fileLabel = document.getElementById('file-name')
@@ -11036,6 +11637,7 @@ window.__workmaticPreview = {
   dispatchOn: (action, id) => handleAction(action, { dataset: { id } }),
   dispatchOn2: (action, id, employeeId) => handleAction(action, { dataset: { id, employeeId } }),
   dispatchSlot: (action, id, slotId, employeeId) => handleAction(action, { dataset: { id, slotId, employeeId } }),
+  dispatchWith: (action, dataset = {}) => handleAction(action, { dataset }),
   fillForm: values => { Object.assign(state.draft, values); render() },
   changeDraft: (name, value) => { applyDraftChange(name, value); render() },
   changeField: (name, value) => handleDraftFieldChange(name, value),
@@ -11076,6 +11678,13 @@ window.__workmaticPreview = {
   migrateSlotTimesheets: data => migrateSlotTimesheets(data),
   payrollBasis: (period = null) => JSON.parse(JSON.stringify(timesheetPayrollBasis(period))),
   invoiceBasis: (period = null) => JSON.parse(JSON.stringify(timesheetInvoiceBasis(period))),
+  // Fase 4: dashboard-KPI-er, varsler og revisjonslogg - avledet lesning.
+  dashboardCounts: () => ({ ...dashboardActionCounts() }),
+  notifications: () => JSON.parse(JSON.stringify(syncNotifications())),
+  unreadNotifications: () => syncNotifications().filter(item => !item.readAt).length,
+  auditEntries: () => JSON.parse(JSON.stringify(auditEntries())),
+  visibleSlotTimesheets: () => JSON.parse(JSON.stringify(visibleSlotTimesheets())),
+  setAuditFilter: (name, value) => { state.auditFilters[name] = value; render() },
   slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
   slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
   timesheetDeviation: id => { const t = collection('slotTimesheets').find(item => item.id === id); return t ? JSON.parse(JSON.stringify(timesheetDeviation(t))) : null },
