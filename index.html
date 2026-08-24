@@ -2513,7 +2513,7 @@ const copy = {
     'app.noPersistence': 'Dette er en statisk demo. Ingen data ble lagret.',
     'app.previewOnly': 'Forhåndsvisning av godkjent produktdesign – ikke produksjonsfunksjon.',
     'nav.dashboard': 'Dashboard',
-    'nav.clients': 'Klienter',
+    'nav.clients': 'Virksomheter',
     'nav.departments': 'Avdelinger',
     'nav.contacts': 'Kontakter',
     'nav.candidates': 'Kandidater',
@@ -2529,9 +2529,9 @@ const copy = {
     'nav.integrations': 'Integrasjoner',
     'nav.audit': 'Revisjonslogg',
     'page.dashboard.desc': 'Oversikt over drift, bemanning og aktivitet',
-    'page.clients.desc': 'Administrer klienter, adresser og dokumenter',
+    'page.clients.desc': 'Administrer virksomheter, adresser og dokumenter',
     'page.departments.desc': 'Organisasjonsstruktur og operative enheter',
-    'page.contacts.desc': 'Kontaktpersoner hos klientene',
+    'page.contacts.desc': 'Kontaktpersoner hos virksomhetene',
     'page.candidates.desc': 'Kandidatbase og konvertering til ansatt',
     'page.employees.desc': 'Ansatte, lønn, dokumenter og personaldata',
     'page.staffing.desc': 'Opprett og planlegg konkrete vakter',
@@ -2568,8 +2568,8 @@ const copy = {
     'audit.empty': 'Ingen hendelser i utvalget',
     'audit.system': 'System',
     'recruitment.positionsMenu': 'Stillinger',
-    'invoicing.selectClientFirst': 'Velg en klient for å filtrere på avdeling.',
-    'invoicing.noDepartments': 'Denne klienten har ingen aktive avdelinger.',
+    'invoicing.selectClientFirst': 'Velg en virksomhet for å filtrere på avdeling.',
+    'invoicing.noDepartments': 'Denne virksomheten har ingen aktive avdelinger.',
     'invoicing.emptyFiltered': 'Ingen fakturagrunnlag i valgt periode og filter.',
     'match.find': 'Finn ansatt',
     'match.search': 'Søk ansatt',
@@ -2586,9 +2586,9 @@ const copy = {
     'match.missingQualifications': 'Mangler påkrevde kvalifikasjoner',
     'match.availabilityUnknown': 'Tilgjengelighet ikke registrert',
     'match.departmentShifts': 'tidligere vakter i avdelingen',
-    'match.clientShifts': 'tidligere vakter hos klienten',
+    'match.clientShifts': 'tidligere vakter hos virksomheten',
     'match.noDepartmentExperience': 'Ingen tidligere vakter i avdelingen',
-    'match.noClientExperience': 'Ingen tidligere vakter hos klienten',
+    'match.noClientExperience': 'Ingen tidligere vakter hos virksomheten',
     'match.lastWorked': 'Sist jobbet',
     'common.archived': 'Arkivert',
     'common.nextDay': '+1 dag',
@@ -2597,14 +2597,14 @@ const copy = {
     'crud.archiveBody': 'Posten har historikk og kan derfor ikke slettes. Arkivering beholder all historikk.',
     'crud.archiveWhy': 'Arkiverte poster vises i historiske visninger, men kan ikke velges i nye registreringer.',
     'crud.archived': '{name} ble arkivert',
-    'crud.archivedBlocked': 'Arkivert klient eller avdeling kan ikke få nye vakter',
+    'crud.archivedBlocked': 'Arkivert virksomhet eller avdeling kan ikke få nye vakter',
     'financial.legacyReport': 'Historisk rapport (legacy)',
     'financial.legacyReportHelp': 'Rapporten under er generert av den eldre modellen og beholdes som historikk. Gjeldende grunnlag står øverst.',
     'payrollBasis.fixAtDepartment': 'Rett opp på avdelingen',
     'departments.approver': 'Godkjenner timelister',
-    'departments.approverFromClient': 'fra klientens kontaktperson',
+    'departments.approverFromClient': 'fra virksomhetens kontaktperson',
     'employees.currentWorkplace': 'Aktivt arbeidssted',
-    'staffing.noneForClient': 'Ingen vakter registrert på klienten',
+    'staffing.noneForClient': 'Ingen vakter registrert på virksomheten',
     'dashboard.groupStaffing': 'Bemanningsplasser',
     'dashboard.groupEconomy': 'Timelister og økonomi',
     'shifts.statusLabel': 'Vaktstatus',
@@ -2615,10 +2615,10 @@ const copy = {
     'staffing.staffingLabel': 'Bemanning',
     'staffing.staffedOf': '{count} av {total} bemannet',
     'staffing.templateOptional': 'Velg vaktmal (valgfritt)',
-    'staffing.customerRef': 'Kundens bestillingsreferanse',
-    'staffing.field.customerOrderReference': 'Kundens bestillingsreferanse',
-    'staffing.missing.client': 'Klient må velges',
-    'staffing.missing.department': 'Avdeling må velges og tilhøre valgt klient',
+    'staffing.customerRef': 'Virksomhetens bestillingsreferanse',
+    'staffing.field.customerOrderReference': 'Virksomhetens bestillingsreferanse',
+    'staffing.missing.client': 'Virksomhet må velges',
+    'staffing.missing.department': 'Avdeling må velges og tilhøre valgt virksomhet',
     'staffing.missing.date': 'Dato må fylles ut',
     'staffing.missing.start': 'Starttid må fylles ut',
     'staffing.missing.end': 'Sluttid må fylles ut',
@@ -2635,7 +2635,7 @@ const copy = {
     'calendar.more': '+{count} flere',
     'shifts.filter.from': 'Periode fra',
     'shifts.filter.to': 'Periode til',
-    'shifts.filter.allClients': 'Alle klienter',
+    'shifts.filter.allClients': 'Alle virksomheter',
     'shifts.filter.allDepartments': 'Alle avdelinger',
     'shifts.filter.allRoles': 'Alle roller',
     'shifts.filter.staffingSituation': 'Bemanningssituasjon',
@@ -2846,15 +2846,96 @@ const copy = {
     'dashboard.dev.awaitingAdmin': 'Ja-svar venter på endelig bekreftelse',
     'dashboard.dev.submittedWaiting': 'Levert timeliste venter på godkjenning',
     'dashboard.dev.payrollBlocked': 'Godkjent arbeid mangler lønnsgrunnlag',
-    'dashboard.dev.invoiceBlocked': 'Godkjent arbeid mangler kundepris',
-    'clients.new': 'Ny klient',
+    'dashboard.dev.invoiceBlocked': 'Godkjent arbeid mangler virksomhetspris',
+    'clients.new': 'Ny virksomhet',
+    // Statusfilteret på Virksomheter-oversikten: flertallsformer, adskilt fra
+    // statusETIKETTENE Aktiv/Inaktiv på den enkelte posten.
+    'clients.filter.active': 'Aktive',
+    'clients.filter.inactive': 'Inaktive',
+    // Brukere og tilganger: en kontakt er ALDRI en systembruker automatisk.
+    // Tilgang gis eksplisitt, med eget omfang (scope) og egne tilganger.
+    'clients.tabs.users': 'Brukere og tilganger',
+    'clients.addContact': 'Legg til kontakt',
+    'clients.draftContactsHint': 'Kontaktene kobles til virksomheten når den lagres.',
+    'access.grant': 'Gi tilgang til Workmatic',
+    'access.grantHelp': 'En kontakt uten systemtilgang kan aldri logge inn eller se data i Workmatic.',
+    'access.scope': 'Tilgangsomfang',
+    'access.wholeBusiness': 'Hele virksomheten',
+    'access.selectedDepartments': 'Valgte avdelinger',
+    'access.noDepartments': 'Virksomheten har ingen aktive avdelinger.',
+    'access.preset': 'Tilgangsmal',
+    'access.presetHelp': 'Malen forhåndsvelger tilganger. Fasiten er alltid de faktiske avkrysningene under.',
+    'access.preset.custom': 'Egendefinert',
+    'access.preset.orderer': 'Bestiller',
+    'access.preset.shiftManager': 'Vaktansvarlig',
+    'access.preset.timesheetApprover': 'Timelistegodkjenner',
+    'access.preset.economy': 'Økonomi',
+    'access.preset.businessAdmin': 'Virksomhetsadministrator',
+    'access.permissions': 'Tilganger',
+    'access.accessStatus': 'Tilgangsstatus',
+    'access.contactOnly': 'Kun kontakt',
+    'access.systemUser': 'Systembruker',
+    'access.disable': 'Deaktiver tilgang',
+    'access.enable': 'Aktiver tilgang på nytt',
+    'access.none': 'Ingen brukere har systemtilgang ennå. Gi en kontakt tilgang fra Kontakter-fanen.',
+    'access.contactsHint': 'Kontakter uten systemtilgang kan aldri logge inn eller se data i Workmatic.',
+    'access.previewTitle': 'Slik ser Workmatic ut for brukeren',
+    'access.previewHelp': 'Forhåndsvisningen leser kun data innenfor brukerens omfang og tilganger. I produksjon håndheves dette også i backend.',
+    'access.previewOpen': 'Vis tilgang',
+    'access.departmentsInScope': 'Avdelinger i omfanget',
+    'access.noEconomy': 'Ingen tilgang til økonomi',
+    'access.noShifts': 'Ingen tilgang til vakter',
+    'access.noTimesheets': 'Ingen tilgang til timelister',
+    'access.noEmployees': 'Ingen tilgang til ansatte',
+    'access.scopeDepartmentsCount': '{count} avdelinger',
+    'access.permissionCount': '{count} tilganger',
+    'access.noPermissions': 'Ingen tilganger valgt',
+    'perm.group.shifts': 'Vakter og bestilling',
+    'perm.group.timesheets': 'Timelister',
+    'perm.group.employees': 'Ansatte',
+    'perm.group.economy': 'Økonomi',
+    'perm.group.business': 'Virksomhet',
+    'perm.group.departments': 'Avdelinger',
+    'perm.group.users': 'Brukere',
+    'perm.shifts.view': 'Se vakter',
+    'perm.shifts.create': 'Opprette og bestille vakter',
+    'perm.shifts.edit': 'Endre vakter',
+    'perm.shifts.cancel': 'Kansellere vakter',
+    'perm.shifts.staffing': 'Se bemanning',
+    'perm.timesheets.view': 'Se timelister',
+    'perm.timesheets.approve': 'Godkjenne timelister',
+    'perm.timesheets.correction': 'Be om korrigering',
+    'perm.employees.view': 'Se tildelte ansatte',
+    'perm.employees.qualifications': 'Se kvalifikasjoner og dokumenter',
+    'perm.economy.prices': 'Se priser og påslag',
+    'perm.economy.invoiceBasis': 'Se fakturagrunnlag',
+    'perm.business.view': 'Se virksomhetsinformasjon',
+    'perm.business.edit': 'Redigere virksomhetsinformasjon',
+    'perm.departments.view': 'Se avdelinger',
+    'perm.departments.manage': 'Administrere avdelinger',
+    'perm.users.view': 'Se virksomhetsbrukere',
+    'perm.users.manage': 'Administrere brukere og tilganger',
+    // Dokumenter: lagrede dokumenter bor på virksomheten; skjemaet starter tomt.
+    'docs.none': 'Ingen dokumenter er lastet opp.',
+    'docs.upload': 'Last opp dokument',
+    'docs.file': 'Fil',
+    'docs.name': 'Navn',
+    'docs.category': 'Kategori',
+    'docs.category.agreement': 'Avtale',
+    'docs.category.dpa': 'Databehandleravtale',
+    'docs.category.other': 'Annet',
+    'docs.uploadedFromCard': 'Dokumenter lastes opp fra virksomhetskortet etter lagring.',
+    'docs.nameRequired': 'Dokumentet må ha et navn',
+    'docs.saved': 'Dokumentet er lagret',
     'clients.organization': 'Organisasjonsnummer',
     'clients.contact': 'Kontaktperson',
-    'clients.provision': 'Provisjon',
+    // Feltet er det økonomiske PÅSLAGET på fakturagrunnlaget - user-facing
+    // heter det Påslag; det interne feltet provision og beregningen er urørt.
+    'clients.provision': 'Påslag',
     'clients.vat': 'MVA',
     'clients.historical': 'Historisk provisjon',
     'clients.historicalHelp': 'Vises kun som read-only fallback til en ny verdi settes.',
-    'clients.detail': 'Klientdetaljer',
+    'clients.detail': 'Virksomhetsdetaljer',
     'clients.tabs.basic': 'Grunninformasjon',
     'clients.tabs.addresses': 'Adresser',
     'clients.tabs.billing': 'Fakturering',
@@ -2864,12 +2945,12 @@ const copy = {
     'clients.tabs.departments': 'Avdelinger',
     'clients.tabs.assignments': 'Vakter',
     'clients.contactPerson': 'Kontaktperson',
-    // Kontaktpersonen velges blant klientens kontakter, og nye legges inn fra
-    // Kontaktpersoner-fanen på klienten.
-    'clients.selectContact': 'Velg blant klientens kontakter',
-    'clients.noContactsYet': 'Klienten har ingen kontakter ennå. Legg inn en under Kontaktpersoner.',
-    'clients.saveBeforeContacts': 'Lagre klienten først, så kan du legge inn kontakter.',
-    'clients.newContact': 'Ny kontakt på klienten',
+    // Kontaktpersonen velges blant virksomhetens kontakter, og nye legges inn fra
+    // Kontaktpersoner-fanen på virksomheten.
+    'clients.selectContact': 'Velg blant virksomhetens kontakter',
+    'clients.noContactsYet': 'Virksomheten har ingen kontakter ennå. Legg inn en under Kontaktpersoner.',
+    'clients.saveBeforeContacts': 'Lagre virksomheten først, så kan du legge inn kontakter.',
+    'clients.newContact': 'Ny kontakt på virksomheten',
     'clients.responsibleForAgreement': 'Ansvarlig for avtalen',
     'clients.description': 'Beskrivelse',
     'clients.departmentCount': 'Antall avdelinger',
@@ -2880,9 +2961,9 @@ const copy = {
     'departments.noHistory': 'Ingen har registrert arbeid på avdelingen ennå.',
     'clients.compensationScheme': 'Kompensasjonsordning',
     'clients.activeVersion': 'Aktiv versjon',
-    'clients.modal.create': 'Opprett klient',
-    'clients.modal.edit': 'Rediger klient',
-    'clients.modal.subtitle': 'Klientdata og dokumentkoblinger',
+    'clients.modal.create': 'Opprett virksomhet',
+    'clients.modal.edit': 'Rediger virksomhet',
+    'clients.modal.subtitle': 'Virksomhetsdata og dokumentkoblinger',
     'clients.address.main': 'Hovedadresse',
     'clients.address.billing': 'Fakturaadresse',
     'clients.address.visiting': 'Besøksadresse',
@@ -2913,14 +2994,14 @@ const copy = {
     'departments.contactInfo': 'Kontaktinformasjon',
     'departments.employees': 'Ansatte',
     'departments.location': 'Lokasjon',
-    'departments.client': 'Klient',
+    'departments.client': 'Virksomhet',
     'departments.address': 'Adresse',
     'departments.street': 'Gateadresse',
     'departments.houseNumber': 'Husnummer',
     'departments.postalCode': 'Postnummer',
     'departments.city': 'Poststed',
     'departments.description': 'Beskrivelse',
-    'demo.department.healthDescription': 'Helsefaglig bemanning og oppfølging hos klienten.',
+    'demo.department.healthDescription': 'Helsefaglig bemanning og oppfølging hos virksomheten.',
     'demo.department.followUpDescription': 'Daglig oppfølging, miljøarbeid og koordinering.',
     'demo.department.adminDescription': 'Administrativ støtte, planlegging og kvalitetssikring.',
     'departments.new': 'Ny avdeling',
@@ -2928,7 +3009,7 @@ const copy = {
     'departments.modal.create': 'Opprett avdeling',
     'departments.modal.edit': 'Rediger avdeling',
     'contacts.role': 'Rolle',
-    'contacts.client': 'Klient',
+    'contacts.client': 'Virksomhet',
     'contacts.new': 'Ny kontakt',
     'candidates.new': 'Ny kandidat',
     'candidates.profession': 'Yrke',
@@ -2975,7 +3056,7 @@ const copy = {
     'employees.approvalDate': 'Godkjenningsdato',
     'employees.approveSeniority': 'Godkjenn ansiennitet',
     'employees.payByAssignment': 'Lønn per oppdrag',
-    // Ansatt eier personfakta; satsen bor i klientens tariff og beregnes per
+    // Ansatt eier personfakta; satsen bor i virksomhetens tariff og beregnes per
     // oppdrag. Derfor finnes det ingen fast timesats på ansattkortet.
     // Ansatt eier personfakta. Lønn beregnes ved oppdrag, så ansattkortet viser
     // hvordan det henger sammen - ikke en sats.
@@ -2984,7 +3065,7 @@ const copy = {
     'employees.competence': 'Kompetanse',
     'employees.licences': 'Lisenser og sertifikater',
     'employees.history': 'Historikk',
-    'employees.payInfoHelp': 'Lønn beregnes ut fra oppdraget den ansatte tildeles og klientens gjeldende lønnsregler.',
+    'employees.payInfoHelp': 'Lønn beregnes ut fra oppdraget den ansatte tildeles og virksomhetens gjeldende lønnsregler.',
     'employees.payFactsMissing': 'Lønnsberegning kan kreve mer informasjon om utdanning eller ansiennitet.',
     'employees.licenceValid': 'Gyldig',
     'employees.licenceExpiring': 'Utløper snart',
@@ -3015,13 +3096,13 @@ const copy = {
     'clients.openScheme': 'Åpne ordning',
     'clients.viewRules': 'Se regler',
     'clients.viewOvertimeRules': 'Se overtidsregler',
-    'clients.usedByClients': 'Brukes av klienter',
+    'clients.usedByClients': 'Brukes av virksomheter',
     'clients.usedBy': 'Brukes av',
     'departments.useOwnRules': 'Bruk egne regler for avdelingen',
-    'departments.inheritsFromClient': 'Arver fra klient',
+    'departments.inheritsFromClient': 'Arver fra virksomhet',
     'staffing.cannotCalculate': 'Kan ikke beregne lønn',
     'clients.tariffAgreement': 'Lønnssystem',
-    // Klienten gir tilgang til lønnssystemer; avdelingen velger ett av dem.
+    // Virksomheten gir tilgang til lønnssystemer; avdelingen velger ett av dem.
     'clients.paySystems': 'Tilgjengelige lønnssystemer',
     // Reglene eies av lønnssystemet og har sine egne gyldighetsdatoer.
     'financial.editPaySystem': 'Rediger lønnssystem',
@@ -3083,7 +3164,7 @@ const copy = {
     'clients.paySystem': 'Lønnssystem',
     'clients.selectPaySystem': 'Velg lønnssystem',
     'clients.notConfigured': 'Ikke konfigurert',
-    'clients.paySystemNotAvailable': 'Lønnssystemet er ikke tilgjengelig for denne klienten.',
+    'clients.paySystemNotAvailable': 'Lønnssystemet er ikke tilgjengelig for denne virksomheten.',
     'clients.paySystemTariff': 'Tariff',
     'clients.paySystemCustom': 'Eget lønnssystem',
     'resolution.noDepartmentPaySystem': 'Ingen lønnssystem er konfigurert for avdelingen.',
@@ -3157,7 +3238,7 @@ const copy = {
     'resolution.missing_qualification': 'Kvalifikasjon mangler',
     'resolution.qualification_mismatch': 'Ikke kvalifisert for oppdraget',
     'resolution.missing_seniority': 'Godkjent ansiennitet mangler',
-    'resolution.missing_tariff': 'Klienten mangler tariff',
+    'resolution.missing_tariff': 'Virksomheten mangler tariff',
     'resolution.missing_published_version': 'Ingen gyldig publisert tariffversjon',
     'resolution.no_salary_match': 'Ingen tariffplassering funnet',
     'resolution.multiple_salary_matches': 'Flere tariffplasseringer funnet',
@@ -3187,7 +3268,7 @@ const copy = {
     'employees.kinName': 'Navn på pårørende',
     'employees.relationship': 'Relasjon',
     'employees.adminNotes': 'Interne notater',
-    'employees.clientNotes': 'Klientnotater',
+    'employees.clientNotes': 'Virksomhetsnotater',
     'staffing.assignDirectly': 'Tildel direkte',
     'staffing.sendRequestSlot': 'Send forespørsel',
     'staffing.awaitingResponse': 'Avventer svar',
@@ -3248,10 +3329,10 @@ const copy = {
     'invoicing.net': 'Netto',
     'invoicing.vatLabel': 'MVA',
     'invoicing.total': 'Totalpris',
-    'invoicing.priceMissing': 'Kundepris mangler',
+    'invoicing.priceMissing': 'Virksomhetpris mangler',
     'invoicing.missingMarkup': 'Påslag mangler',
     'invoicing.missingVat': 'MVA-oppsett mangler',
-    'invoicing.missingClient': 'Klient mangler',
+    'invoicing.missingClient': 'Virksomhet mangler',
   'payrollBasis.title': 'Lønnsgrunnlag fra godkjente timelister',
     'payrollBasis.ready': 'Til lønn',
     'payrollBasis.blocked': 'Lønnsgrunnlag mangler',
@@ -3287,7 +3368,7 @@ const copy = {
     'staffing.cancelled': 'Kansellert',
     'staffing.cancelWarning': 'Denne vakten slettes ikke. Den markeres som kansellert, og berørte ansatte varsles.',
     'staffing.cancelReasonLabel': 'Årsak',
-    'staffing.cancelReason.client_cancelled': 'Kunden avlyste behovet',
+    'staffing.cancelReason.client_cancelled': 'Virksomheten avlyste behovet',
     'staffing.cancelReason.wrong_entry': 'Feilregistrert vakt',
     'staffing.cancelReason.changed_need': 'Endret bemanningsbehov',
     'staffing.cancelReason.other': 'Annet',
@@ -3328,7 +3409,7 @@ const copy = {
     'staffing.field.startTime': 'Starttid',
     'staffing.field.slots': 'Antall ansatte',
     'staffing.field.endTime': 'Sluttid',
-    'staffing.field.clientId': 'Klient',
+    'staffing.field.clientId': 'Virksomhet',
     'staffing.field.departmentId': 'Avdeling',
     'staffing.field.location': 'Arbeidssted',
     'staffing.field.shiftTemplateId': 'Vaktmal',
@@ -3343,7 +3424,7 @@ const copy = {
     'staffing.field.description': 'Beskrivelse',
     'staffing.field.county': 'Fylke',
     'staffing.new': 'Ny vakt',
-    'staffing.client': 'Klient',
+    'staffing.client': 'Virksomhet',
     'staffing.period': 'Periode',
     'staffing.assigned': 'Tildelt',
     // «Antall ansatte» er bemanningsbehovet på oppdraget, ikke antall
@@ -3512,16 +3593,16 @@ copy.en = {
   'app.closeMenu': 'Close menu', 'app.close': 'Close',
   'app.noPersistence': 'This is a static demo. No data was saved.',
   'app.previewOnly': 'Preview of approved product design – not a production feature.',
-  'nav.dashboard': 'Dashboard', 'nav.clients': 'Clients', 'nav.departments': 'Departments',
+  'nav.dashboard': 'Dashboard', 'nav.clients': 'Businesses', 'nav.departments': 'Departments',
   'nav.contacts': 'Contacts', 'nav.candidates': 'Candidates', 'nav.employees': 'Employees',
   'nav.staffing': 'Staffing', 'nav.recruitment': 'Recruitment', 'nav.messages': 'Messages',
   'nav.financial': 'Finance', 'nav.settings': 'Settings', 'nav.general': 'General',
   'nav.users': 'Users and roles', 'nav.billing': 'Billing', 'nav.integrations': 'Integrations',
   'nav.audit': 'Audit log',
   'page.dashboard.desc': 'Overview of operations, staffing and activity',
-  'page.clients.desc': 'Manage clients, addresses and documents',
+  'page.clients.desc': 'Manage businesses, addresses and documents',
   'page.departments.desc': 'Organization structure and operational units',
-  'page.contacts.desc': 'Contact people at client organizations',
+  'page.contacts.desc': 'Contact people at business organizations',
   'page.candidates.desc': 'Candidate pool and conversion to employee',
   'page.employees.desc': 'Employees, salary, documents and HR data',
   'page.staffing.desc': 'Create and plan concrete shifts',
@@ -3558,8 +3639,8 @@ copy.en = {
   'audit.empty': 'No events in the selection',
   'audit.system': 'System',
   'recruitment.positionsMenu': 'Positions',
-  'invoicing.selectClientFirst': 'Select a client to filter by department.',
-  'invoicing.noDepartments': 'This client has no active departments.',
+  'invoicing.selectClientFirst': 'Select a business to filter by department.',
+  'invoicing.noDepartments': 'This business has no active departments.',
   'invoicing.emptyFiltered': 'No invoice basis for the selected period and filters.',
   'match.find': 'Find employee',
   'match.search': 'Search employee',
@@ -3576,9 +3657,9 @@ copy.en = {
   'match.missingQualifications': 'Missing mandatory qualifications',
   'match.availabilityUnknown': 'Availability not registered',
   'match.departmentShifts': 'previous shifts in this department',
-  'match.clientShifts': 'previous shifts for this client',
+  'match.clientShifts': 'previous shifts for this business',
   'match.noDepartmentExperience': 'No previous shifts in this department',
-  'match.noClientExperience': 'No previous shifts for this client',
+  'match.noClientExperience': 'No previous shifts for this business',
   'match.lastWorked': 'Last worked',
   'common.archived': 'Archived',
   'common.nextDay': '+1 day',
@@ -3587,14 +3668,14 @@ copy.en = {
   'crud.archiveBody': 'This record has history and cannot be deleted. Archiving keeps all history.',
   'crud.archiveWhy': 'Archived records remain in historical views but cannot be selected in new registrations.',
   'crud.archived': '{name} was archived',
-  'crud.archivedBlocked': 'An archived client or department cannot receive new shifts',
+  'crud.archivedBlocked': 'An archived business or department cannot receive new shifts',
   'financial.legacyReport': 'Historical report (legacy)',
   'financial.legacyReportHelp': 'The report below is generated by the older model and kept as history. The current basis is shown at the top.',
   'payrollBasis.fixAtDepartment': 'Fix at the department',
   'departments.approver': 'Timesheet approver',
-  'departments.approverFromClient': 'from the client contact',
+  'departments.approverFromClient': 'from the business contact',
   'employees.currentWorkplace': 'Active work location',
-  'staffing.noneForClient': 'No shifts registered for this client',
+  'staffing.noneForClient': 'No shifts registered for this business',
   'dashboard.groupStaffing': 'Staffing slots',
   'dashboard.groupEconomy': 'Timesheets and finance',
   'shifts.statusLabel': 'Shift status',
@@ -3607,8 +3688,8 @@ copy.en = {
   'staffing.templateOptional': 'Select shift template (optional)',
   'staffing.customerRef': 'Customer order reference',
   'staffing.field.customerOrderReference': 'Customer order reference',
-  'staffing.missing.client': 'A client must be selected',
-  'staffing.missing.department': 'A department must be selected and belong to the chosen client',
+  'staffing.missing.client': 'A business must be selected',
+  'staffing.missing.department': 'A department must be selected and belong to the chosen business',
   'staffing.missing.date': 'A date is required',
   'staffing.missing.start': 'A start time is required',
   'staffing.missing.end': 'An end time is required',
@@ -3625,7 +3706,7 @@ copy.en = {
   'calendar.more': '+{count} more',
   'shifts.filter.from': 'Period from',
   'shifts.filter.to': 'Period to',
-  'shifts.filter.allClients': 'All clients',
+  'shifts.filter.allClients': 'All businesses',
   'shifts.filter.allDepartments': 'All departments',
   'shifts.filter.allRoles': 'All roles',
   'shifts.filter.staffingSituation': 'Staffing situation',
@@ -3733,11 +3814,11 @@ copy.en = {
   'sick.costQuestion': 'Who covers the sick leave?',
   'sick.cost.pending': 'Pending decision',
   'sick.cost.contractor': 'Contractor',
-  'sick.cost.client': 'Client',
+  'sick.cost.client': 'Business',
   'sick.cost.shared': 'Shared responsibility',
   'sick.cost.other': 'Other party',
   'sick.shareContractor': 'Contractor share',
-  'sick.shareClient': 'Client share',
+  'sick.shareClient': 'Business share',
   'sick.sharesMustBe100': 'The shares must total exactly 100%',
   'sick.reason': 'Reason',
   'sick.reasonRequired': 'A reason is required',
@@ -3805,22 +3886,66 @@ copy.en = {
   'dashboard.dev.submittedWaiting': 'Submitted timesheet awaiting approval',
   'dashboard.dev.payrollBlocked': 'Approved work missing payroll basis',
   'dashboard.dev.invoiceBlocked': 'Approved work missing customer price',
-  'clients.new': 'New client', 'clients.organization': 'Organization number',
-  'clients.contact': 'Contact person', 'clients.provision': 'Provision', 'clients.vat': 'VAT',
+  'clients.new': 'New business', 'clients.organization': 'Organization number',
+  'clients.filter.active': 'Active', 'clients.filter.inactive': 'Inactive',
+  'clients.tabs.users': 'Users and access',
+  'clients.addContact': 'Add contact',
+  'clients.draftContactsHint': 'Contacts are linked to the business when it is saved.',
+  'access.grant': 'Give access to Workmatic',
+  'access.grantHelp': 'A contact without system access can never log in or see data in Workmatic.',
+  'access.scope': 'Access scope', 'access.wholeBusiness': 'Entire business',
+  'access.selectedDepartments': 'Selected departments',
+  'access.noDepartments': 'The business has no active departments.',
+  'access.preset': 'Access preset',
+  'access.presetHelp': 'The preset pre-selects permissions. The actual checkboxes below are always the source of truth.',
+  'access.preset.custom': 'Custom', 'access.preset.orderer': 'Orderer',
+  'access.preset.shiftManager': 'Shift manager', 'access.preset.timesheetApprover': 'Timesheet approver',
+  'access.preset.economy': 'Finance', 'access.preset.businessAdmin': 'Business administrator',
+  'access.permissions': 'Permissions', 'access.accessStatus': 'Access status',
+  'access.contactOnly': 'Contact only', 'access.systemUser': 'System user',
+  'access.disable': 'Disable access', 'access.enable': 'Re-enable access',
+  'access.none': 'No users have system access yet. Grant access from the Contacts tab.',
+  'access.contactsHint': 'Contacts without system access can never log in or see data in Workmatic.',
+  'access.previewTitle': 'What this user sees in Workmatic',
+  'access.previewHelp': 'The preview only reads data within the user\'s scope and permissions. In production this is also enforced in the backend.',
+  'access.previewOpen': 'View access', 'access.departmentsInScope': 'Departments in scope',
+  'access.noEconomy': 'No access to finance', 'access.noShifts': 'No access to shifts',
+  'access.noTimesheets': 'No access to timesheets', 'access.noEmployees': 'No access to employees',
+  'access.scopeDepartmentsCount': '{count} departments', 'access.permissionCount': '{count} permissions',
+  'access.noPermissions': 'No permissions selected',
+  'perm.group.shifts': 'Shifts and ordering', 'perm.group.timesheets': 'Timesheets',
+  'perm.group.employees': 'Employees', 'perm.group.economy': 'Finance',
+  'perm.group.business': 'Business', 'perm.group.departments': 'Departments', 'perm.group.users': 'Users',
+  'perm.shifts.view': 'View shifts', 'perm.shifts.create': 'Create and order shifts',
+  'perm.shifts.edit': 'Edit shifts', 'perm.shifts.cancel': 'Cancel shifts', 'perm.shifts.staffing': 'View staffing',
+  'perm.timesheets.view': 'View timesheets', 'perm.timesheets.approve': 'Approve timesheets',
+  'perm.timesheets.correction': 'Request correction',
+  'perm.employees.view': 'View assigned employees', 'perm.employees.qualifications': 'View qualifications and documents',
+  'perm.economy.prices': 'View prices and markup', 'perm.economy.invoiceBasis': 'View invoice basis',
+  'perm.business.view': 'View business information', 'perm.business.edit': 'Edit business information',
+  'perm.departments.view': 'View departments', 'perm.departments.manage': 'Manage departments',
+  'perm.users.view': 'View business users', 'perm.users.manage': 'Manage users and access',
+  'docs.none': 'No documents have been uploaded.', 'docs.upload': 'Upload document',
+  'docs.file': 'File', 'docs.name': 'Name', 'docs.category': 'Category',
+  'docs.category.agreement': 'Agreement', 'docs.category.dpa': 'Data processing agreement',
+  'docs.category.other': 'Other',
+  'docs.uploadedFromCard': 'Documents are uploaded from the business card after saving.',
+  'docs.nameRequired': 'The document needs a name', 'docs.saved': 'Document saved',
+  'clients.contact': 'Contact person', 'clients.provision': 'Markup', 'clients.vat': 'VAT',
   'clients.historical': 'Historical provision',
   'clients.historicalHelp': 'Read-only fallback until a new value is explicitly set.',
-  'clients.detail': 'Client details', 'clients.tabs.basic': 'Basic information',
+  'clients.detail': 'Business details', 'clients.tabs.basic': 'Basic information',
   'clients.tabs.addresses': 'Addresses', 'clients.tabs.billing': 'Billing',
-  'clients.tabs.documents': 'Documents', 'clients.modal.create': 'Create client',
+  'clients.tabs.documents': 'Documents', 'clients.modal.create': 'Create business',
   'clients.tabs.compensation': 'Pay and rules',
   'clients.tabs.contacts': 'Contacts',
   'clients.tabs.departments': 'Departments',
   'clients.tabs.assignments': 'Shifts',
   'clients.contactPerson': 'Contact person',
-  'clients.selectContact': "Choose from the client's contacts",
-  'clients.noContactsYet': 'This client has no contacts yet. Add one under Contacts.',
-  'clients.saveBeforeContacts': 'Save the client first, then you can add contacts.',
-  'clients.newContact': 'New contact for this client',
+  'clients.selectContact': "Choose from the business's contacts",
+  'clients.noContactsYet': 'This business has no contacts yet. Add one under Contacts.',
+  'clients.saveBeforeContacts': 'Save the business first, then you can add contacts.',
+  'clients.newContact': 'New contact for this business',
   'clients.responsibleForAgreement': 'Responsible for the agreement',
   'clients.description': 'Description',
   'clients.departmentCount': 'Departments',
@@ -3831,7 +3956,7 @@ copy.en = {
   'departments.noHistory': 'Nobody has registered work at this department yet.',
   'clients.compensationScheme': 'Compensation scheme',
   'clients.activeVersion': 'Active version',
-  'clients.modal.edit': 'Edit client', 'clients.modal.subtitle': 'Client data and document links',
+  'clients.modal.edit': 'Edit business', 'clients.modal.subtitle': 'Business data and document links',
   'clients.address.main': 'Main address', 'clients.address.billing': 'Billing address',
   'clients.address.visiting': 'Visiting address', 'clients.address.default': 'Default address',
   'clients.address.line': 'Address line', 'clients.address.postal': 'Postal code',
@@ -3852,17 +3977,17 @@ copy.en = {
   'departments.contactInfo': 'Contact information',
   'departments.employees': 'Employees',
   'departments.location': 'Location', 'departments.new': 'New department',
-  'departments.client': 'Client', 'departments.address': 'Address',
+  'departments.client': 'Business', 'departments.address': 'Address',
   'departments.street': 'Street address', 'departments.houseNumber': 'House number',
   'departments.postalCode': 'Postal code', 'departments.city': 'City',
   'departments.description': 'Description',
-  'demo.department.healthDescription': 'Healthcare staffing and follow-up at the client.',
+  'demo.department.healthDescription': 'Healthcare staffing and follow-up at the business.',
   'demo.department.followUpDescription': 'Daily follow-up, care work and coordination.',
   'demo.department.adminDescription': 'Administrative support, planning and quality assurance.',
   'departments.name': 'Department name',
   'departments.modal.create': 'Create department',
   'departments.modal.edit': 'Edit department',
-  'contacts.role': 'Role', 'contacts.client': 'Client', 'contacts.new': 'New contact',
+  'contacts.role': 'Role', 'contacts.client': 'Business', 'contacts.new': 'New contact',
   'candidates.new': 'New candidate', 'candidates.profession': 'Profession',
   'candidates.experience': 'Experience', 'candidates.availability': 'Availability',
   'candidates.convert': 'Convert to employee', 'candidates.detail': 'Candidate details',
@@ -3904,7 +4029,7 @@ copy.en = {
   'employees.competence': 'Competence',
   'employees.licences': 'Licences and certificates',
   'employees.history': 'History',
-  'employees.payInfoHelp': "Pay is calculated from the assignment and the client's applicable pay rules.",
+  'employees.payInfoHelp': "Pay is calculated from the assignment and the business's applicable pay rules.",
   'employees.payFactsMissing': 'Payroll calculation may require additional education or seniority information.',
   'employees.licenceValid': 'Valid',
   'employees.licenceExpiring': 'Expiring soon',
@@ -3915,7 +4040,7 @@ copy.en = {
   'employees.educationLevel': 'Education level',
   'employees.approvedPaySeniority': 'Approved pay seniority',
   'employees.seniorityDate': 'Seniority date',
-  'employees.rateResolvedHelp': "Hourly pay is resolved from the client's tariff when the employee is assigned to an assignment.",
+  'employees.rateResolvedHelp': "Hourly pay is resolved from the business's tariff when the employee is assigned to an assignment.",
   'clients.payAndRules': 'Pay and rules',
   'clients.editPayAndRules': 'Edit pay and rules',
   'clients.currentTariffVersion': 'Current version',
@@ -3935,10 +4060,10 @@ copy.en = {
   'clients.openScheme': 'Open scheme',
   'clients.viewRules': 'View rules',
   'clients.viewOvertimeRules': 'View overtime rules',
-  'clients.usedByClients': 'Used by clients',
+  'clients.usedByClients': 'Used by businesses',
   'clients.usedBy': 'Used by',
   'departments.useOwnRules': 'Use department-specific rules',
-  'departments.inheritsFromClient': 'Inherited from client',
+  'departments.inheritsFromClient': 'Inherited from business',
   'staffing.cannotCalculate': 'Unable to calculate pay',
   'clients.tariffAgreement': 'Pay system',
   'clients.paySystems': 'Available pay systems',
@@ -4001,7 +4126,7 @@ copy.en = {
   'clients.paySystem': 'Pay system',
   'clients.selectPaySystem': 'Select pay system',
   'clients.notConfigured': 'Not configured',
-  'clients.paySystemNotAvailable': 'The pay system is not available for this client.',
+  'clients.paySystemNotAvailable': 'The pay system is not available for this business.',
   'clients.paySystemTariff': 'Tariff',
   'clients.paySystemCustom': 'Custom pay system',
   'resolution.noDepartmentPaySystem': 'No pay system is configured for the department.',
@@ -4073,7 +4198,7 @@ copy.en = {
   'resolution.missing_qualification': 'Qualification is missing',
   'resolution.qualification_mismatch': 'Not qualified for the assignment',
   'resolution.missing_seniority': 'Approved seniority is missing',
-  'resolution.missing_tariff': 'The client has no tariff',
+  'resolution.missing_tariff': 'The business has no tariff',
   'resolution.missing_published_version': 'No effective published tariff version',
   'resolution.no_salary_match': 'No tariff placement found',
   'resolution.multiple_salary_matches': 'Multiple tariff placements found',
@@ -4092,8 +4217,8 @@ copy.en = {
   'employees.additionName': 'Addition name', 'employees.amount': 'Amount',
   'employees.upload': 'Select files', 'employees.sensitive': 'Sensitive employee document',
   'employees.kinName': 'Next-of-kin name', 'employees.relationship': 'Relationship',
-  'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Client notes',
-  'staffing.new': 'New shift', 'staffing.client': 'Client', 'staffing.period': 'Period',
+  'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Business notes',
+  'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
   'staffing.assignDirectly': 'Assign directly',
   'staffing.sendRequestSlot': 'Send request',
@@ -4158,7 +4283,7 @@ copy.en = {
   'invoicing.priceMissing': 'Customer price missing',
   'invoicing.missingMarkup': 'Markup missing',
   'invoicing.missingVat': 'VAT configuration missing',
-  'invoicing.missingClient': 'Client missing',
+  'invoicing.missingClient': 'Business missing',
   'payrollBasis.title': 'Payroll basis from approved timesheets',
   'payrollBasis.ready': 'Payroll total',
   'payrollBasis.blocked': 'Payroll basis missing',
@@ -4194,7 +4319,7 @@ copy.en = {
   'staffing.cancelled': 'Cancelled',
   'staffing.cancelWarning': 'This shift is not deleted. It is marked as cancelled, and affected employees are notified.',
   'staffing.cancelReasonLabel': 'Reason',
-  'staffing.cancelReason.client_cancelled': 'The client cancelled the need',
+  'staffing.cancelReason.client_cancelled': 'The business cancelled the need',
   'staffing.cancelReason.wrong_entry': 'Registered by mistake',
   'staffing.cancelReason.changed_need': 'Changed staffing need',
   'staffing.cancelReason.other': 'Other',
@@ -4235,7 +4360,7 @@ copy.en = {
   'staffing.field.startTime': 'Start time',
   'staffing.field.slots': 'Number of employees',
   'staffing.field.endTime': 'End time',
-  'staffing.field.clientId': 'Client',
+  'staffing.field.clientId': 'Business',
   'staffing.field.departmentId': 'Department',
   'staffing.field.location': 'Work location',
   'staffing.field.shiftTemplateId': 'Shift template',
@@ -4527,7 +4652,7 @@ const crudCopy = {
     'crud.storageNote': 'Endringer lagres lokalt i denne nettleseren. Ingenting sendes til en server.',
     'crud.storageUnavailable': 'Nettleseren tillater ikke lokal lagring. Endringer varer bare til siden lastes på nytt.',
     'crud.convertDone': '{name} ble konvertert til ansatt.',
-    'rel.client': 'Tilknyttet klient',
+    'rel.client': 'Tilknyttet virksomhet',
     'rel.department': 'Tilknyttet avdeling',
     'rel.tariff': 'Lønnssystem',
     'rel.employees': 'Tildelte ansatte',
@@ -4592,7 +4717,7 @@ const crudCopy = {
     'crud.storageNote': 'Changes are stored locally in this browser. Nothing is sent to a server.',
     'crud.storageUnavailable': 'This browser does not allow local storage. Changes last only until the page reloads.',
     'crud.convertDone': '{name} was converted to an employee.',
-    'rel.client': 'Linked client',
+    'rel.client': 'Linked business',
     'rel.department': 'Linked department',
     'rel.tariff': 'Pay system',
     'rel.employees': 'Assigned employees',
@@ -4711,8 +4836,8 @@ const compCopy = {
     "comp.invoicing.department": "Avdeling",
     "comp.invoicing.fromDate": "Fra dato",
     "comp.invoicing.toDate": "Til dato",
-    "comp.invoicing.commissionRate": "Kommisjonssats (hentes fra klientkort)",
-    "comp.invoicing.vatRate": "Mva-sats (hentes fra klientkort)",
+    "comp.invoicing.commissionRate": "Kommisjonssats (hentes fra virksomhetskortet)",
+    "comp.invoicing.vatRate": "Mva-sats (hentes fra virksomhetskortet)",
     "comp.invoicing.orgNumber": "Org.nr.",
     "comp.invoicing.totalHours": "Timer totalt",
     "comp.invoicing.overtimeIncluded": "Herav overtid",
@@ -4739,9 +4864,9 @@ const compCopy = {
     "comp.payroll.agencyNote": "Ansatte tilhører utleieselskapet. Listen viser alle ansatte og hvor de har vært utleid i perioden.",
     "comp.payroll.overtimePay": "Overtidstillegg",
     "comp.payroll.ordinaryPay": "Ordinær lønn",
-    "comp.payroll.clientsWorkedFor": "klienter",
+    "comp.payroll.clientsWorkedFor": "virksomheter",
     "comp.payroll.assignments": "oppdrag",
-    "comp.payroll.client": "Klient",
+    "comp.payroll.client": "Virksomhet",
     "comp.payroll.workedAt": "Jobbet hos",
     "comp.payroll.title": "Stilling",
     "comp.payroll.selection": "Utvalg",
@@ -4806,7 +4931,7 @@ const compCopy = {
     "comp.nav.simulation": "Test og simulering",
     "comp.nav.versions": "Publiserte versjoner",
     "comp.common.economy": "Finans",
-    "comp.common.client": "Klient",
+    "comp.common.client": "Virksomhet",
     "comp.common.compensation": "Kompensasjon",
     "comp.common.newScheme": "Ny kompensasjonsordning",
     "comp.common.newTemplate": "Ny tariff",
@@ -4858,7 +4983,7 @@ const compCopy = {
     "comp.pages.overtimeTitle": "Overtidsregler",
     "comp.pages.overtimeDesc": "Definer hva som teller med i overtidsgrunnlaget, og hvordan overtid beregnes.",
     "comp.pages.invoicingTitle": "Fakturering",
-    "comp.pages.invoicingDesc": "Hent økonomirapport per klient og avdeling, med kommisjon og mva.",
+    "comp.pages.invoicingDesc": "Hent økonomirapport per virksomhet og avdeling, med kommisjon og mva.",
     "comp.pages.payrollTitle": "Lønn",
     "comp.pages.payrollDesc": "Hent timelister klare for eksport til lønnssystemet.",
     "comp.pages.simulationTitle": "Test og simulering",
@@ -4907,7 +5032,7 @@ const compCopy = {
     "comp.schemes.editorSubtitle": "Rediger kompensasjonsordning · lokale demodata",
     "comp.schemes.validationErrors": "Valideringsfeil",
     "comp.schemes.archiveExplanation": "Ordningen blir skjult fra aktive lister, men historikken beholdes.",
-    "comp.tables.client": "Klient",
+    "comp.tables.client": "Virksomhet",
     "comp.tables.name": "Navn",
     "comp.tables.type": "Type",
     "comp.tables.timeRange": "Tidsrom",
@@ -4926,8 +5051,8 @@ const compCopy = {
     "comp.tables.field": "Felt",
     "comp.tables.before": "Før",
     "comp.tables.after": "Etter",
-    "comp.rules.ruleLibrary": "Regelbibliotek for klienten",
-    "comp.rules.noRulesForClient": "Ingen regler for denne klienten ennå.",
+    "comp.rules.ruleLibrary": "Regelbibliotek for virksomheten",
+    "comp.rules.noRulesForClient": "Ingen regler for denne virksomheten ennå.",
     "comp.rules.newPremium": "Ny tilleggsregel",
     "comp.rules.newOvertime": "Ny overtidsregel",
     "comp.rules.noOvertimeForScheme": "Ingen overtidsregler for denne ordningen",
@@ -4973,7 +5098,7 @@ const compCopy = {
     "comp.schemeCategories.payment.fixedStay": "Fast per opphold",
     "comp.schemeCategories.payment.percentage": "Prosent av grunnlønn",
     "comp.schemeCategories.payment.none": "Ingen betaling",
-    "comp.premiumBehavior.noRules": "Klienten har ingen tilleggsregler ennå. Legg dem inn under fanen Tilleggsregler.",
+    "comp.premiumBehavior.noRules": "Virksomheten har ingen tilleggsregler ennå. Legg dem inn under fanen Tilleggsregler.",
     "comp.premiumBehavior.title": "Tilleggsadferd",
     "comp.premiumBehavior.description": "Velg hvordan hver kategori håndterer hvert tillegg.",
     "comp.premiumBehavior.example": "Eksempel: Sovende natt blokkerer ordinært nattillegg. Klikk cellen for å endre dette.",
@@ -5130,8 +5255,8 @@ const compCopy = {
     "comp.invoicing.department": "Department",
     "comp.invoicing.fromDate": "From date",
     "comp.invoicing.toDate": "To date",
-    "comp.invoicing.commissionRate": "Commission rate (from the client card)",
-    "comp.invoicing.vatRate": "VAT rate (from the client card)",
+    "comp.invoicing.commissionRate": "Commission rate (from the business card)",
+    "comp.invoicing.vatRate": "VAT rate (from the business card)",
     "comp.invoicing.orgNumber": "Org. no.",
     "comp.invoicing.totalHours": "Total hours",
     "comp.invoicing.overtimeIncluded": "Of which overtime",
@@ -5158,9 +5283,9 @@ const compCopy = {
     "comp.payroll.agencyNote": "Employees belong to the staffing agency. The list shows every employee and where they were hired out during the period.",
     "comp.payroll.overtimePay": "Overtime pay",
     "comp.payroll.ordinaryPay": "Ordinary pay",
-    "comp.payroll.clientsWorkedFor": "clients",
+    "comp.payroll.clientsWorkedFor": "businesses",
     "comp.payroll.assignments": "assignments",
-    "comp.payroll.client": "Client",
+    "comp.payroll.client": "Business",
     "comp.payroll.workedAt": "Worked at",
     "comp.payroll.title": "Role",
     "comp.payroll.selection": "Selection",
@@ -5223,7 +5348,7 @@ const compCopy = {
     "comp.nav.simulation": "Test and simulation",
     "comp.nav.versions": "Published versions",
     "comp.common.economy": "Finance",
-    "comp.common.client": "Client",
+    "comp.common.client": "Business",
     "comp.common.compensation": "Compensation",
     "comp.common.newScheme": "New compensation scheme",
     "comp.common.newTemplate": "New tariff",
@@ -5275,7 +5400,7 @@ const compCopy = {
     "comp.pages.overtimeTitle": "Overtime rules",
     "comp.pages.overtimeDesc": "Define what counts toward overtime and how overtime is calculated.",
     "comp.pages.invoicingTitle": "Invoicing",
-    "comp.pages.invoicingDesc": "Pull economy reports per client and department, with commission and VAT.",
+    "comp.pages.invoicingDesc": "Pull economy reports per business and department, with commission and VAT.",
     "comp.pages.payrollTitle": "Payroll",
     "comp.pages.payrollDesc": "Pull timesheets ready for export to the payroll system.",
     "comp.pages.simulationTitle": "Test and simulation",
@@ -5324,7 +5449,7 @@ const compCopy = {
     "comp.schemes.editorSubtitle": "Edit compensation scheme · local demo data",
     "comp.schemes.validationErrors": "Validation errors",
     "comp.schemes.archiveExplanation": "The scheme will leave active lists while its history is retained.",
-    "comp.tables.client": "Client",
+    "comp.tables.client": "Business",
     "comp.tables.name": "Name",
     "comp.tables.type": "Type",
     "comp.tables.timeRange": "Time range",
@@ -5343,8 +5468,8 @@ const compCopy = {
     "comp.tables.field": "Field",
     "comp.tables.before": "Before",
     "comp.tables.after": "After",
-    "comp.rules.ruleLibrary": "Client rule library",
-    "comp.rules.noRulesForClient": "No rules for this client yet.",
+    "comp.rules.ruleLibrary": "Business rule library",
+    "comp.rules.noRulesForClient": "No rules for this business yet.",
     "comp.rules.newPremium": "New premium rule",
     "comp.rules.newOvertime": "New overtime rule",
     "comp.rules.noOvertimeForScheme": "No overtime rules for this scheme",
@@ -5390,7 +5515,7 @@ const compCopy = {
     "comp.schemeCategories.payment.fixedStay": "Fixed per stay",
     "comp.schemeCategories.payment.percentage": "Percentage of base pay",
     "comp.schemeCategories.payment.none": "No payment",
-    "comp.premiumBehavior.noRules": "This client has no premium rules yet. Add them under the Premium rules tab.",
+    "comp.premiumBehavior.noRules": "This business has no premium rules yet. Add them under the Premium rules tab.",
     "comp.premiumBehavior.title": "Premium behavior",
     "comp.premiumBehavior.description": "Choose how each category handles each premium.",
     "comp.premiumBehavior.example": "Example: Sleeping night blocks the ordinary night premium. Click the cell to change it.",
@@ -5497,7 +5622,7 @@ const workforceCopy = {
     'dashboard.reportsDesc': 'Nøkkeltall for arbeidstid og godkjenning',
     'jobs.detail': 'Oppdragsdetaljer',
     'jobs.employee': 'Ansatt',
-    'jobs.client': 'Klient',
+    'jobs.client': 'Virksomhet',
     'jobs.period': 'Periode',
     'jobs.role': 'Rolle',
     'jobs.location': 'Arbeidssted',
@@ -5521,7 +5646,7 @@ const workforceCopy = {
     'shifts.estimatedTotal': 'Estimert totalt',
     'shifts.calculation': 'Se beregning',
     'shifts.rateOrigin': 'Hvorfor er satsen {rate}?',
-    'shifts.relationshipTrace': 'Ansatt → Oppdrag → Klient → Tariff → Lønnstabell → Sats',
+    'shifts.relationshipTrace': 'Ansatt → Oppdrag → Virksomhet → Tariff → Lønnstabell → Sats',
     'shifts.validOnDate': 'Gyldig på vaktdato',
     'shifts.salaryTableMatch': 'Lønnstabell-treff',
     'shifts.job': 'Oppdrag',
@@ -5540,7 +5665,7 @@ const workforceCopy = {
     'shiftTemplates.deactivate': 'Deaktiver',
     'shiftTemplates.inUseTitle': 'Vaktmalen er i bruk',
     'shiftTemplates.inUseBody': 'Malen brukes av {assignments} oppdrag og {shifts} vakter. Deaktiver den for å hindre ny bruk.',
-    'shiftTemplates.noTemplates': 'Ingen aktive vaktmaler er tilgjengelige for denne klienten.',
+    'shiftTemplates.noTemplates': 'Ingen aktive vaktmaler er tilgjengelige for denne virksomheten.',
     'shiftTemplates.template': 'Vaktmal',
     'shiftTemplates.saved': 'Vaktmalen ble lagret lokalt i demoen.',
     'shiftTemplates.copySuffix': 'kopi',
@@ -5575,17 +5700,17 @@ const workforceCopy = {
     'timesheets.rejected': 'Timelisten ble avvist i demoen.',
     'timesheets.awaiting': 'Venter på godkjenning',
     'timesheets.total': 'Totalt registrert',
-    // Klient- og avdelingsfilteret på timelistene. Avdelingen er avhengig av
-    // klienten, så den har sin egen tekst for tilstanden før klient er valgt.
-    'timesheets.client': 'Klient',
+    // Virksomhet- og avdelingsfilteret på timelistene. Avdelingen er avhengig av
+    // virksomheten, så den har sin egen tekst for tilstanden før virksomhet er valgt.
+    'timesheets.client': 'Virksomhet',
     'timesheets.department': 'Avdeling',
-    'timesheets.allClients': 'Alle klienter',
+    'timesheets.allClients': 'Alle virksomheter',
     'timesheets.allDepartments': 'Alle avdelinger',
-    'timesheets.selectClientFirst': 'Velg klient først',
-    'timesheets.clientCount': '{count} klienter',
+    'timesheets.selectClientFirst': 'Velg virksomhet først',
+    'timesheets.clientCount': '{count} virksomheter',
     'timesheets.departmentCount': '{count} avdelinger',
     'timesheets.matchesFilter': 'Treffer filteret',
-    'timesheets.noneForClient': 'Ingen timelister for valgt klient',
+    'timesheets.noneForClient': 'Ingen timelister for valgt virksomhet',
     'timesheets.noneForDepartment': 'Ingen timelister for valgt avdeling',
     'timesheets.noneBody': 'Det finnes ingen registrert arbeidstid for dette utvalget.',
     'reports.registeredHours': 'Registrerte timer',
@@ -5612,7 +5737,7 @@ const workforceCopy = {
     'dashboard.reportsDesc': 'Key figures for working time and approval',
     'jobs.detail': 'Job details',
     'jobs.employee': 'Employee',
-    'jobs.client': 'Client',
+    'jobs.client': 'Business',
     'jobs.period': 'Period',
     'jobs.role': 'Role',
     'jobs.location': 'Work location',
@@ -5636,7 +5761,7 @@ const workforceCopy = {
     'shifts.estimatedTotal': 'Estimated total',
     'shifts.calculation': 'View calculation',
     'shifts.rateOrigin': 'Why is the rate {rate}?',
-    'shifts.relationshipTrace': 'Employee → Assignment → Client → Tariff → Salary table → Rate',
+    'shifts.relationshipTrace': 'Employee → Assignment → Business → Tariff → Salary table → Rate',
     'shifts.validOnDate': 'Effective on shift date',
     'shifts.salaryTableMatch': 'Salary-table match',
     'shifts.job': 'Job',
@@ -5655,7 +5780,7 @@ const workforceCopy = {
     'shiftTemplates.deactivate': 'Deactivate',
     'shiftTemplates.inUseTitle': 'The shift template is in use',
     'shiftTemplates.inUseBody': 'The template is used by {assignments} assignments and {shifts} shifts. Deactivate it to prevent new use.',
-    'shiftTemplates.noTemplates': 'No active shift templates are available for this client.',
+    'shiftTemplates.noTemplates': 'No active shift templates are available for this business.',
     'shiftTemplates.template': 'Shift template',
     'shiftTemplates.saved': 'The shift template was saved locally in the demo.',
     'shiftTemplates.copySuffix': 'copy',
@@ -5690,15 +5815,15 @@ const workforceCopy = {
     'timesheets.rejected': 'The timesheet was rejected in the demo.',
     'timesheets.awaiting': 'Awaiting approval',
     'timesheets.total': 'Total registered',
-    'timesheets.client': 'Client',
+    'timesheets.client': 'Business',
     'timesheets.department': 'Department',
-    'timesheets.allClients': 'All clients',
+    'timesheets.allClients': 'All businesses',
     'timesheets.allDepartments': 'All departments',
-    'timesheets.selectClientFirst': 'Select a client first',
-    'timesheets.clientCount': '{count} clients',
+    'timesheets.selectClientFirst': 'Select a business first',
+    'timesheets.clientCount': '{count} businesses',
     'timesheets.departmentCount': '{count} departments',
     'timesheets.matchesFilter': 'Matches the filter',
-    'timesheets.noneForClient': 'No timesheets for the selected client',
+    'timesheets.noneForClient': 'No timesheets for the selected business',
     'timesheets.noneForDepartment': 'No timesheets for the selected department',
     'timesheets.noneBody': 'There is no registered working time for this selection.',
     'reports.registeredHours': 'Registered hours',
@@ -5782,7 +5907,7 @@ function seedData() {
     // post kunne få samme id som en eksisterende og sletting ramme begge.
     meta: { version: SEED_VERSION, nextId: 100 },
     clients: [
-      { id: 'c1', name: 'Oslo Omsorg AS', org: '912 345 678', tariffId: 't1', schemeId: 's1', paySystemIds: ['t1', 't4'], provision: 12.5, vat: 25, email: 'post@osloomsorg.demo.no', invoiceEmail: 'faktura@osloomsorg.demo.no', phone: '+47 22 34 56 78', address: 'Storgata 14, Oslo', county: 'demo.county.oslo', created: '2026-08-08', status: 'active' },
+      { id: 'c1', name: 'Oslo Omsorg AS', org: '912 345 678', tariffId: 't1', schemeId: 's1', paySystemIds: ['t1', 't4'], provision: 12.5, vat: 25, email: 'post@osloomsorg.demo.no', invoiceEmail: 'faktura@osloomsorg.demo.no', phone: '+47 22 34 56 78', address: 'Storgata 14, Oslo', county: 'demo.county.oslo', created: '2026-08-08', status: 'active', documents: [{ id: 91, name: 'demo.doc.framework', category: 'agreement', fileName: 'rammeavtale_signert.pdf' }, { id: 92, name: 'demo.doc.dpa', category: 'dpa', fileName: 'dpa_2026.pdf' }] },
       { id: 'c2', name: 'CarePartner Vest', org: '923 456 789', tariffId: 't4', schemeId: 's2', paySystemIds: ['t4'], provision: 10, vat: 25, email: 'post@carepartner.demo.no', invoiceEmail: 'faktura@carepartner.demo.no', phone: '+47 22 44 55 66', address: 'Bryggeveien 8, Bærum', county: 'demo.county.akershus', created: '2026-08-08', status: 'active' },
       { id: 'c3', name: 'Nordbyen helsehus', org: '934 567 890', tariffId: null, schemeId: 's4', paySystemIds: [], provision: 8.75, vat: 25, email: 'post@nordbyen.demo.no', invoiceEmail: 'faktura@nordbyen.demo.no', phone: '+47 22 77 88 99', address: 'Helsegata 3, Oslo', county: 'demo.county.oslo', created: '2026-08-08', status: 'active' },
       { id: 'c4', name: 'Demo uten publisert tariff', org: '900 000 004', tariffId: 't2', paySystemIds: ['t2'], provision: 0, vat: 25, email: 'demo4@example.test', invoiceEmail: 'demo4@example.test', phone: '', address: 'Testveien 4, Oslo', county: 'demo.county.oslo', created: '2026-08-08', status: 'inactive' },
@@ -6869,11 +6994,12 @@ function statusFilterOptions() {
 }
 
 // extra legger flere filtre i samme toolbar-group som statusfilteret, slik at
-// rader som Søk | Klient | Avdeling | Status bruker dagens komponent og CSS.
-function searchToolbar(extra = '') {
-  const options = statusFilterOptions()
+// rader som Søk | Kunde | Avdeling | Status bruker dagens komponent og CSS.
+function searchToolbar(extra = '', withStatus = true) {
+  const options = withStatus ? statusFilterOptions() : []
   const choices = options.map(([value, key]) => `<option value="${value}"${state.filters.status === value ? ' selected' : ''}>${t(key)}</option>`).join('')
-  // Uten statuser å velge mellom vises ingen statusvelger.
+  // Uten statuser å velge mellom vises ingen statusvelger. Kunder-oversikten
+  // slår velgeren av: der styres status av de synlige fanene i stedet.
   const statusSelect = options.length ? `<select data-filter="status" aria-label="${t('common.filter')}"><option value="all"${state.filters.status === 'all' ? ' selected' : ''}>${t('common.all')}</option>${choices}</select>` : ''
   const group = extra || statusSelect ? `<div class="toolbar-group">${extra}${statusSelect}</div>` : ''
   return `<div class="toolbar"><div class="search-control"><span>${icon('search')}</span><input type="search" data-filter="search" value="${escapeHtml(state.filters.search)}" placeholder="${t('common.search')}" aria-label="${t('common.search')}"></div>${group}</div>`
@@ -6976,10 +7102,16 @@ function renderClients() {
   const visible = filterList('clients', ['name', 'org', 'email', 'address', 'contactPerson'])
     .concat(query ? collection('clients').filter(item => !searchable(item, ['name', 'org', 'email', 'address', 'contactPerson']).includes(query) && String(clientPrimaryContact(item)?.name ?? '').toLocaleLowerCase().includes(query)) : [])
   const total = collection('clients').length
-  const rows = visible.map((client, i) => `<tr><td><input type="checkbox" aria-label="${t('common.selectAll')}: ${escapeHtml(client.name)}"></td><td>${String(i + 1).padStart(3, '0')}</td><td><button class="row-link" data-route="client-detail" data-id="${client.id}">${escapeHtml(client.name)}</button></td><td><a class="row-link" href="mailto:${escapeHtml(client.email)}" data-action="demo-toast">${escapeHtml(client.email)}</a></td><td>${(() => { const primary = clientPrimaryContact(client); return primary ? escapeHtml(primary.name) : `<span class="muted">${t('common.none')}</span>` })()}</td><td>${collection('departments').filter(item => item.clientId === client.id).length}</td><td><span class="date-pill">${client.created ? formatDate(client.created) : ''}</span></td><td class="row-actions"><button class="icon-button table-action" data-action="client-row-menu" data-row-index="${i}" aria-label="${t('common.moreActions')}">${icon('ellipsis')}</button>${state.rowMenu === `client-${i}` ? `<div class="row-menu"><button data-route="client-detail" data-id="${client.id}">${t('common.view')}</button><button data-action="edit-client" data-id="${client.id}">${t('common.edit')}</button><button data-action="delete-client" data-id="${client.id}">${t('common.delete')}</button></div>` : ''}</td></tr>`)
-  const head = `<tr><th><input type="checkbox" aria-label="${t('common.selectAll')}"></th><th>ID</th><th>${t('common.name')}</th><th>${t('common.email')}</th><th>${t('clients.contactPerson')}</th><th>${t('clients.departmentCount')}</th><th>${t('clients.created')}</th><th>${t('common.actions')}</th></tr>`
+  // Kontaktperson hører hjemme på virksomhetskortet - ikke som listekolonne.
+  // Påslag leser den kanoniske faktureringsverdien (client.provision); selve
+  // beregningen er urørt, kun visningen står her.
+  const rows = visible.map((client, i) => `<tr><td><input type="checkbox" aria-label="${t('common.selectAll')}: ${escapeHtml(client.name)}"></td><td>${String(i + 1).padStart(3, '0')}</td><td><button class="row-link" data-route="client-detail" data-id="${client.id}">${escapeHtml(client.name)}</button></td><td><a class="row-link" href="mailto:${escapeHtml(client.email)}" data-action="demo-toast">${escapeHtml(client.email)}</a></td><td>${formatPercent(client.provision)}</td><td>${collection('departments').filter(item => item.clientId === client.id).length}</td><td><span class="date-pill">${client.created ? formatDate(client.created) : ''}</span></td><td class="row-actions"><button class="icon-button table-action" data-action="client-row-menu" data-row-index="${i}" aria-label="${t('common.moreActions')}">${icon('ellipsis')}</button>${state.rowMenu === `client-${i}` ? `<div class="row-menu"><button data-route="client-detail" data-id="${client.id}">${t('common.view')}</button><button data-action="edit-client" data-id="${client.id}">${t('common.edit')}</button><button data-action="delete-client" data-id="${client.id}">${t('common.delete')}</button></div>` : ''}</td></tr>`)
+  const head = `<tr><th><input type="checkbox" aria-label="${t('common.selectAll')}"></th><th>ID</th><th>${t('common.name')}</th><th>${t('common.email')}</th><th>${t('clients.provision')}</th><th>${t('clients.departmentCount')}</th><th>${t('clients.created')}</th><th>${t('common.actions')}</th></tr>`
   const body = rows.length ? rows.join('') : emptyRow(8, total)
-  return `<section class="page">${searchToolbar()}<div class="list-actions">${button('clients.new', 'create-client', '', 'plus')}</div><div class="table-shell"><div class="table-scroller"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>${listFooter(rows.length, total)}</div></section>`
+  // «Ny kunde» er den ENE primærhandlingen øverst til høyre; statusfilteret
+  // Alle/Aktive/Inaktive er egne faner under - aldri blandet med handlingen.
+  const statusTabs = `<div class="tabs">${[['all', 'common.all'], ['active', 'clients.filter.active'], ['inactive', 'clients.filter.inactive']].map(([value, key]) => `<button class="tab ${state.filters.status === value ? 'is-active' : ''}" data-action="clients-status-filter" data-status="${value}">${t(key)}</button>`).join('')}</div>`
+  return `<section class="page">${pageHeading('nav.clients', 'page.clients.desc', button('clients.new', 'create-client', '', 'plus'))}${statusTabs}${searchToolbar('', false)}<div class="table-shell"><div class="table-scroller"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>${listFooter(rows.length, total)}</div></section>`
 }
 
 // Detaljsider viser posten som ble valgt, ikke en fast første post. Finnes ikke
@@ -7013,10 +7145,96 @@ function linkList(items) {
   return items.map(item => `<div class="file-row"><div class="file-name"><strong>${item.link}</strong><span>${item.meta}</span></div></div>`).join('')
 }
 
+// === Brukere og tilganger ===
+// En kontakt er ALDRI en systembruker automatisk: contact.systemAccess er null
+// til tilgang eksplisitt gis. Tilgangen har to uavhengige akser: SCOPE (hvilke
+// data - hele virksomheten eller valgte avdelinger) og PERMISSIONS (hvilke
+// handlinger). Ingen av dem impliserer den andre, og «hele virksomheten» er
+// aldri en adminrolle. Kanonisk sannhet er scope + eksplisitte tilganger;
+// malene under er kun UX-forhåndsvalg. Dette er prototypens autorisasjonslag:
+// produksjon må håndheve det samme i backend.
+const WORKMATIC_PERMISSION_GROUPS = [
+  ['shifts', ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing']],
+  ['timesheets', ['timesheets.view', 'timesheets.approve', 'timesheets.correction']],
+  ['employees', ['employees.view', 'employees.qualifications']],
+  ['economy', ['economy.prices', 'economy.invoiceBasis']],
+  ['business', ['business.view', 'business.edit']],
+  ['departments', ['departments.view', 'departments.manage']],
+  ['users', ['users.view', 'users.manage']]
+]
+const WORKMATIC_PERMISSION_IDS = WORKMATIC_PERMISSION_GROUPS.flatMap(([, ids]) => ids)
+const ACCESS_PRESETS = {
+  orderer: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing'],
+  shiftManager: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing', 'timesheets.view', 'employees.view'],
+  timesheetApprover: ['timesheets.view', 'timesheets.approve', 'timesheets.correction'],
+  economy: ['economy.prices', 'economy.invoiceBasis', 'business.view'],
+  businessAdmin: ['business.view', 'business.edit', 'departments.view', 'departments.manage', 'users.view', 'users.manage']
+}
+
+function clientSystemUsers(clientId) {
+  return collection('contacts').filter(item => item.clientId === clientId && item.systemAccess)
+}
+
+// Én felles bygger for systemAccess fra skjemafelter: brukes både av
+// kontakt-dialogen og av kladdekontaktene i Opprett/Rediger virksomhet.
+// Least privilege: uten eksplisitt «Gi tilgang» er resultatet alltid null.
+function contactAccessFromDraft(draft, clientId) {
+  if (!draft.accessEnabled) return null
+  return {
+    scope: draft.accessScope === 'selected_departments' ? 'selected_departments' : 'whole_business',
+    departmentIds: collection('departments')
+      .filter(item => item.clientId === clientId && item.status === 'active' && draft[`access-dep-${item.id}`])
+      .map(item => item.id),
+    permissions: WORKMATIC_PERMISSION_IDS.filter(id => draft[`perm-${id}`]),
+    status: draft.accessStatus === 'inactive' ? 'inactive' : 'active'
+  }
+}
+
+// Aktiv tilgang: deaktivert tilgang beholder konfigurasjonen, men gjelder ikke.
+function contactActiveAccess(contact) {
+  const access = contact?.systemAccess
+  return access && access.status !== 'inactive' ? access : null
+}
+
+function accessCan(access, permission) {
+  return Boolean(access?.permissions?.includes(permission))
+}
+
+// Scope løses alltid mot de kanoniske avdelingene - aldri kopier i brukeren.
+function accessDepartmentIds(clientId, access) {
+  const active = collection('departments').filter(item => item.clientId === clientId && item.status === 'active').map(item => item.id)
+  if (!access) return []
+  if (access.scope !== 'selected_departments') return active
+  const chosen = new Set((access.departmentIds ?? []).map(String))
+  return active.filter(id => chosen.has(String(id)))
+}
+
+// Data utenfor scope er UTILGJENGELIG - ikke bare skjult bak knapper: alt
+// forhåndsvisningen og testene leser, går gjennom disse filtrene.
+function accessScopedAssignments(clientId, access) {
+  const ids = new Set(accessDepartmentIds(clientId, access).map(String))
+  return collection('assignments').filter(item => item.clientId === clientId && ids.has(String(item.departmentId)))
+}
+
+function accessScopedTimesheets(clientId, access) {
+  const ids = new Set(accessScopedAssignments(clientId, access).map(item => String(item.id)))
+  return collection('slotTimesheets').filter(item => !item.voided && !item.superseded && ids.has(String(item.assignmentId)))
+}
+
+function accessScopeLabel(access) {
+  if (access.scope !== 'selected_departments') return t('access.wholeBusiness')
+  return t('access.scopeDepartmentsCount', { count: (access.departmentIds ?? []).length })
+}
+
+function accessPermissionSummary(access) {
+  const count = (access.permissions ?? []).length
+  return count ? t('access.permissionCount', { count }) : t('access.noPermissions')
+}
+
 function renderClientDetail() {
   const tab = state.activeTab.startsWith('client-') ? state.activeTab.slice(7) : 'basic'
   // Klientdetaljen er inngangen til avdelinger, kontaktpersoner og vakter (§4).
-  const tabs = ['basic', 'contacts', 'departments', 'assignments', 'billing', 'documents']
+  const tabs = ['basic', 'contacts', 'users', 'departments', 'assignments', 'billing', 'documents']
   const client = record('clients', state.selected.client)
   if (!client) return missingRecord('back-clients')
   const clientContacts = collection('contacts').filter(item => item.clientId === client.id)
@@ -7033,8 +7251,21 @@ function renderClientDetail() {
   if (tab === 'addresses') body = `<div class="grid cols-2"><article class="address-card"><div class="card-header"><h3>${t('clients.address.main')}</h3>${statusTag(client.status)}</div><p>${escapeHtml(client.address)}</p><span class="tag info">${t('clients.address.default')}</span></article><article class="address-card"><h3>${t('clients.address.billing')}</h3><p>${escapeHtml(client.invoiceEmail)}</p></article></div>`
   if (tab === 'contacts') {
     const primary = clientPrimaryContact(client)
-    const rows = clientContacts.map(item => `<tr><td><strong>${escapeHtml(item.name)}</strong>${primary && (primary.contact?.id === item.id || primary.name === item.name) ? ` <span class="tag info">${t('clients.responsibleForAgreement')}</span>` : ''}</td><td>${lab(item.role)}</td><td>${escapeHtml(item.email ?? '')}</td><td>${escapeHtml(item.phone ?? '')}</td></tr>`)
-    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.contacts')}</h3><button type="button" class="button" data-action="create-client-contact" data-id="${client.id}">${icon('plus')}${t('clients.newContact')}</button></div>${rows.length ? table(['common.name', 'contacts.role', 'common.email', 'common.phone'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+    // Kontakt ≠ systembruker: kolonnen viser eksplisitt om personen har
+    // Workmatic-tilgang, og en vanlig kontakt har det ALDRI automatisk.
+    const rows = clientContacts.map(item => `<tr><td><strong>${escapeHtml(item.name)}</strong>${primary && (primary.contact?.id === item.id || primary.name === item.name) ? ` <span class="tag info">${t('clients.responsibleForAgreement')}</span>` : ''}</td><td>${lab(item.role)}</td><td>${escapeHtml(item.email ?? '')}</td><td>${escapeHtml(item.phone ?? '')}</td><td>${item.systemAccess ? `<span class="tag ${item.systemAccess.status === 'inactive' ? 'warning' : 'success'}">${t('access.systemUser')}</span>` : `<span class="tag">${t('access.contactOnly')}</span>`}</td><td><button class="button ghost small" data-action="edit-contact" data-id="${item.id}">${t('common.edit')}</button></td></tr>`)
+    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.contacts')}</h3><button type="button" class="button" data-action="create-client-contact" data-id="${client.id}">${icon('plus')}${t('clients.newContact')}</button></div><p class="field-help">${t('access.contactsHint')}</p>${rows.length ? table(['common.name', 'contacts.role', 'common.email', 'common.phone', 'access.accessStatus', 'common.actions'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  }
+  if (tab === 'users') {
+    // Bare kontakter med eksplisitt systemtilgang er brukere. Scope og
+    // tilganger vises hver for seg - de er to uavhengige akser (§11).
+    const users = clientSystemUsers(client.id)
+    const rows = users.map(item => {
+      const access = item.systemAccess
+      const inactive = access.status === 'inactive'
+      return `<tr><td><strong>${escapeHtml(item.name)}</strong></td><td>${escapeHtml(item.email ?? '')}</td><td>${statusTag(inactive ? 'inactive' : 'active')}</td><td>${accessScopeLabel(access)}</td><td>${accessPermissionSummary(access)}</td><td class="row-actions"><button class="button ghost small" data-action="preview-contact-access" data-id="${item.id}">${t('access.previewOpen')}</button><button class="button ghost small" data-action="edit-contact" data-id="${item.id}">${t('common.edit')}</button><button class="button ghost small ${inactive ? '' : 'danger'}" data-action="toggle-contact-access" data-id="${item.id}">${t(inactive ? 'access.enable' : 'access.disable')}</button></td></tr>`
+    })
+    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.users')}</h3></div>${rows.length ? table(['common.name', 'common.email', 'common.status', 'access.scope', 'access.permissions', 'common.actions'], rows) : `<p class="muted">${t('access.none')}</p>`}</article>`
   }
   if (tab === 'departments') {
     const rows = clientDepartments.map(item => `<tr><td><button class="row-link" data-route="department-detail" data-id="${item.id}">${lab(item.name)}</button></td><td>${escapeHtml(String(item.manager ?? '')) || `<span class="muted">${t('departments.noManager')}</span>`}</td><td>${escapeHtml(item.managerPhone ?? '')}</td><td>${escapeHtml(item.departmentPhone ?? '')}</td><td>${escapeHtml(item.city ?? '')}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-route="department-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
@@ -7045,7 +7276,13 @@ function renderClientDetail() {
     body = `<article class="card">${rows.length ? table(['staffing.assignmentId', 'rel.department', 'assignment.date', 'staffing.slots', 'common.status', 'common.actions'], rows) : `<p class="muted">${t('staffing.noneForClient')}</p>`}</article>`
   }
   if (tab === 'billing') body = `<article class="card"><dl class="detail-list"><div><dt>${t('clients.provision')}</dt><dd>${formatPercent(client.provision)}</dd></div><div><dt>${t('clients.vat')}</dt><dd>${formatPercent(client.vat)}</dd></div><div><dt>${t('clients.invoiceEmail')}</dt><dd>${escapeHtml(client.invoiceEmail)}</dd></div><div><dt>${t('clients.paymentTerms')}</dt><dd>${t('clients.days')}</dd></div></dl></article>`
-  if (tab === 'documents') body = `<article class="card"><div class="file-row"><div class="file-name"><strong>${t('demo.doc.framework')}</strong><span>rammeavtale_signert.pdf · ${formatNumber(1.2, 1)} MB</span></div>${button('common.download', 'demo-toast', 'secondary small')}</div><div class="file-row"><div class="file-name"><strong>${t('demo.doc.dpa')}</strong><span>dpa_2026.pdf · 640 kB</span></div>${button('common.download', 'demo-toast', 'secondary small')}</div></article>`
+  if (tab === 'documents') {
+    // Kun faktisk lagrede dokumenter vises - aldri kunstige demonavn. En ny
+    // virksomhet starter tom, og opplastingsskjemaet starter alltid blankt.
+    const documents = client.documents ?? []
+    const rows = documents.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.size ? ` · ${escapeHtml(item.size)}` : ''}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}</span></div>${button('common.download', 'demo-toast', 'secondary small')}</div>`).join('')
+    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.documents')}</h3><button type="button" class="button" data-action="upload-client-document" data-id="${client.id}">${icon('plus')}${t('docs.upload')}</button></div>${documents.length ? rows : `<p class="muted">${t('docs.none')}</p>`}</article>`
+  }
   return `<section><div class="profile-header"><div class="profile-identity"><span class="profile-avatar">${escapeHtml(initials(client.name))}</span><div><h1>${escapeHtml(client.name)}</h1><p>${escapeHtml(client.org)}${clientContacts[0] ? ` · ${escapeHtml(clientContacts[0].name)}` : ''}</p><div class="tag-row">${statusTag(client.status)}</div></div></div><div class="page-actions">${button('common.back', 'back-clients', 'secondary', 'arrow-left')}<button type="button" class="button" data-action="edit-client" data-id="${client.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-client" data-id="${client.id}">${icon('trash')}${t('common.delete')}</button></div></div><div class="page"><div class="tabs">${tabs.map(name => `<button class="tab ${tab === name ? 'is-active' : ''}" data-tab="client-${name}">${t(`clients.tabs.${name}`)}</button>`).join('')}</div>${body}</div></section>`
 }
 
@@ -7064,15 +7301,13 @@ function clientPrimaryContact(client) {
 
 // Feltet i klientmodalen. Kontaktene hører til klienten, så en ny klient må
 // lagres før den kan få kontakter - da sier feltet det.
+// Ansvarlig kontaktperson velges på Kontaktpersoner-fanen i dialogen - aldri
+// som et dødt readonly-felt på Grunninformasjon. Uten lagrede kontakter er
+// det ingenting å velge blant, så feltet vises ikke.
 function clientContactField() {
   const clientId = state.editingId
   const contacts = collection('contacts').filter(item => item.clientId === clientId && item.status === 'active')
-  if (!clientId) {
-    return `<div class="field"><label>${t('clients.contactPerson')}</label><input value="" placeholder="${escapeHtml(t('clients.saveBeforeContacts'))}" readonly></div>`
-  }
-  if (!contacts.length) {
-    return `<div class="field"><label>${t('clients.contactPerson')}</label><input value="" placeholder="${escapeHtml(t('clients.noContactsYet'))}" readonly></div>`
-  }
+  if (!clientId || !contacts.length) return ''
   return boundSelect('primaryContactId', t('clients.contactPerson'), contacts.map(item => ({ value: item.id, text: `${item.name} · ${label(item.role)}` })), { placeholder: t('clients.selectContact') })
 }
 
@@ -10966,6 +11201,8 @@ function parseHash(hash) {
 function navigate(route, id = null) {
   route = retiredRoutes[route] ?? route
   if (!routes[route]) route = 'dashboard'
+  // Ruten vi kommer FRA, lest før state.route skrives om lenger ned.
+  const previousRoute = state.route
   const key = selectionKey[route]
   if (key && id) state.selected[key] = id
   const target = key && state.selected[key] ? `${route}/${state.selected[key]}` : route
@@ -10979,6 +11216,9 @@ function navigate(route, id = null) {
   // Dashboardets bemanningsfilter gjelder så lenge man står i Vakter-flaten.
   if (route !== 'staffing' && route !== 'job-detail') state.shiftFilters.staffing = ''
   if (route !== 'timesheets') state.slotTimesheetFilter = ''
+  // Kunder åpner på Aktive: inaktive kunder er ett klikk unna (Inaktive/Alle),
+  // men er aldri standardstøy. Valget beholdes så lenge man står i kundeflaten.
+  if (route === 'clients' && previousRoute !== 'clients' && previousRoute !== 'client-detail') state.filters.status = 'active'
   // Statusverdiene er ruteavhengige, så et filter fra forrige side ville gitt en
   // tom liste uten forklaring.
   if (!statusFilterOptions().some(([value]) => value === state.filters.status)) state.filters.status = 'all'
@@ -11143,16 +11383,42 @@ function employeeDialog() {
 }
 
 function clientDialog() {
-  const tabs = ['basic', 'addresses', 'billing', 'documents']
+  // Kontakter og brukere kan registreres FØR virksomheten er lagret: de bor i
+  // kladden (draftContacts) og kobles til den nye kanoniske clientId ved
+  // lagring. Ingen egen collection - de blir vanlige contacts-poster.
+  const tabs = ['basic', 'contacts', 'users', 'addresses', 'billing', 'documents']
   const tab = tabs[state.dialogStep]
   const editing = Boolean(state.editingId)
   const range = `${formatNumber(0, 2)}–${formatPercent(100, 2)}`
-  let body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('org', t('clients.organization'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${clientContactField()}${boundSelect('status', t('common.status'), statusOptions())}${boundTextarea('description', t('clients.description'))}${clientPaySystemsField()}</div>${storageNote()}`
+  const draftContacts = state.draft.draftContacts ?? []
+  let body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('org', t('clients.organization'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${boundSelect('status', t('common.status'), statusOptions())}${boundTextarea('description', t('clients.description'))}${clientPaySystemsField()}</div>${storageNote()}`
+  if (tab === 'contacts') {
+    const existing = editing ? collection('contacts').filter(item => item.clientId === state.editingId) : []
+    const existingRows = existing.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${lab(item.role)}${item.email ? ` · ${escapeHtml(item.email)}` : ''}</span></div><span class="tag ${item.systemAccess ? 'success' : ''}">${t(item.systemAccess ? 'access.systemUser' : 'access.contactOnly')}</span></div>`).join('')
+    const draftRows = draftContacts.map((item, index) => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.role ?? '')}${item.email ? ` · ${escapeHtml(item.email)}` : ''}</span></div><div class="modal-actions"><span class="tag ${item.systemAccess ? 'success' : ''}">${t(item.systemAccess ? 'access.systemUser' : 'access.contactOnly')}</span><button type="button" class="button ghost small danger" data-action="client-draft-contact-remove" data-index="${index}">${t('common.delete')}</button></div></div>`).join('')
+    const contactForm = `<div class="form-section"><h3>${t('clients.newContact')}</h3><div class="grid cols-2">${bound('draftContactName', t('common.name'))}${bound('draftContactRole', t('contacts.role'))}${bound('draftContactEmail', t('common.email'), { type: 'email' })}${bound('draftContactPhone', t('common.phone'))}</div>${contactAccessSection(editing ? state.editingId : null)}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary" data-action="client-draft-contact-add">${icon('plus')}${t('clients.addContact')}</button></div></div>`
+    body = `${formError()}${editing ? `<div class="grid cols-2">${clientContactField()}</div>` : ''}${existingRows}${draftRows}${!existing.length && !draftContacts.length ? `<p class="muted">${t('rel.none')}</p>` : ''}<p class="field-help">${t('clients.draftContactsHint')}</p>${contactForm}`
+  }
+  if (tab === 'users') {
+    // Kun kontakter (lagrede + kladd) med eksplisitt systemtilgang - en vanlig
+    // kontakt vises aldri her.
+    const existingUsers = editing ? clientSystemUsers(state.editingId) : []
+    const draftUsers = draftContacts.filter(item => item.systemAccess)
+    const rows = [...existingUsers, ...draftUsers].map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.email ?? '')}</span></div><div class="modal-actions"><span class="tag info">${accessScopeLabel(item.systemAccess)}</span><span class="tag">${accessPermissionSummary(item.systemAccess)}</span></div></div>`).join('')
+    body = `${rows || `<p class="muted">${t('access.none')}</p>`}<p class="field-help">${t('access.contactsHint')}</p>`
+  }
   if (tab === 'addresses') body = `<div class="card-header"><h3>${t('clients.tabs.addresses')}</h3>${button('clients.address.add', 'add-address', 'secondary small', '+')}</div><div class="grid">${Array.from({ length: state.clientAddresses }, (_, i) => `<article class="address-card"><div class="card-header"><h3>${i === 0 ? t('clients.address.main') : t('clients.address.billing')}</h3>${i === state.clientDefault ? `<span class="tag info">${t('clients.address.default')}</span>` : ''}</div><div class="grid cols-2">${field(t('clients.address.line'), i === 0 ? 'Storgata 14' : 'Postboks 204')}${field(t('clients.address.postal'), i === 0 ? '0155' : '0103')}${field(t('clients.address.city'), 'Oslo')}${field(t('clients.address.country'), 'NO')}</div><div class="form-actions" style="margin-top:12px"><label class="checkbox-row"><input type="radio" name="default-address" data-default-address="${i}" ${i === state.clientDefault ? 'checked' : ''}>${t('clients.address.default')}</label>${state.clientAddresses > 1 ? `<button class="button ghost small" data-remove-address="${i}">${t('clients.address.remove')}</button>` : ''}</div></article>`).join('')}</div>`
   if (tab === 'billing') body = `<div class="grid cols-2">${bound('provision', t('clients.provision'), { help: range })}${bound('vat', t('clients.vat'), { help: range })}${bound('invoiceEmail', t('clients.invoiceEmail'), { type: 'email' })}${field(t('clients.paymentTerms'), t('clients.days'))}</div>${editing ? `<article class="card" style="margin-top:16px"><div class="field"><label>${t('clients.historical')}</label><input value="${formatPercent(10, 0)}" readonly><p class="field-help">${t('clients.historicalHelp')}</p></div></article>` : ''}`
-  if (tab === 'documents') body = `<div class="document-card"><div class="grid cols-2">${field(t('clients.doc.display'), t('demo.doc.framework'))}${field(t('clients.doc.original'), 'rammeavtale_signert.pdf')}</div><p class="field-help">${t('clients.doc.required')}</p><div class="field" style="margin-top:12px"><label>${t('clients.doc.select')}</label><input type="file"></div></div>`
+  if (tab === 'documents') {
+    // Ingen forhåndsutfylte demonavn: fanen viser kun dokumenter som faktisk
+    // er lagret på virksomheten. Selve opplastingen (med tomme felter) skjer
+    // fra virksomhetskortets Dokumenter-fane.
+    const documents = editing ? (record('clients', state.editingId)?.documents ?? []) : []
+    const rows = documents.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}</span></div></div>`).join('')
+    body = `<div class="document-card">${documents.length ? rows : `<p class="muted">${t('docs.none')}</p>`}<p class="field-help">${t('docs.uploadedFromCard')}</p></div>`
+  }
   const tabBar = `<div class="tabs">${tabs.map((name, i) => `<button class="tab ${i === state.dialogStep ? 'is-active' : ''}" data-step="${i}">${t(`clients.tabs.${name}`)}</button>`).join('')}</div>${body}`
-  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < 3 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-client">${t('common.save')}</button></div>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < tabs.length - 1 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-client">${t('common.save')}</button></div>`
   return modalShell(t(editing ? 'clients.modal.edit' : 'clients.modal.create'), t('clients.modal.subtitle'), 'users', tabBar, footer)
 }
 
@@ -11190,10 +11456,83 @@ function departmentDialog() {
   return modalShell(t(editing ? 'departments.modal.edit' : 'departments.modal.create'), t('departments.modal.subtitle'), 'sitemap', body, formFooter('save-department'), 'small')
 }
 
+// Systemtilgang er et EKSPLISITT valg med default AV: en kontakt gir aldri
+// Workmatic-tilgang i seg selv. Scope (hvilke data) og tilganger (hvilke
+// handlinger) velges hver for seg; malen er kun et forhåndsvalg. Seksjonen
+// deles av kontakt-dialogen og kladdekontaktene i virksomhetsdialogen -
+// clientIdForDepartments styrer hvilke avdelinger som kan velges (null for en
+// virksomhet som ikke er lagret ennå: da finnes ingen avdelinger å velge).
+function contactAccessSection(clientIdForDepartments) {
+  const enabled = Boolean(state.draft.accessEnabled)
+  let section = `<div class="form-section"><h3>${t('clients.tabs.users')}</h3>${boundCheckbox('accessEnabled', t('access.grant'))}<p class="field-help">${t('access.grantHelp')}</p>`
+  if (enabled) {
+    const scope = state.draft.accessScope === 'selected_departments' ? 'selected_departments' : 'whole_business'
+    const departments = collection('departments').filter(item => item.clientId === clientIdForDepartments && item.status === 'active')
+    const departmentBoxes = scope === 'selected_departments'
+      ? departments.length
+        ? `<div class="grid" style="margin-top:8px">${departments.map(item => boundCheckbox(`access-dep-${item.id}`, lab(item.name))).join('')}</div>`
+        : `<p class="field-help">${t('access.noDepartments')}</p>`
+      : ''
+    const presets = ['custom', 'orderer', 'shiftManager', 'timesheetApprover', 'economy', 'businessAdmin'].map(key => ({ value: key, text: t(`access.preset.${key}`) }))
+    const groups = WORKMATIC_PERMISSION_GROUPS.map(([group, ids]) => `<div class="form-section"><h3>${t(`perm.group.${group}`)}</h3><div class="grid cols-2">${ids.map(id => boundCheckbox(`perm-${id}`, t(`perm.${id}`))).join('')}</div></div>`).join('')
+    section += `<div class="grid cols-2" style="margin-top:8px">${boundSelect('accessStatus', t('access.accessStatus'), statusOptions())}${boundSelect('accessPreset', t('access.preset'), presets, { help: t('access.presetHelp') })}</div>
+      <div class="form-section"><h3>${t('access.scope')}</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="access-scope" data-field="accessScope" value="whole_business"${scope === 'whole_business' ? ' checked' : ''}>${t('access.wholeBusiness')}</label><label class="checkbox-row"><input type="radio" name="access-scope" data-field="accessScope" value="selected_departments"${scope === 'selected_departments' ? ' checked' : ''}>${t('access.selectedDepartments')}</label></div>${departmentBoxes}</div>${groups}`
+  }
+  return section + '</div>'
+}
+
 function contactDialog() {
   const editing = Boolean(state.editingId)
-  const body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('role', t('contacts.role'))}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}</div>${storageNote()}`
-  return modalShell(t(editing ? 'contacts.modal.edit' : 'contacts.modal.create'), t('page.contacts.desc'), 'link', body, formFooter('save-contact'), 'small')
+  const contactFields = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('role', t('contacts.role'))}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}</div>`
+  const body = `${contactFields}${contactAccessSection(state.draft.clientId)}${storageNote()}`
+  return modalShell(t(editing ? 'contacts.modal.edit' : 'contacts.modal.create'), t('page.contacts.desc'), 'link', body, formFooter('save-contact'))
+}
+
+// Opplasting av virksomhetsdokument: alle felter starter TOMME - aldri
+// forhåndsutfylte demonavn. Kun lagrede dokumenter vises på kortet.
+function clientDocumentDialog() {
+  const categories = ['agreement', 'dpa', 'other'].map(key => ({ value: key, text: t(`docs.category.${key}`) }))
+  const body = `${formError()}<div class="grid"><div class="field"><label>${t('docs.file')}</label><input type="file" aria-label="${t('docs.file')}"></div>${bound('docName', t('docs.name'), { required: true })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}</div>${storageNote()}`
+  return modalShell(t('docs.upload'), t('clients.tabs.documents'), 'file', body, formFooter('save-client-document'), 'small')
+}
+
+// Forhåndsvisning av én brukers faktiske utsyn: ALT innhold under leses
+// gjennom scope- og permissionsfiltrene - data utenfor omfanget finnes ikke
+// her, heller ikke via direkte lenker. Prototypen håndhever dette i
+// visningslaget; produksjon må håndheve det samme i backend.
+function accessPreviewDialog() {
+  const contact = record('contacts', state.selected.accessContact)
+  const client = record('clients', contact?.clientId)
+  if (!contact || !client || !contact.systemAccess) return modalShell(t('access.previewTitle'), '', 'users', `<p class="muted">${t('rel.none')}</p>`, `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button>`, 'small')
+  const access = contactActiveAccess(contact)
+  const departmentIds = accessDepartmentIds(client.id, access)
+  const departmentTags = departmentIds.length ? departmentIds.map(id => `<span class="tag info">${lab(record('departments', id)?.name)}</span>`).join(' ') : `<span class="muted">${t('common.none')}</span>`
+  const assignments = access && accessCan(access, 'shifts.view') ? accessScopedAssignments(client.id, access) : null
+  const shiftRows = assignments
+    ? assignments.length
+      ? `<div class="tag-row">${assignments.slice(0, 6).map(item => `<span class="tag">${item.date ? formatDate(item.date) : ''} · ${lab(record('departments', item.departmentId)?.name)}</span>`).join(' ')}</div>`
+      : `<p class="muted">${t('rel.none')}</p>`
+    : `<p class="muted">${t('access.noShifts')}</p>`
+  const timesheets = access && accessCan(access, 'timesheets.view') ? accessScopedTimesheets(client.id, access) : null
+  const timesheetRow = timesheets
+    ? `<p>${t('timesheets.perShift')}: <strong>${timesheets.length}</strong></p>`
+    : `<p class="muted">${t('access.noTimesheets')}</p>`
+  const employees = access && accessCan(access, 'employees.view')
+    ? [...new Set(accessScopedAssignments(client.id, access).flatMap(item => item.employeeIds ?? []))]
+    : null
+  const employeeRow = employees
+    ? employees.length ? `<div class="tag-row">${employees.map(id => `<span class="tag">${escapeHtml(record('employees', id)?.name ?? '')}</span>`).join(' ')}</div>` : `<p class="muted">${t('rel.none')}</p>`
+    : `<p class="muted">${t('access.noEmployees')}</p>`
+  const economyRow = access && (accessCan(access, 'economy.prices') || accessCan(access, 'economy.invoiceBasis'))
+    ? `<p>${accessCan(access, 'economy.prices') ? `${t('clients.provision')}: <strong>${formatPercent(client.provision)}</strong>` : ''}${accessCan(access, 'economy.invoiceBasis') ? ` ${t('comp.pages.invoicingTitle')}: <strong>${accessScopedTimesheets(client.id, access).filter(item => item.status === 'approved').length}</strong>` : ''}</p>`
+    : `<p class="muted">${t('access.noEconomy')}</p>`
+  const body = `<p class="field-help">${t('access.previewHelp')}</p>
+    <div class="form-section"><h3>${t('access.departmentsInScope')}</h3><div class="tag-row">${departmentTags}</div></div>
+    <div class="form-section"><h3>${t('perm.group.shifts')}</h3>${shiftRows}</div>
+    <div class="form-section"><h3>${t('perm.group.timesheets')}</h3>${timesheetRow}</div>
+    <div class="form-section"><h3>${t('perm.group.employees')}</h3>${employeeRow}</div>
+    <div class="form-section"><h3>${t('perm.group.economy')}</h3>${economyRow}</div>`
+  return modalShell(`${t('access.previewTitle')}: ${escapeHtml(contact.name)}`, accessScopeLabel(contact.systemAccess), 'users', body, `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button>`)
 }
 
 // Følger produksjonens add-edit-candidate-modal: fire seksjoner i rekkefølgen
@@ -11808,6 +12147,8 @@ const dialogs = {
   'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
   'sick-leave-detail': sickLeaveDetailDialog,
+  'client-document': clientDocumentDialog,
+  'access-preview': accessPreviewDialog,
   'confirm-delete': confirmDeleteDialog,
   'confirm-archive': confirmArchiveDialog,
   'confirm-reset': confirmResetDialog
@@ -11850,6 +12191,9 @@ function actionHandlers(target = null) {
     'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; navigate('timesheets') },
     'clear-slot-timesheet-filter': () => { state.slotTimesheetFilter = ''; render() },
     // Vakter: to projeksjoner over samme utvalg. Bytte nullstiller aldri filtre (§36).
+    // Statusfanene på Kunder-oversikten skriver til det SAMME generiske
+    // statusfilteret som resten av listene bruker - ingen egen filtertilstand.
+    'clients-status-filter': () => { const value = target?.dataset?.status; if (value) { state.filters.status = value; render() } },
     'shift-view-list': () => { state.shiftView = 'list'; render() },
     'shift-view-calendar': () => { state.shiftView = 'calendar'; render() },
     'calendar-week': () => { state.calendarMode = 'week'; render() },
@@ -12001,6 +12345,63 @@ function actionHandlers(target = null) {
     // Ny kontakt på klienten: klienten er forhåndsvalgt, slik at kontakten blir
     // valgbar som kontaktperson med én gang.
     'create-client-contact': () => openDialog('contact', 'create', { clientId: target?.dataset?.id ?? state.selected.client, status: 'active' }),
+    // Kladdekontakter i Opprett/Rediger virksomhet: registreres før
+    // virksomheten er lagret, og kobles til den kanoniske clientId ved save.
+    'client-draft-contact-add': () => {
+      const name = String(state.draft.draftContactName ?? '').trim()
+      if (!name) { state.formError = 'common.required'; render(); return }
+      state.formError = null
+      const contact = {
+        name,
+        role: String(state.draft.draftContactRole ?? '').trim(),
+        email: String(state.draft.draftContactEmail ?? '').trim(),
+        phone: String(state.draft.draftContactPhone ?? '').trim(),
+        status: 'active',
+        systemAccess: contactAccessFromDraft(state.draft, state.editingId)
+      }
+      state.draft.draftContacts = [...(state.draft.draftContacts ?? []), contact]
+      // Skjemaet nullstilles til neste kontakt - inkludert tilgangsfeltene.
+      // (Selve listen draftContacts skal selvsagt bestå.)
+      for (const key of Object.keys(state.draft)) {
+        if ((key.startsWith('draftContact') && key !== 'draftContacts') || key.startsWith('perm-') || key.startsWith('access-dep-')) delete state.draft[key]
+      }
+      delete state.draft.accessEnabled
+      delete state.draft.accessScope
+      delete state.draft.accessStatus
+      delete state.draft.accessPreset
+      render()
+    },
+    'client-draft-contact-remove': () => {
+      const index = Number(target?.dataset?.index)
+      state.draft.draftContacts = (state.draft.draftContacts ?? []).filter((_, i) => i !== index)
+      render()
+    },
+    // Dokumentopplasting: skjemaet starter alltid tomt - navnet foreslås aldri.
+    'upload-client-document': () => {
+      state.selected.documentClient = target?.dataset?.id ?? state.selected.client
+      openDialog('client-document', 'create', { docName: '', docCategory: '' })
+    },
+    'save-client-document': () => {
+      const client = record('clients', state.selected.documentClient ?? state.selected.client)
+      const name = String(state.draft.docName ?? '').trim()
+      if (!client) return
+      if (!name) { state.formError = 'docs.nameRequired'; render(); return }
+      state.formError = null
+      client.documents = [...(client.documents ?? []), { id: nextNumericSlotId(), name, category: state.draft.docCategory || 'other', fileName: '' }]
+      persist(); closeDialog(); showToast('docs.saved')
+    },
+    // Å slå av tilgangen stopper Workmatic-bruken, men sletter aldri kontakten
+    // eller konfigurasjonen - den kan aktiveres på nytt.
+    'toggle-contact-access': () => {
+      const contact = record('contacts', target?.dataset?.id)
+      if (!contact?.systemAccess) return
+      contact.systemAccess.status = contact.systemAccess.status === 'inactive' ? 'active' : 'inactive'
+      persist(); render()
+    },
+    'preview-contact-access': () => {
+      state.selected.accessContact = target?.dataset?.id
+      openDialog('access-preview')
+    },
     'close-dialog': closeDialog,
     'dialog-next': () => { state.dialogStep += 1; render() },
     'dialog-back': () => { state.dialogStep = Math.max(0, state.dialogStep - 1); render() },
@@ -12938,8 +13339,30 @@ const entities = {
     prefix: 'k',
     nameField: 'name',
     dialog: 'contact',
-    toDraft: item => ({ ...item, role: label(item.role) }),
-    fromDraft: draft => ({ name: String(draft.name ?? '').trim(), role: draft.role ?? '', clientId: draft.clientId || null, email: draft.email ?? '', phone: draft.phone ?? '', status: draft.status ?? 'active' })
+    // Kontakt ≠ systembruker: systemAccess flates ut til skjemafelter ved
+    // redigering, og bygges kun når «Gi tilgang til Workmatic» er eksplisitt
+    // valgt. Uten valget er systemAccess null - ingen skjulte rettigheter.
+    toDraft: item => ({
+      ...item,
+      role: label(item.role),
+      accessEnabled: Boolean(item.systemAccess),
+      accessScope: item.systemAccess?.scope ?? 'whole_business',
+      accessStatus: item.systemAccess?.status ?? 'active',
+      ...Object.fromEntries((item.systemAccess?.departmentIds ?? []).map(id => [`access-dep-${id}`, true])),
+      ...Object.fromEntries((item.systemAccess?.permissions ?? []).map(id => [`perm-${id}`, true]))
+    }),
+    fromDraft: draft => ({
+      name: String(draft.name ?? '').trim(),
+      role: draft.role ?? '',
+      clientId: draft.clientId || null,
+      email: draft.email ?? '',
+      phone: draft.phone ?? '',
+      status: draft.status ?? 'active',
+      // Least privilege: tilgangen finnes bare når den er slått på, og består
+      // kun av eksplisitt valgt scope + eksplisitt valgte tilganger. Å fjerne
+      // tilgangen sletter aldri kontakten - feltet blir bare null.
+      systemAccess: contactAccessFromDraft(draft, draft.clientId || null)
+    })
   },
   candidate: {
     collection: 'candidates',
@@ -13321,7 +13744,11 @@ function crudHandlers(target) {
       if (state.draft.tariffId && !record('tariffs', state.draft.tariffId)) {
         state.formError = 'common.required'; render(); return
       }
-      commit(entities.client.collection, entities.client.prefix, entities.client.nameField, entities.client.fromDraft)
+      // Kladdekontaktene leses før commit (closeDialog tømmer kladden) og blir
+      // vanlige contacts-poster koblet til den lagrede virksomhetens id.
+      const draftContacts = [...(state.draft.draftContacts ?? [])]
+      const saved = commit(entities.client.collection, entities.client.prefix, entities.client.nameField, entities.client.fromDraft)
+      if (saved) draftContacts.forEach(contact => createRecord('contacts', 'k', { ...contact, clientId: saved.id }))
     },
     'save-department': () => {
       // Avdelingen kan bare bruke et lønnssystem klienten har tilgang til.
@@ -13765,6 +14192,16 @@ function captureField(element) {
 
 function applyDraftChange(name, value) {
   state.draft[name] = value
+  // Tilgangsmalen er kun et UX-forhåndsvalg: den krysser av tilgangene, og
+  // fasiten forblir de faktiske avkrysningene (som kan justeres etterpå).
+  if ((state.dialog === 'contact' || state.dialog === 'client') && name === 'accessPreset') {
+    const preset = ACCESS_PRESETS[value]
+    if (preset) for (const id of WORKMATIC_PERMISSION_IDS) state.draft[`perm-${id}`] = preset.includes(id)
+  }
+  // Bytte av virksomhet nullstiller avdelingsvalg som hører til den forrige.
+  if (state.dialog === 'contact' && name === 'clientId') {
+    for (const key of Object.keys(state.draft)) if (key.startsWith('access-dep-')) delete state.draft[key]
+  }
   // Avdelingen kan bare velge blant klientens lønnssystemer. Bytter man klient,
   // nullstilles et valg som ikke lenger er tilgjengelig.
   if (state.dialog === 'department' && name === 'clientId') {
@@ -13886,7 +14323,7 @@ function captureReportField(element) {
 // utløse det: et datofelt fyrer change per utfylt segment i Chrome, og en full
 // re-rendring midt i skrivingen river noden ut under markøren. Verdifelter
 // oppdaterer derfor bare kladden; feltet beholder sin egen verdi og fokus.
-const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees'])
+const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees', 'contact', 'client'])
 const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit', 'payMode', 'type'])
 
 function handleDraftFieldChange(name, value) {
@@ -14056,6 +14493,26 @@ window.__workmaticPreview = {
   sickLeaves: () => JSON.parse(JSON.stringify(sickLeavesCollection())),
   reportField: element => captureReportField(element),
   matchForSlot: (assignmentId, slotId) => JSON.parse(JSON.stringify(matchCandidatesForSlot(record('assignments', assignmentId), slotById(record('assignments', assignmentId), slotId)).map(match => ({ ...match, employee: { id: match.employee.id, name: match.employee.name } })))),
+  // Brukere og tilganger: den avledede, scopede visningen for én kontakt -
+  // samme filtre som forhåndsvisningsdialogen leser (§15).
+  contactAccessPreview: contactId => {
+    const contact = record('contacts', contactId)
+    if (!contact) return null
+    const access = contactActiveAccess(contact)
+    const clientId = contact.clientId
+    return JSON.parse(JSON.stringify({
+      hasSystemAccess: Boolean(contact.systemAccess),
+      accessActive: Boolean(access),
+      scope: contact.systemAccess?.scope ?? null,
+      permissions: contact.systemAccess?.permissions ?? [],
+      departmentIds: accessDepartmentIds(clientId, access),
+      assignmentIds: access && accessCan(access, 'shifts.view') ? accessScopedAssignments(clientId, access).map(item => item.id) : null,
+      timesheetIds: access && accessCan(access, 'timesheets.view') ? accessScopedTimesheets(clientId, access).map(item => item.id) : null,
+      employeeIds: access && accessCan(access, 'employees.view') ? [...new Set(accessScopedAssignments(clientId, access).flatMap(item => item.employeeIds ?? []))] : null,
+      canSeeEconomy: Boolean(access && (accessCan(access, 'economy.prices') || accessCan(access, 'economy.invoiceBasis')))
+    }))
+  },
+  permissionCatalog: () => JSON.parse(JSON.stringify(WORKMATIC_PERMISSION_GROUPS)),
   setSimulationField: (name, value) => { state.simulationForm[name] = value; state.lastSimulation = null; render() },
   compareVersions: (leftId, rightId) => compareVersionValues(record('schemeVersions', leftId), record('schemeVersions', rightId)),
   go: (route, id = null) => navigate(route, id),
@@ -14135,6 +14592,8 @@ if (routes[boot.route]) {
   const bootKey = selectionKey[boot.route]
   if (bootKey && boot.id) state.selected[bootKey] = boot.id
 }
+// Samme standard som ved navigasjon: Kunder åpner på Aktive også fra bokmerke.
+if (state.route === 'clients') state.filters.status = 'active'
 render()
 
 </script>
