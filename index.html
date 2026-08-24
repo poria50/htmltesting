@@ -2455,16 +2455,17 @@ const state = {
   timesheetFilters: { clientId: '', departmentId: '' },
   // Fakturagrunnlag: periode, klient og avdelingsfilter.
   // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
-  // avdelinger. departmentIds består kun som API-kompatibilitet for testene.
-  reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '', departmentIds: [] },
+  // avdelinger. departmentId er den ENE sannheten - ingen parallell liste.
+  reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '' },
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
   // Lønn som ansattoversikt: søk, klient og avdeling. Avdeling avhenger av klient.
   payrollFilters: { search: '', clientId: '', departmentId: '' },
   payrollDetailed: false,
-  // Bemanningsforespørsler: valgte mottakere, søk/filter i ansattlisten, og
-  // hvem som har fått forespørsel på hvilket oppdrag. Alt lever i demo-state.
+  // Bemanningsforespørsler: valgte mottakere og søk/filter i ansattlisten.
+  // Selve forespørselssannheten er de persisterte hendelsene på vakten og
+  // køen på bemanningsplassen (staffingSlot.requestQueue) - ingen egen logg.
   requestRecipients: [],
   staffingFilters: { search: '', availableOnly: true },
   // Handlingen som pågår på en tildelt ansatt: fjern eller erstatt.
@@ -2472,7 +2473,6 @@ const state = {
   // Previewen har ingen innlogget rolle, så økonomikortet kan vises som admin
   // eller som den ansatte selv.
   economyView: 'admin',
-  requestLog: {},
   drawer: null,
   // Simulering og versjonssammenligning.
   simulationForm: { employeeId: 'e1', tariffId: 't1', scenario: 'planned', startDate: '2026-08-17', endDate: '2026-08-17' },
@@ -5728,8 +5728,6 @@ const routes = {
   'employee-detail': ['employees.detail', 'page.employees.desc'],
   staffing: ['shifts.newTitle', 'page.staffing.desc'],
   'job-detail': ['staffing.detail', 'page.staffing.desc'],
-  jobs: ['nav.jobs', 'page.jobs.desc'],
-  'job-details': ['jobs.detail', 'page.jobs.desc'],
   shifts: ['shifts.pageTitle', 'shifts.pageDesc'],
   timesheets: ['nav.timesheets', 'page.timesheets.desc'],
   'timesheet-review': ['timesheets.review', 'page.timesheets.desc'],
@@ -7680,8 +7678,8 @@ function matchStatusFor(employee, assignment) {
 function requestStatusFor(assignmentId, employeeId) {
   const assignment = record('assignments', assignmentId)
   if (assignment?.employeeIds?.includes(employeeId)) return { key: 'staffing.assigned', tone: 'success' }
-  // Kontakthistorikken leses fra de persisterte hendelsene; det gamle flyktige
-  // requestLog-kartet er ikke lenger en aktiv sannhet.
+  // Kontakthistorikken leses fra de persisterte hendelsene på vakten; det
+  // gamle flyktige requestLog-kartet er fjernet helt.
   const contacted = (assignment?.events ?? []).some(event => event.type === 'request_sent' && event.employeeId === employeeId)
   return contacted
     ? { key: 'staffing.requestSentStatus', tone: 'info' }
@@ -8349,12 +8347,30 @@ function employeeWorkEvidence() {
     }
     byEmployee.set(employeeId, bucket)
   }
+  // Én faktisk arbeidet vakt teller nøyaktig én gang. Godkjent kanonisk
+  // timeliste er det sterkeste beviset; en historisk shift-rad brukes bare når
+  // ingen kanonisk godkjenning dekker samme arbeidsforhold. Nøkkelen er den
+  // kanoniske bemanningsrelasjonen (assignment + slot + ansatt), og for
+  // legacy-rader uten slotId den sterkeste deterministiske ekvivalenten:
+  // assignment + ansatt + dato. Antall og «sist arbeidet» leses fra samme
+  // dedupliserte sett - aldri fra to ulike kilder.
+  const canonicalKeys = new Set()
+  const coveredWork = new Set()
   for (const { snapshot } of approvedWorkTimesheets()) {
+    const canonicalKey = `${snapshot.assignmentId}|${snapshot.slotId}|${snapshot.employeeId}`
+    if (canonicalKeys.has(canonicalKey)) continue
+    canonicalKeys.add(canonicalKey)
+    coveredWork.add(`${snapshot.assignmentId}|${snapshot.employeeId}|${snapshot.plannedDate ?? ''}`)
     entry(snapshot.employeeId, snapshot.clientId, snapshot.departmentId, snapshot.plannedDate ?? '')
   }
   for (const shift of collection('shifts')) {
     const assignment = record('assignments', shift.assignmentId || record('jobs', shift.jobId)?.assignmentId)
     if (!assignment || !shift.employeeId) continue
+    // En kansellert vakt uten arbeidet/godkjent bevis er ikke erfaring.
+    if (shift.status === 'cancelled') continue
+    const legacyKey = `${assignment.id}|${shift.employeeId}|${shift.date ?? ''}`
+    if (coveredWork.has(legacyKey)) continue
+    coveredWork.add(legacyKey)
     entry(shift.employeeId, assignment.clientId, assignment.departmentId, shift.date ?? '')
   }
   return byEmployee
@@ -8655,26 +8671,11 @@ function shiftCompensation(shiftInput) {
   }
 }
 
-function renderJobs() {
-  const visible = filterList('jobs', ['title', 'role', 'location'])
-  const rows = visible.map(item => {
-    const employee = record('employees', item.employeeId)
-    const client = record('clients', item.clientId)
-    return `<tr><td><button class="row-link" data-route="job-details" data-id="${item.id}">${lab(item.title)}</button></td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${item.start && item.end ? formatDateRange(item.start, item.end) : ''}</td><td>${lab(item.role)}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-route="job-details" data-id="${item.id}">${t('common.view')}</button></td></tr>`
-  })
-  return `<section class="page">${searchToolbar()}${dataTable('jobs', ['common.name', 'jobs.employee', 'jobs.client', 'jobs.period', 'jobs.role', 'common.status', 'common.actions'], rows, collection('jobs').length)}</section>`
-}
-
-function renderJobDetails() {
-  const job = record('jobs', state.selected.job)
-  if (!job) return missingRecord('back-jobs')
-  const employee = record('employees', job.employeeId)
-  const client = record('clients', job.clientId)
-  const shifts = collection('shifts').filter(item => item.jobId === job.id)
-  const rows = shifts.map(item => `<tr><td>${formatDate(item.date)}</td><td>${escapeHtml(item.start)}–${escapeHtml(item.end)}</td><td>${formatNumber(shiftDuration(item), 1)}</td><td>${statusTag(item.status)}</td></tr>`)
-  const actions = button('common.back', 'back-jobs', 'secondary', 'arrow-left')
-  return `<section class="page">${pageHeading('jobs.detail', 'page.jobs.desc', actions)}<div class="grid cols-2"><article class="card"><h2>${lab(job.title)}</h2><dl class="detail-list"><div><dt>${t('jobs.employee')}</dt><dd>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</dd></div><div><dt>${t('jobs.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('jobs.role')}</dt><dd>${lab(job.role)}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(job.location)}</dd></div><div><dt>${t('jobs.period')}</dt><dd>${formatDateRange(job.start, job.end)}</dd></div><div><dt>${t('common.status')}</dt><dd>${statusTag(job.status)}</dd></div></dl></article><article class="card"><h2>${t('jobs.upcoming')}</h2>${rows.length ? table(['common.date', 'shifts.time', 'timesheets.hours', 'common.status'], rows) : `<p class="muted">${t('jobs.noUpcoming')}</p>`}</article></div></section>`
-}
+// De gamle Jobber-flatene (renderJobs/renderJobDetails) er fjernet: rutene
+// jobs/job-details har vært omdirigert til Vaktoversikt siden modulene ble
+// pensjonert, så funksjonene var bevist uoppnåelig dødkode. Selve jobs-DATAENE
+// består urørt - historiske shifts peker på dem, og erfaringsbeviset i
+// matchingen leser assignmentId via jobs-koblingen.
 
 // Container-visningen for Vakter. Vaktmaler er default. Konkrete vakter listes
 // ikke her lenger - de hører til oppdraget i Bemanning - men shift-dataene og
@@ -8905,7 +8906,9 @@ function slotTimesheetTable() {
         : `<span class="tag warning">${t('timesheets.noApprover')}</span>`
     return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${timeRangeLabel(item.plannedStart, item.plannedEnd, item.endNextDay)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approverCell}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
   })
-  if (!rows.length && !statusFilter) return ''
+  // Kortet vises alltid når et filter er aktivt (status ELLER klient/avdeling),
+  // slik at et tomt utvalg forklares i stedet for at tabellen bare forsvinner.
+  if (!rows.length && !statusFilter && !state.timesheetFilters.clientId) return ''
   const body = rows.length
     ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)
     : `<p class="muted">${t('timesheets.emptyFiltered')}</p>`
@@ -9360,8 +9363,8 @@ function economyLines(form) {
   const lines = []
   const from = form.startDate
   const to = form.endDate
-  // Én valgt avdeling (rullegardinen) eller den eldre listen fra API-et.
-  const departmentFilter = form.departmentId ? new Set([form.departmentId]) : new Set(form.departmentIds ?? [])
+  // Én valgt avdeling (rullegardinen). Tom streng betyr «Alle avdelinger».
+  const departmentFilter = new Set(form.departmentId ? [form.departmentId] : [])
 
   // Bare oppdrag for den valgte klienten, siden kommisjon og mva hentes fra
   // klientkortet og rapporten faktureres til én klient.
@@ -9874,7 +9877,7 @@ function timesheetPayrollSection() {
 }
 
 function payrollReport(form) {
-  const lines = economyLines({ ...form, clientId: null, departmentIds: [] }).map(line => ({
+  const lines = economyLines({ ...form, clientId: null }).map(line => ({
     ...line,
     client: record('clients', line.assignment.clientId),
     approved: shiftApproved(line.date, form)
@@ -10254,9 +10257,19 @@ function activeSlotTimesheets() {
 }
 
 // Timelister-tabellen og testene deler samme utvalg: det aktive settet, snevret
-// inn av det eksplisitte statusfilteret fra dashboardet (§13, §45).
+// inn av det eksplisitte statusfilteret fra dashboardet (§13, §45) og av det
+// eksisterende klient-/avdelingsfilteret på Timelister-siden. Klient og
+// avdeling utledes av oppdraget timelisten hører til - aldri av den ansatte.
 function visibleSlotTimesheets() {
-  return activeSlotTimesheets().filter(item => !state.slotTimesheetFilter || item.status === state.slotTimesheetFilter)
+  const { clientId, departmentId } = state.timesheetFilters
+  return activeSlotTimesheets().filter(item => {
+    if (state.slotTimesheetFilter && item.status !== state.slotTimesheetFilter) return false
+    if (!clientId && !departmentId) return true
+    const assignment = record('assignments', item.assignmentId)
+    if (clientId && assignment?.clientId !== clientId) return false
+    if (departmentId && assignment?.departmentId !== departmentId) return false
+    return true
+  })
 }
 
 // Matcher en plass dashboardfilteret? «Forespørsler venter» krever en aktiv
@@ -10907,7 +10920,7 @@ const renderers = {
   contacts: renderContacts, candidates: renderCandidates,
   'candidate-detail': renderCandidateDetail, employees: renderEmployees,
   'employee-detail': renderEmployeeDetail, staffing: renderStaffing, 'job-detail': renderJobDetail,
-  jobs: renderJobs, 'job-details': renderJobDetails, shifts: renderShifts, timesheets: renderTimesheets,
+  shifts: renderShifts, timesheets: renderTimesheets,
   'timesheet-review': renderTimesheetReview, 'timesheet-day': renderTimesheetDay,
   recruitment: renderRecruitment, messages: renderMessages, financial: renderFinancial,
   'tariff-detail': renderTariffDetail, 'salary-table': renderSalaryTable, settings: renderSettings,
@@ -10937,7 +10950,6 @@ const selectionKey = {
   'candidate-detail': 'candidate',
   'employee-detail': 'employee',
   'job-detail': 'assignment',
-  'job-details': 'job',
   'payroll-employee': 'payrollEmployee',
   'timesheet-review': 'timesheet',
   'timesheet-day': 'workSession',
@@ -12055,7 +12067,9 @@ function actionHandlers(target = null) {
       const value = { employeeId: state.draft.employeeId || null, jobId: state.draft.jobId || null, assignmentId, shiftTemplateId: template?.id ?? null, shiftTemplateSnapshot: template ? { name: template.name, startTime: start, endTime: end, breakMinutes } : null, breakMinutes, date: state.draft.date, start, end, status: state.draft.status || 'planned' }
       if (value.status === 'completed') value.calculationSnapshot = { ...result, historical: undefined }
       if (state.editingId) Object.assign(record('shifts', state.editingId), value)
-      else createRecord('shifts', 'sh', value)
+      // Nye registreringer følger den numeriske id-kontrakten; de historiske
+      // sh-postene i demodataene beholder id-en sin urørt.
+      else createRecord('shifts', '', value)
       persist()
       closeDialog()
       showToast('shifts.saved')
@@ -12827,9 +12841,9 @@ function actionHandlers(target = null) {
         return Boolean(employee?.email) && Boolean(employee?.phone)
       })
       if (!reachable.length) return
-      reachable.forEach(id => { state.requestLog[`${assignmentId}:${id}`] = channel })
       // Utsendelsen er en historisk hendelse på vakten: fra nå kan den ikke
-      // slettes, og endringer må varsles (§3).
+      // slettes, og endringer må varsles (§3). Hendelsen er den ENE sannheten -
+      // det gamle flyktige requestLog-kartet er fjernet.
       const requestedAssignment = record('assignments', assignmentId)
       if (requestedAssignment) {
         reachable.forEach(id => logAssignmentEvent(requestedAssignment, { type: 'request_sent', employeeId: id, channel }))
@@ -12841,7 +12855,7 @@ function actionHandlers(target = null) {
     },
     'message-send': () => showToast('messages.noSend'),
     'back-clients': () => navigate('clients'), 'back-departments': () => navigate('departments'), 'back-candidates': () => navigate('candidates'),
-    'back-employees': () => navigate('employees'), 'back-staffing': () => navigate('staffing'), 'back-jobs': () => navigate('jobs'),
+    'back-employees': () => navigate('employees'), 'back-staffing': () => navigate('staffing'),
     'back-payroll': () => navigate('payroll'),
     'back-timesheets': () => navigate('timesheets'), 'back-timesheet-review': () => navigate('timesheet-review', state.selected.timesheet),
     'back-financial': () => navigate('financial'), 'back-tariff': () => navigate('tariff-detail')
@@ -13971,7 +13985,6 @@ window.__workmaticPreview = {
   setStaffingFilter: (name, value) => { state.staffingFilters[name] = value; render() },
   workerAction: () => (state.workerAction ? { ...state.workerAction } : null),
   qualificationFor: (employeeId, assignmentId) => { const result = qualificationFor(record('employees', employeeId), record('assignments', assignmentId)); return { qualified: result.qualified, blockers: [...result.blockers], unmetPreferences: [...result.unmetPreferences] } },
-  requestLog: () => ({ ...state.requestLog }),
   searchEmployees: query => employeeSearchMatches(query).map(item => item.id),
   assignEmployee: value => { captureAssignEmployee({ dataset: { assignEmployee: '' }, value }); render() },
   auditInteractiveControls: () => {
@@ -14048,7 +14061,7 @@ window.__workmaticPreview = {
   go: (route, id = null) => navigate(route, id),
   payrollReport: form => payrollReport({ startDate: '2026-08-01', endDate: '2026-08-31', ...form }),
   setPayrollPeriod: (startDate, endDate) => { state.payrollForm = { startDate, endDate }; render() },
-  economyReport: form => economyReport({ clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentIds: [], ...form }),
+  economyReport: form => economyReport({ clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '', ...form }),
   deriveHourlyRate,
   resolveCompensation,
   payContext: (assignmentId, date) => {
