@@ -3337,6 +3337,8 @@ const copy = {
     'employees.policeCertificate': 'Politiattest',
     'employees.policeCertificateDate': 'Dato for politiattest',
     'employees.policeCertificateMissing': 'Mangler',
+    'docs.dateMissing': 'Dato mangler',
+    'docs.editTitle': 'Rediger dokument',
     'employees.clientNotes': 'Virksomhetsnotater',
     'staffing.assignDirectly': 'Tildel direkte',
     'staffing.sendRequestSlot': 'Send forespørsel',
@@ -4321,6 +4323,7 @@ copy.en = {
   'employees.policeCertificate': 'Police certificate',
   'employees.policeCertificateDate': 'Police certificate date',
   'employees.policeCertificateMissing': 'Missing',
+  'docs.dateMissing': 'Date missing', 'docs.editTitle': 'Edit document',
   'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
   'staffing.assignDirectly': 'Assign directly',
@@ -7639,44 +7642,35 @@ function formatBankAccount(country, value) {
   return String(value ?? '')
 }
 
-// === Verifiserbare ansattdokumenter ===
-// Politiattest og vitnemål inngår i en ekte verifiseringsflyt
-// (not_verified -> pending -> verified/rejected); andre dokumenter er bare
-// lastet opp og får ALDRI en kunstig review-status.
-const VERIFIABLE_DOCUMENT_CATEGORIES = new Set(['police_certificate', 'diploma'])
+// === Ansattdokumenter ===
+// Produktregel: et opplastet dokument regnes som godkjent/klart. Det finnes
+// ingen verifiseringsflyt - ingen statuser, ingen review-handlinger. Eldre
+// poster kan fortsatt bære legacy-feltene (verificationStatus/verifiedAt/
+// verifiedBy/events), men de rendres aldri og styrer ingenting.
 
-function documentStatusMarkup(item) {
-  if (!VERIFIABLE_DOCUMENT_CATEGORIES.has(item.category)) return `<span class="tag">${t('docs.uploaded')}</span>`
-  const status = item.verificationStatus ?? 'not_verified'
-  const tones = { verified: 'success', pending: 'warning', rejected: 'danger', not_verified: '' }
-  return `<span class="tag ${tones[status] ?? ''}">${t(`docs.status.${status}`)}</span>`
-}
-
-// Én sentral resolver for gjeldende politiattest: avviste dokumenter teller
-// aldri, verifiserte foretrekkes, og nyeste dokumentdato vinner - aldri
-// tilfeldig første element i arrayet.
+// Én sentral resolver for gjeldende politiattest: nyeste dokumentdato vinner;
+// dokumenter uten dato faller deterministisk bakerst (høyest id sist av dem).
+// Slettede dokumenter er fjernet fra arrayet og finnes dermed ikke her.
 function latestRelevantPoliceCertificate(employee) {
-  const candidates = (employee?.documents ?? [])
-    .filter(item => item.category === 'police_certificate' && item.verificationStatus !== 'rejected')
+  const candidates = (employee?.documents ?? []).filter(item => item.category === 'police_certificate')
   if (!candidates.length) return null
-  const byDate = (a, b) => String(b.documentDate ?? '').localeCompare(String(a.documentDate ?? ''))
-  const verified = candidates.filter(item => item.verificationStatus === 'verified').sort(byDate)
-  return verified[0] ?? [...candidates].sort(byDate)[0]
+  return [...candidates].sort((a, b) => String(b.documentDate ?? '').localeCompare(String(a.documentDate ?? '')) || String(b.id).localeCompare(String(a.id), undefined, { numeric: true }))[0]
 }
 
-// Kompakt status + dato for ansattkort og vaktflater. Vakten leser alltid
-// live employee-dokumentstate gjennom denne - ingen kopier på vakt/plass.
+// Kompakt dato for ansattkort og vaktflater: «Politiattest · 12.03.2026»,
+// «Politiattest · Dato mangler» eller «Politiattest · Mangler». Vakten leser
+// alltid live employee-dokumentstate - ingen kopier på vakt/plass.
 function policeCertificateSummary(employee) {
   const certificate = latestRelevantPoliceCertificate(employee)
   if (!certificate) return { key: 'employees.policeCertificateMissing', tone: 'danger', date: '' }
-  const status = certificate.verificationStatus ?? 'not_verified'
-  const tones = { verified: 'success', pending: 'warning', not_verified: 'warning' }
-  return { key: `docs.status.${status}`, tone: tones[status] ?? '', date: certificate.documentDate ?? '' }
+  if (!certificate.documentDate) return { key: 'docs.dateMissing', tone: '', date: '' }
+  return { key: null, tone: '', date: certificate.documentDate }
 }
 
 function policeCertificateMarkup(employee) {
   const summary = policeCertificateSummary(employee)
-  return `<span class="tag ${summary.tone}">${t('employees.policeCertificate')}: ${t(summary.key)}${summary.date ? ` · ${formatDate(summary.date)}` : ''}</span>`
+  const value = summary.date ? formatDate(summary.date) : t(summary.key)
+  return `<span class="tag ${summary.tone}">${t('employees.policeCertificate')} · ${value}</span>`
 }
 
 function renderEmployees() {
@@ -7757,14 +7751,7 @@ function renderEmployeeDetail() {
     // Kun faktisk lagrede dokumenter. Vanlige opplastinger har INGEN kunstig
     // «Til vurdering»-chip - de vises som lastet opp; compliance-review lever
     // i documentationStatus-feltet, ikke per fil.
-    [t('employees.documentsCompliance'), `${(employee.documents ?? []).map(item => {
-      const verifiable = VERIFIABLE_DOCUMENT_CATEGORIES.has(item.category)
-      const status = item.verificationStatus ?? 'not_verified'
-      const reviewActions = verifiable
-        ? `<div class="modal-actions">${status !== 'pending' && status !== 'verified' ? `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="pending">${t('docs.markPending')}</button>` : ''}${status !== 'verified' ? `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="verified">${t('docs.verify')}</button>` : `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="not_verified">${t('docs.undoVerify')}</button>`}${status !== 'rejected' && status !== 'verified' ? `<button type="button" class="button ghost small danger" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="rejected">${t('docs.reject')}</button>` : ''}</div>`
-        : button('common.download', 'demo-toast', 'secondary small')
-      return `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.verifiedAt ? ` · ${t('docs.verifiedBy')}: ${escapeHtml(item.verifiedBy ?? '')} ${formatDate(item.verifiedAt)}` : ''}</span></div><div class="modal-actions">${documentStatusMarkup(item)}${reviewActions}</div></div>`
-    }).join('') || `<p class="muted">${t('docs.none')}</p>`}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="upload-employee-document" data-id="${employee.id}">${icon('plus')}${t('docs.upload')}</button></div>`],
+    [t('employees.documentsCompliance'), `${(employee.documents ?? []).map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.fileName ? ` · ${escapeHtml(item.fileName)}` : ''}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="edit-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="delete-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.delete')}</button></div></div>`).join('') || `<p class="muted">${t('docs.none')}</p>`}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="upload-employee-document" data-id="${employee.id}">${icon('plus')}${t('docs.upload')}</button></div>`],
     [t('employees.educationCompetence'), `<dl class="detail-list"><div><dt>${t('employees.educationType')}</dt><dd>${escapeHtml(educationTypeLabel(employee.education))}</dd></div><div><dt>${t('employees.educationName')}</dt><dd>${String(employee.educationName ?? '').trim() ? escapeHtml(employee.educationName) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.position')}</dt><dd>${lab(employee.profession)}</dd></div><div><dt>${t('employees.competence')}</dt><dd>${(employee.competenceTags ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.approvedPaySeniority')}</dt><dd>${seniorityYears === null ? statusTag('pending') : t('demo.years', { count: seniorityYears })}</dd></div><div><dt>${t('employees.seniorityDate')}</dt><dd>${employee.seniorityBasisDate ? formatDate(employee.seniorityBasisDate) : '—'}</dd></div></dl>${!employee.seniorityApproved ? `<button class="button secondary small" data-action="approve-seniority" data-id="${employee.id}">${t('employees.approveSeniority')}</button>` : ''}${employeeFactsComplete(employee) ? '' : `<p class="field-help">${t('employees.payFactsMissing')}</p>`}<p class="field-help">${t('employees.payInfoHelp')}</p>`],
     // Interne notater er ADMIN-ONLY: de er utelatt fra den ansatt-synlige
     // projeksjonen (employeeVisibleProfile) og hører aldri hjemme i felter den
@@ -7772,7 +7759,7 @@ function renderEmployeeDetail() {
     [t('employees.adminNotes'), `${String(employee.adminNotes ?? '').trim() ? `<p>${escapeHtml(employee.adminNotes)}</p>` : `<p class="muted">${t('common.none')}</p>`}<p class="field-help">${t('employees.adminNotesHelp')}</p>`],
     [t('employees.licences'), `<dl class="detail-list"><div><dt>${t('employees.authorization')}</dt><dd>${employee.authorization ? `${t('common.yes')} ${licenceStatus(employee.authorizationExpiry) ?? `<span class="tag success">${t('employees.licenceValid')}</span>`}` : t('common.no')}</dd></div><div><dt>${t('employees.tradeCertificate')}</dt><dd>${employee.tradeCertificate ? t('common.yes') : t('common.no')}</dd></div><div><dt>${t('employees.certifications')}</dt><dd>${(employee.certifications ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.policeCertificate')}</dt><dd>${(() => {
       const summary = policeCertificateSummary(employee)
-      return `<span class="tag ${summary.tone}">${t(summary.key)}</span>${summary.date ? ` ${formatDate(summary.date)}` : ''}`
+      return summary.date ? formatDate(summary.date) : `<span class="tag ${summary.tone}">${t(summary.key)}</span>`
     })()}</dd></div><div><dt>${t('employees.documentationStatus')}</dt><dd>${employee.documentationStatus === 'verified' ? statusTag('active', 'employees.verified') : statusTag('pending')}</dd></div></dl>`],
     [t('employees.history'), `${(() => {
       const worked = employeeWorkHistory(employee.id)
@@ -11666,11 +11653,15 @@ function employeeDialog() {
   if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', t('employees.educationType'), educationChoices, { placeholder: t('common.select') })}${bound('educationName', t('employees.educationName'))}${boundCheckbox('authorization', t('employees.authorization'))}</div></div><div class="form-section"><h3>${t('employees.documentsCompliance')}</h3><div class="grid cols-2">${boundSelect('documentationStatus', t('employees.documentationStatus'), [{ value: 'verified', text: t('employees.verified') }, { value: 'pending', text: t('common.pending') }])}</div></div>`
   if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'))}${boundSelect('profession', t('employees.position'), professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date' })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%' })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date' })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
   if (state.dialogStep === 3) {
-    // Kun faktisk lagrede dokumenter - aldri forhåndsutfylte demonavn.
-    // Opplasting (med eget visningsnavn) skjer fra ansattkortet.
-    const documents = state.editingId ? (record('employees', state.editingId)?.documents ?? []) : []
-    const rows = documents.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}</span></div></div>`).join('')
-    body = `<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div>${documents.length ? rows : `<p class="muted">${t('docs.none')}</p>`}<p class="field-help">${t('docs.uploadedFromCard')}</p></div>${storageNote()}`
+    // Dokumenter kan lastes opp FØR den ansatte er lagret: kladdene ligger i
+    // draft.employeeDocuments og kobles til den kanoniske posten ved lagring.
+    // Ingen forhåndsutfylte demonavn; ingen verifiseringsflyt.
+    const saved = state.editingId ? (record('employees', state.editingId)?.documents ?? []) : []
+    const savedRows = saved.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.fileName ? ` · ${escapeHtml(item.fileName)}` : ''}</span></div></div>`).join('')
+    const drafts = state.draft.employeeDocuments ?? []
+    const draftRows = drafts.map((item, index) => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="employee-draft-document-edit" data-index="${index}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="employee-draft-document-remove" data-index="${index}">${t('common.delete')}</button></div></div>`).join('')
+    const editingDoc = Number.isInteger(Number(state.draft.editingDocumentIndex)) && drafts[Number(state.draft.editingDocumentIndex)]
+    body = `${formError()}<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div>${savedRows}${draftRows}${!saved.length && !drafts.length ? `<p class="muted">${t('docs.none')}</p>` : ''}<div class="form-section"><h3>${t(editingDoc ? 'docs.editTitle' : 'docs.upload')}</h3><div class="grid cols-2">${employeeDocumentFieldset('employee-draft-doc-file')}</div><div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary" data-action="employee-draft-document-add">${icon('plus')}${t(editingDoc ? 'common.save' : 'docs.upload')}</button></div></div></div>${storageNote()}`
   }
   const stepper = `<div class="stepper" aria-label="${t('employees.progress', { current: state.dialogStep + 1, total: 4 })}">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}"><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`employees.${step}`)}</span></button>`).join('')}</div>${body}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < 3 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-employee">${t('common.save')}</button></div>`
@@ -11793,12 +11784,20 @@ function clientDocumentDialog() {
 
 // Ansattdokument: fil, eget visningsnavn (fallback = filnavnet) og kategori -
 // alle felter starter tomme.
-function employeeDocumentDialog() {
-  // Politiattest og vitnemål er verifiserbare kategorier; dokumentdatoen (for
-  // eksempel datoen på politiattesten) er et eget business-felt på dokumentet.
+// Delte dokumentfelter for opplasting og kladd: fil, visningsnavn, kategori
+// og dokumentdato (politiattestens dato når kategorien er politiattest).
+function employeeDocumentFieldset(fileInputId) {
   const categories = ['police_certificate', 'diploma', 'agreement', 'other'].map(key => ({ value: key, text: t(`docs.category.${key}`) }))
-  const body = `${formError()}<div class="grid"><div class="field"><label>${t('docs.file')}</label><input type="file" id="employee-doc-file" aria-label="${t('docs.file')}"></div>${bound('docName', t('docs.name'), { help: t('employees.sensitive') })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}${bound('docDate', t('docs.date'), { type: 'date' })}</div>${storageNote()}`
-  return modalShell(t('docs.upload'), t('employees.files'), 'file', body, formFooter('save-employee-document'), 'small')
+  const fileField = fileInputId ? `<div class="field"><label>${t('docs.file')}</label><input type="file" id="${fileInputId}" aria-label="${t('docs.file')}"></div>` : ''
+  return `${fileField}${bound('docName', t('docs.name'), { help: t('employees.sensitive') })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}${bound('docDate', t('docs.date'), { type: 'date' })}`
+}
+
+function employeeDocumentDialog() {
+  const editing = Boolean(state.editingId)
+  // Ved redigering byttes aldri filen: originalfilnavnet består uansett hva
+  // visningsnavnet endres til.
+  const body = `${formError()}<div class="grid">${employeeDocumentFieldset(editing ? null : 'employee-doc-file')}</div>${storageNote()}`
+  return modalShell(t(editing ? 'docs.editTitle' : 'docs.upload'), t('employees.files'), 'file', body, formFooter('save-employee-document'), 'small')
 }
 
 // Forhåndsvisning av én brukers faktiske utsyn: ALT innhold under leses
@@ -12696,12 +12695,19 @@ function actionHandlers(target = null) {
       state.draft.draftContacts = (state.draft.draftContacts ?? []).filter((_, i) => i !== index)
       render()
     },
-    // Ansattdokumenter: samme kontrakt som virksomhetens - tomt skjema, eget
-    // visningsnavn, originalfilnavnet som fallback, ingen kunstig «Til
-    // vurdering»-status for vanlige opplastinger.
+    // Ansattdokumenter: et opplastet dokument regnes som godkjent/klart -
+    // ingen verifiseringsflyt. Samme dialog brukes til opplasting og
+    // redigering; originalfilnavnet overskrives aldri av visningsnavnet.
     'upload-employee-document': () => {
       state.selected.documentEmployee = target?.dataset?.id ?? state.selected.employee
-      openDialog('employee-document', 'create', { docName: '', docCategory: '' })
+      openDialog('employee-document', 'create', { docName: '', docCategory: '', docDate: '' })
+    },
+    'edit-employee-document': () => {
+      const employee = record('employees', target?.dataset?.employeeId ?? state.selected.employee)
+      const doc = (employee?.documents ?? []).find(item => String(item.id) === String(target?.dataset?.id))
+      if (!doc) return
+      state.selected.documentEmployee = employee.id
+      openDialog('employee-document', 'edit', { docName: label(doc.name), docCategory: doc.category ?? '', docDate: doc.documentDate ?? '' }, doc.id)
     },
     'save-employee-document': () => {
       const employee = record('employees', state.selected.documentEmployee ?? state.selected.employee)
@@ -12710,34 +12716,54 @@ function actionHandlers(target = null) {
       const name = String(state.draft.docName ?? '').trim() || fileName
       if (!name) { state.formError = 'docs.nameRequired'; render(); return }
       state.formError = null
-      const category = state.draft.docCategory || 'other'
-      const doc = { id: nextNumericSlotId(), name, category, fileName, documentDate: state.draft.docDate || '' }
-      // Bare verifiserbare kategorier går inn i verifiseringsflyten - et vanlig
-      // dokument er bare lastet opp og får aldri en review-status.
-      if (VERIFIABLE_DOCUMENT_CATEGORIES.has(category)) {
-        doc.verificationStatus = 'not_verified'
-        doc.events = [{ id: nextNumericSlotId(), at: new Date().toISOString(), type: 'document_uploaded', actor: 'demo-admin' }]
+      if (state.editingId) {
+        const doc = (employee.documents ?? []).find(item => String(item.id) === String(state.editingId))
+        if (doc) Object.assign(doc, { name, category: state.draft.docCategory || doc.category || 'other', documentDate: state.draft.docDate || '' })
+      } else {
+        employee.documents = [...(employee.documents ?? []), { id: nextNumericSlotId(), name, category: state.draft.docCategory || 'other', fileName, documentDate: state.draft.docDate || '' }]
       }
-      employee.documents = [...(employee.documents ?? []), doc]
       persist(); closeDialog(); showToast('docs.saved')
     },
-    // Verifiseringsflyten for politiattest/vitnemål: statusskiftene logges som
-    // hendelser på dokumentet og slettes aldri.
-    'employee-document-status': () => {
-      const employee = record('employees', target?.dataset?.employeeId ?? state.selected.employee)
-      const doc = (employee?.documents ?? []).find(item => String(item.id) === String(target?.dataset?.id))
-      const status = target?.dataset?.status
-      if (!doc || !['pending', 'verified', 'rejected', 'not_verified'].includes(status)) return
-      doc.verificationStatus = status
-      if (status === 'verified') {
-        doc.verifiedAt = new Date().toISOString().slice(0, 10)
-        doc.verifiedBy = 'demo-admin'
-      } else {
-        delete doc.verifiedAt
-        delete doc.verifiedBy
-      }
-      doc.events = [...(doc.events ?? []), { id: nextNumericSlotId(), at: new Date().toISOString(), type: `document_${status}`, actor: 'demo-admin' }]
-      persist(); render()
+    // Sletting med vanlig confirm-mønster. Et slettet politiattestdokument
+    // fjernes fra arrayet og finnes dermed ikke for vaktvisningens resolver.
+    'delete-employee-document': () => {
+      state.deleteTarget = { type: 'employee-document', employeeId: target?.dataset?.employeeId ?? state.selected.employee, id: target?.dataset?.id }
+      openDialog('confirm-delete')
+    },
+    // Kladdedokumenter i Ny ansatt (steg 4): legges til/redigeres/slettes i
+    // kladden og kobles til den kanoniske ansatte ved lagring.
+    'employee-draft-document-add': () => {
+      const fileName = document.getElementById('employee-draft-doc-file')?.files?.[0]?.name ?? ''
+      const name = String(state.draft.docName ?? '').trim() || fileName
+      if (!name) { state.formError = 'docs.nameRequired'; render(); return }
+      state.formError = null
+      const doc = { name, category: state.draft.docCategory || 'other', fileName, documentDate: state.draft.docDate || '' }
+      const list = [...(state.draft.employeeDocuments ?? [])]
+      const index = Number(state.draft.editingDocumentIndex)
+      if (Number.isInteger(index) && list[index]) list[index] = { ...list[index], ...doc, fileName: list[index].fileName || fileName }
+      else list.push({ id: nextNumericSlotId(), ...doc })
+      state.draft.employeeDocuments = list
+      delete state.draft.editingDocumentIndex
+      delete state.draft.docName
+      delete state.draft.docCategory
+      delete state.draft.docDate
+      render()
+    },
+    'employee-draft-document-edit': () => {
+      const index = Number(target?.dataset?.index)
+      const doc = (state.draft.employeeDocuments ?? [])[index]
+      if (!doc) return
+      state.draft.editingDocumentIndex = index
+      state.draft.docName = doc.name
+      state.draft.docCategory = doc.category
+      state.draft.docDate = doc.documentDate
+      render()
+    },
+    'employee-draft-document-remove': () => {
+      const index = Number(target?.dataset?.index)
+      state.draft.employeeDocuments = (state.draft.employeeDocuments ?? []).filter((_, i) => i !== index)
+      if (Number(state.draft.editingDocumentIndex) === index) delete state.draft.editingDocumentIndex
+      render()
     },
     // Dokumentopplasting: skjemaet starter alltid tomt - navnet foreslås aldri.
     'upload-client-document': () => {
@@ -14069,6 +14095,17 @@ function crudHandlers(target) {
     'reset-request': () => openDialog('confirm-reset'),
     'confirm-reset': () => { resetData(); closeDialog(); navigate('dashboard'); showToast('crud.resetDone') },
     'confirm-delete': () => {
+      // Ansattdokumenter er nestede poster: hard delete fra employee.documents.
+      // Resolveren for politiattest ser dermed aldri et slettet dokument.
+      if (state.deleteTarget?.type === 'employee-document') {
+        const employee = record('employees', state.deleteTarget.employeeId)
+        const doc = (employee?.documents ?? []).find(item => String(item.id) === String(state.deleteTarget.id))
+        if (employee) employee.documents = (employee.documents ?? []).filter(item => String(item.id) !== String(state.deleteTarget.id))
+        state.deleteTarget = null
+        persist(); closeDialog(); render()
+        showToast('crud.deleted', { name: doc ? label(doc.name) : '' })
+        return
+      }
       const { collectionName, id: targetId } = state.deleteTarget ?? {}
       const item = record(collectionName, targetId)
       const name = item ? label(item.name ?? item.title ?? '') : ''
@@ -14117,7 +14154,15 @@ function crudHandlers(target) {
       // kontrollsiffer (mellomrom normaliseres). Andre land valideres ikke her.
       const bankError = bankAccountError(state.draft.bankCountry, state.draft.bankAccount)
       if (bankError) { state.formError = bankError; render(); return }
+      // Kladdedokumentene fra steg 4 leses før commit (closeDialog tømmer
+      // kladden) og legges på den kanoniske posten - samme documents-modell
+      // som ansattkortet bruker.
+      const draftDocuments = [...(state.draft.employeeDocuments ?? [])]
       const saved = commit(spec.collection, spec.prefix, spec.nameField, spec.fromDraft)
+      if (saved && draftDocuments.length) {
+        saved.documents = [...(saved.documents ?? []), ...draftDocuments]
+        persist()
+      }
       if (saved && converting && sourceId) {
         deleteRecord('candidates', sourceId)
         showToast('crud.convertDone', { name: saved.name })
