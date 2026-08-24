@@ -2453,6 +2453,9 @@ const state = {
   // Timelister: klient styrer avdeling, så avdelingen nullstilles når klienten
   // byttes. Tomme strenger betyr «alle».
   timesheetFilters: { clientId: '', departmentId: '' },
+  // Avdelinger som egen modul: virksomhet, lønnssystem og sortering. Status
+  // filtreres via det generiske statusfilteret (state.filters.status).
+  departmentFilters: { clientId: '', paySystemId: '', sort: 'name' },
   // Fakturagrunnlag: periode, klient og avdelingsfilter.
   // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
   // avdelinger. departmentId er den ENE sannheten - ingen parallell liste.
@@ -2515,6 +2518,19 @@ const copy = {
     'nav.dashboard': 'Dashboard',
     'nav.clients': 'Virksomheter',
     'nav.departments': 'Avdelinger',
+    // Avdelinger som egen modul: filtre, sortering og relasjonslenker.
+    'common.id': 'ID',
+    'departments.filter.allClients': 'Alle virksomheter',
+    'departments.filter.allPaySystems': 'Alle lønnssystemer',
+    'departments.sort.label': 'Sortering',
+    'departments.sort.nameAsc': 'Avdeling A–Å',
+    'departments.sort.nameDesc': 'Avdeling Å–A',
+    'departments.sort.clientAsc': 'Virksomhet A–Å',
+    'departments.sort.clientDesc': 'Virksomhet Å–A',
+    'departments.none': 'Ingen avdelinger funnet',
+    'departments.viewShifts': 'Vis vakter',
+    'departments.upcomingShifts': 'Kommende vakter',
+    'clients.viewDepartments': 'Vis avdelinger',
     'nav.contacts': 'Kontakter',
     'nav.candidates': 'Kandidater',
     'nav.employees': 'Ansatte',
@@ -3594,6 +3610,13 @@ copy.en = {
   'app.noPersistence': 'This is a static demo. No data was saved.',
   'app.previewOnly': 'Preview of approved product design – not a production feature.',
   'nav.dashboard': 'Dashboard', 'nav.clients': 'Businesses', 'nav.departments': 'Departments',
+  'common.id': 'ID',
+  'departments.filter.allClients': 'All businesses', 'departments.filter.allPaySystems': 'All pay systems',
+  'departments.sort.label': 'Sorting', 'departments.sort.nameAsc': 'Department A–Z',
+  'departments.sort.nameDesc': 'Department Z–A', 'departments.sort.clientAsc': 'Business A–Z',
+  'departments.sort.clientDesc': 'Business Z–A', 'departments.none': 'No departments found',
+  'departments.viewShifts': 'View shifts', 'departments.upcomingShifts': 'Upcoming shifts',
+  'clients.viewDepartments': 'View departments',
   'nav.contacts': 'Contacts', 'nav.candidates': 'Candidates', 'nav.employees': 'Employees',
   'nav.staffing': 'Staffing', 'nav.recruitment': 'Recruitment', 'nav.messages': 'Messages',
   'nav.financial': 'Finance', 'nav.settings': 'Settings', 'nav.general': 'General',
@@ -5886,7 +5909,9 @@ const routes = {
 // Rekruttering var skjult - aldri slettet: modulen er tilbake som toppnivå med
 // Stillinger (eksisterende recruitment-rute) og Kandidater som undermeny.
 const menu = [
-  ['dashboard', 'home'], ['clients', 'users'], ['employees', 'id-card'],
+  // Avdelinger er en egen modul: virksomheten eier avdelingen (clientId),
+  // men administrasjonen bor på sin egen flate - ikke i virksomhetskortet.
+  ['dashboard', 'home'], ['clients', 'users'], ['departments', 'sitemap'], ['employees', 'id-card'],
   // Vakter er hovedinngangen for operativ planlegging: Vaktoversikt (den interne
   // assignment-modellen), Vaktmaler og Timelister. Bemanning/Oppdrag/Jobber er
   // ikke egne moduler; gamle ruter sendes til Vaktoversikt.
@@ -7234,7 +7259,9 @@ function accessPermissionSummary(access) {
 function renderClientDetail() {
   const tab = state.activeTab.startsWith('client-') ? state.activeTab.slice(7) : 'basic'
   // Klientdetaljen er inngangen til avdelinger, kontaktpersoner og vakter (§4).
-  const tabs = ['basic', 'contacts', 'users', 'departments', 'assignments', 'billing', 'documents']
+  // Avdelinger administreres i sin EGEN modul - kortet viser kun antall og en
+  // lenke til den filtrerte avdelingsoversikten (§3 i avdelingsrunden).
+  const tabs = ['basic', 'contacts', 'users', 'assignments', 'billing', 'documents']
   const client = record('clients', state.selected.client)
   if (!client) return missingRecord('back-clients')
   const clientContacts = collection('contacts').filter(item => item.clientId === client.id)
@@ -7247,7 +7274,7 @@ function renderClientDetail() {
     return primary.contact
       ? `${escapeHtml(primary.name)} · <span class="muted">${lab(primary.contact.role)}${primary.contact.phone ? ` · ${escapeHtml(primary.contact.phone)}` : ''}</span>`
       : escapeHtml(primary.name)
-  })()}</dd></div><div><dt>${t('common.email')}</dt><dd>${escapeHtml(client.email ?? '')}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(client.phone ?? '')}</dd></div><div><dt>${t('clients.description')}</dt><dd>${client.description ? escapeHtml(client.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl><p class="field-help">${t('clients.responsibleForAgreement')}</p></article><article class="card"><h3>${t('clients.tabs.basic')}</h3><dl class="detail-list"><div><dt>${t('clients.departmentCount')}</dt><dd>${clientDepartments.length}</dd></div><div><dt>${t('clients.activeAssignments')}</dt><dd>${clientAssignments.filter(item => ['open', 'staffed'].includes(shiftOperationalStatus(item))).length}</dd></div><div><dt>${t('nav.recruitment')}</dt><dd>${clientPositions.length}</dd></div></dl></article></div>`
+  })()}</dd></div><div><dt>${t('common.email')}</dt><dd>${escapeHtml(client.email ?? '')}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(client.phone ?? '')}</dd></div><div><dt>${t('clients.description')}</dt><dd>${client.description ? escapeHtml(client.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl><p class="field-help">${t('clients.responsibleForAgreement')}</p></article><article class="card"><h3>${t('clients.tabs.basic')}</h3><dl class="detail-list"><div><dt>${t('clients.departmentCount')}</dt><dd>${clientDepartments.filter(item => item.status === 'active').length} <button type="button" class="button ghost small" data-action="open-client-departments" data-id="${client.id}">${t('clients.viewDepartments')}</button></dd></div><div><dt>${t('clients.activeAssignments')}</dt><dd>${clientAssignments.filter(item => ['open', 'staffed'].includes(shiftOperationalStatus(item))).length}</dd></div><div><dt>${t('nav.recruitment')}</dt><dd>${clientPositions.length}</dd></div></dl></article></div>`
   if (tab === 'addresses') body = `<div class="grid cols-2"><article class="address-card"><div class="card-header"><h3>${t('clients.address.main')}</h3>${statusTag(client.status)}</div><p>${escapeHtml(client.address)}</p><span class="tag info">${t('clients.address.default')}</span></article><article class="address-card"><h3>${t('clients.address.billing')}</h3><p>${escapeHtml(client.invoiceEmail)}</p></article></div>`
   if (tab === 'contacts') {
     const primary = clientPrimaryContact(client)
@@ -7266,10 +7293,6 @@ function renderClientDetail() {
       return `<tr><td><strong>${escapeHtml(item.name)}</strong></td><td>${escapeHtml(item.email ?? '')}</td><td>${statusTag(inactive ? 'inactive' : 'active')}</td><td>${accessScopeLabel(access)}</td><td>${accessPermissionSummary(access)}</td><td class="row-actions"><button class="button ghost small" data-action="preview-contact-access" data-id="${item.id}">${t('access.previewOpen')}</button><button class="button ghost small" data-action="edit-contact" data-id="${item.id}">${t('common.edit')}</button><button class="button ghost small ${inactive ? '' : 'danger'}" data-action="toggle-contact-access" data-id="${item.id}">${t(inactive ? 'access.enable' : 'access.disable')}</button></td></tr>`
     })
     body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.users')}</h3></div>${rows.length ? table(['common.name', 'common.email', 'common.status', 'access.scope', 'access.permissions', 'common.actions'], rows) : `<p class="muted">${t('access.none')}</p>`}</article>`
-  }
-  if (tab === 'departments') {
-    const rows = clientDepartments.map(item => `<tr><td><button class="row-link" data-route="department-detail" data-id="${item.id}">${lab(item.name)}</button></td><td>${escapeHtml(String(item.manager ?? '')) || `<span class="muted">${t('departments.noManager')}</span>`}</td><td>${escapeHtml(item.managerPhone ?? '')}</td><td>${escapeHtml(item.departmentPhone ?? '')}</td><td>${escapeHtml(item.city ?? '')}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-route="department-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
-    body = `<article class="card">${rows.length ? table(['nav.departments', 'departments.manager', 'departments.managerPhone', 'departments.departmentPhone', 'departments.city', 'common.status', 'common.actions'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   }
   if (tab === 'assignments') {
     const rows = clientAssignments.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.date ? formatDate(item.date) : ''}</td><td>${formatNumber(item.slots, 0)}</td><td>${shiftStatusTag(item)}</td><td><button class="button ghost small" data-route="job-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
@@ -7359,8 +7382,16 @@ function renderDepartmentDetail() {
   const workedHere = departmentWorkHistory(item.id)
   const activeIds = new Set(departmentAssignments(item.id).filter(a => a.status !== 'cancelled').flatMap(a => (a.staffingSlots ?? []).filter(slot => slot.employeeId && slot.status !== 'cancelled').map(slot => slot.employeeId)))
   const employees = [...new Map([...workedHere.map(entry => [entry.employee.id, entry.employee]), ...[...activeIds].map(id => [id, record('employees', id)])]).values()].filter(Boolean)
-  const actions = `${button('common.back', 'back-departments', 'secondary', 'arrow-left')}<button type="button" class="button" data-action="edit-department" data-id="${item.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-department" data-id="${item.id}">${icon('trash')}${t('common.delete')}</button>`
-  const basics = `<article class="card"><h2>${t('departments.basics')}</h2><dl class="detail-list"><div><dt>${t('common.name')}</dt><dd>${lab(item.name)}</dd></div><div><dt>${t('departments.client')}</dt><dd>${client ? relationLink('client-detail', client.id, client.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.address')}</dt><dd>${escapeHtml(departmentAddress(item)) || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.postalCode')}</dt><dd>${escapeHtml(item.postalCode ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.city')}</dt><dd>${escapeHtml(item.city ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.county')}</dt><dd>${item.county ? lab(item.county) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.paySystem')}</dt><dd>${item.paySystemId ? lab(record('tariffs', item.paySystemId)?.name) : `<span class="muted">${t('clients.notConfigured')}</span>`}</dd></div><div><dt>${t('common.status')}</dt><dd>${statusTag(item.status)}</dd></div></dl></article>`
+  const actions = `${button('common.back', 'back-departments', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-action="open-department-shifts" data-id="${item.id}">${icon('calendar')}${t('departments.viewShifts')}</button><button type="button" class="button" data-action="edit-department" data-id="${item.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-department" data-id="${item.id}">${icon('trash')}${t('common.delete')}</button>`
+  // Kommende vakter telles på den deriverte vaktstatusen; lenken åpner Vakter
+  // filtrert på nøyaktig denne avdelingen (kanonisk departmentId).
+  const upcomingCount = departmentAssignments(item.id).filter(a => ['open', 'staffed'].includes(shiftOperationalStatus(a))).length
+  const basics = `<article class="card"><h2>${t('departments.basics')}</h2><dl class="detail-list"><div><dt>${t('common.name')}</dt><dd>${lab(item.name)}</dd></div><div><dt>${t('departments.client')}</dt><dd>${client ? relationLink('client-detail', client.id, client.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.address')}</dt><dd>${escapeHtml(departmentAddress(item)) || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.postalCode')}</dt><dd>${escapeHtml(item.postalCode ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('departments.city')}</dt><dd>${escapeHtml(item.city ?? '') || `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.county')}</dt><dd>${item.county ? lab(item.county) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('clients.paySystem')}</dt><dd>${item.paySystemId ? lab(record('tariffs', item.paySystemId)?.name) : `<span class="muted">${t('clients.notConfigured')}</span>`}</dd></div><div><dt>${t('departments.upcomingShifts')}</dt><dd>${upcomingCount} <button type="button" class="button ghost small" data-action="open-department-shifts" data-id="${item.id}">${t('departments.viewShifts')}</button></dd></div><div><dt>${t('clients.tabs.users')}</dt><dd>${(() => {
+    // Brukere med tilgang som dekker avdelingen: hele virksomheten, eller
+    // avdelingen eksplisitt valgt. Leser de kanoniske referansene - aldri kopier.
+    const users = clientSystemUsers(item.clientId).filter(contact => contact.systemAccess.scope !== 'selected_departments' || (contact.systemAccess.departmentIds ?? []).map(String).includes(String(item.id)))
+    return users.length ? users.map(contact => escapeHtml(contact.name)).join(', ') : `<span class="muted">${t('common.none')}</span>`
+  })()}</dd></div><div><dt>${t('common.status')}</dt><dd>${statusTag(item.status)}</dd></div></dl></article>`
   // Godkjenneren følger regelen avdelingsleder -> klientens kontaktperson (§7).
   const approver = manager || clientPrimaryContact(client)?.name || ''
   const approverMarkup = approver
@@ -7387,21 +7418,36 @@ function renderDepartmentDetail() {
 }
 
 function renderDepartments() {
-  // Avdelingene grupperes under klienten sin, og sorteres på navn innenfor hver
-  // klient. Avdelinger uten klient legges sist.
+  // Avdelinger er en egen modul over den KANONISKE departments-samlingen:
+  // søk (inkl. virksomhetsnavn), virksomhets-, status- og lønnssystemfilter,
+  // og enkel A-Å-sortering på avdeling eller virksomhet. Ingen kopier -
+  // virksomhet og lønnssystem leses via clientId/paySystemId ved rendering.
+  const filters = state.departmentFilters
+  const clientName = item => record('clients', item.clientId)?.name ?? ''
+  const query = state.filters.search.trim().toLocaleLowerCase()
   const visible = filterList('departments', ['name', 'manager', 'managerPhone', 'departmentPhone', 'street', 'houseNumber', 'postalCode', 'city'])
+    .concat(query ? collection('departments').filter(item => !searchable(item, ['name', 'manager', 'managerPhone', 'departmentPhone', 'street', 'houseNumber', 'postalCode', 'city']).includes(query) && clientName(item).toLocaleLowerCase().includes(query) && (state.filters.status === 'all' || item.status === state.filters.status)) : [])
+    .filter(item => (!filters.clientId || item.clientId === filters.clientId) && (!filters.paySystemId || item.paySystemId === filters.paySystemId))
     .sort((a, b) => {
-      const clientA = record('clients', a.clientId)?.name ?? ''
-      const clientB = record('clients', b.clientId)?.name ?? ''
-      if (clientA !== clientB) return clientA && clientB ? clientA.localeCompare(clientB) : clientA ? -1 : 1
+      if (filters.sort === 'client') return clientName(a).localeCompare(clientName(b)) || label(a.name).localeCompare(label(b.name))
+      if (filters.sort === 'client-desc') return clientName(b).localeCompare(clientName(a)) || label(a.name).localeCompare(label(b.name))
+      if (filters.sort === 'name-desc') return label(b.name).localeCompare(label(a.name))
       return label(a.name).localeCompare(label(b.name))
     })
-  const rows = visible.map(item => {
+  const rows = visible.map((item, i) => {
     const client = record('clients', item.clientId)
-    const manager = String(item.manager ?? '').trim()
-    return `<tr><td>${client ? relationLink('client-detail', client.id, client.name) : `<span class="muted">${t('common.none')}</span>`}</td><td><div class="file-name"><strong><button class="row-link" data-route="department-detail" data-id="${item.id}">${lab(item.name)}</button></strong>${item.description ? `<span>${lab(item.description)}</span>` : ''}</div></td><td>${manager ? `<div class="file-name"><strong>${escapeHtml(manager)}</strong>${item.managerPhone ? `<span>${escapeHtml(item.managerPhone)}</span>` : ''}</div>` : `<span class="muted">${t('departments.noManager')}</span>`}</td><td>${escapeHtml(item.managerPhone ?? '')}</td><td>${escapeHtml(item.departmentPhone ?? '')}</td><td>${escapeHtml(item.city ?? '')}</td><td>${statusTag(item.status)}</td>${rowActions('department', item.id, 'department-detail')}</tr>`
+    return `<tr><td>${String(i + 1).padStart(3, '0')}</td><td><div class="file-name"><strong><button class="row-link" data-route="department-detail" data-id="${item.id}">${lab(item.name)}</button></strong>${item.description ? `<span>${lab(item.description)}</span>` : ''}</div></td><td>${client ? relationLink('client-detail', client.id, client.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${escapeHtml(item.city ?? '') || `<span class="muted">${t('common.none')}</span>`}</td><td>${item.paySystemId ? lab(record('tariffs', item.paySystemId)?.name) : `<span class="muted">${t('clients.notConfigured')}</span>`}</td><td>${statusTag(item.status)}</td>${rowActions('department', item.id, 'department-detail')}</tr>`
   })
-  return `<section class="page">${pageHeading('nav.departments', 'page.departments.desc', button('departments.new', 'create-department', '', 'plus'))}${searchToolbar()}${dataTable('departments', ['departments.client', 'common.name', 'departments.manager', 'departments.managerPhone', 'departments.departmentPhone', 'departments.city', 'common.status', 'common.actions'], rows, collection('departments').length)}</section>`
+  const clientChoices = collection('clients').map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  const paySystemChoices = collection('tariffs').map(item => `<option value="${item.id}"${filters.paySystemId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
+  const sortChoices = [['name', 'departments.sort.nameAsc'], ['name-desc', 'departments.sort.nameDesc'], ['client', 'departments.sort.clientAsc'], ['client-desc', 'departments.sort.clientDesc']].map(([value, key]) => `<option value="${value}"${filters.sort === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  const extra = `<select data-department-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('departments.filter.allClients')}</option>${clientChoices}</select>
+    <select data-department-filter="paySystemId" aria-label="${t('clients.paySystem')}"><option value=""${filters.paySystemId ? '' : ' selected'}>${t('departments.filter.allPaySystems')}</option>${paySystemChoices}</select>
+    <select data-department-filter="sort" aria-label="${t('departments.sort.label')}">${sortChoices}</select>`
+  const body = rows.length
+    ? dataTable('departments', ['common.id', 'common.name', 'departments.client', 'departments.city', 'clients.paySystem', 'common.status', 'common.actions'], rows, collection('departments').length)
+    : `<div class="empty-state"><span class="empty-icon">${icon('sitemap')}</span><h3>${t('departments.none')}</h3></div>`
+  return `<section class="page">${pageHeading('nav.departments', 'page.departments.desc', button('departments.new', 'create-department', '', 'plus'))}${searchToolbar(extra)}${body}</section>`
 }
 
 function renderContacts() {
@@ -12345,6 +12391,20 @@ function actionHandlers(target = null) {
     // Ny kontakt på klienten: klienten er forhåndsvalgt, slik at kontakten blir
     // valgbar som kontaktperson med én gang.
     'create-client-contact': () => openDialog('contact', 'create', { clientId: target?.dataset?.id ?? state.selected.client, status: 'active' }),
+    // Relasjonslenkene mellom Virksomhet, Avdelinger og Vakter: åpner mål-
+    // flaten ferdig filtrert på den kanoniske relasjonen.
+    'open-client-departments': () => {
+      state.departmentFilters.clientId = target?.dataset?.id ?? state.selected.client
+      state.filters.status = 'all'
+      navigate('departments')
+    },
+    'open-department-shifts': () => {
+      const department = record('departments', target?.dataset?.id ?? state.selected.department)
+      if (!department) return
+      state.shiftFilters.clientId = department.clientId ?? ''
+      state.shiftFilters.departmentId = department.id
+      navigate('staffing')
+    },
     // Kladdekontakter i Opprett/Rediger virksomhet: registreres før
     // virksomheten er lagret, og kobles til den kanoniske clientId ved save.
     'client-draft-contact-add': () => {
@@ -14359,6 +14419,12 @@ document.addEventListener('change', event => {
     setTimesheetFilter(event.target.dataset.timesheetFilter, event.target.value)
     return
   }
+  // Avdelingsmodulens egne filtre: virksomhet, lønnssystem og sortering.
+  if (event.target.dataset?.departmentFilter) {
+    const name = event.target.dataset.departmentFilter
+    if (name in state.departmentFilters) { state.departmentFilters[name] = String(event.target.value); render() }
+    return
+  }
   // Vakters delte filtermodell (§6, §10): klientbytte nullstiller avdelingen
   // når den valgte ikke lenger tilhører klienten.
   if (event.target.dataset?.shiftFilter) {
@@ -14550,6 +14616,7 @@ window.__workmaticPreview = {
   // Vakter: den delte spørringen og kalenderprojeksjonen, for testene.
   filteredShifts: (nowIso = null) => filteredAssignments(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()).map(item => item.id),
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
+  setDepartmentFilter: (name, value) => { if (name in state.departmentFilters) { state.departmentFilters[name] = String(value); render() } },
   calendarView: () => { const { range, days } = calendarDays(filteredAssignments()); return JSON.parse(JSON.stringify({ range, days: days.map(day => ({ iso: day.iso, ids: day.entries.map(item => item.id) })) })) },
   setCalendarAnchor: iso => { state.calendarAnchor = iso; render() },
   notifications: () => JSON.parse(JSON.stringify(syncNotifications())),
