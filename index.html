@@ -2528,6 +2528,176 @@ button.stat-card.stat-action:hover {
   color: var(--surface-700);
 }
 
+/* === Vaktplan UX: scope-header, månedsnav, oppsummering === */
+.plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.plan-scope {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--surface-600);
+}
+
+.plan-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plan-month {
+  font-size: 17px;
+  min-width: 140px;
+  text-align: center;
+  color: var(--surface-900);
+}
+
+.plan-goto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--surface-600);
+}
+
+.plan-goto input {
+  padding: 4px 6px;
+  border: 1px solid var(--surface-300);
+  border-radius: 6px;
+  background: var(--surface-0);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.plan-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.plan-view-option {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Ukeskille: mandag får en tydeligere venstre kant - 31 kolonner blir
+   lesbare uten plasskrevende ukeblokker. */
+.plan-grid th.plan-week-start,
+.plan-grid td.plan-week-start {
+  border-left: 2px solid var(--surface-300);
+}
+
+/* Dagens dato: subtil markering i headeren OG hele kolonnen, med
+   eksisterende primary-palett - aldri aggressiv farge. */
+.plan-grid thead th.plan-today {
+  box-shadow: inset 0 -3px 0 var(--primary);
+  color: var(--primary-strong);
+}
+
+.plan-grid thead th.plan-today .plan-day {
+  color: var(--primary-strong);
+}
+
+/* Sticky ansattkolonne må ha SOLID bakgrunn over vaktkortene, også når
+   raden i tillegg er helg/i dag. */
+.plan-grid .plan-name-col {
+  z-index: 2;
+  box-shadow: 2px 0 0 var(--surface-200);
+}
+
+.plan-grid thead .plan-name-col {
+  z-index: 4;
+}
+
+/* Vakttypene skilles med venstre kant fra eksisterende palett; teksten på
+   kortet forklarer alltid typen - farge er aldri alene. */
+.plan-block.plan-type-day {
+  border-left-color: var(--primary);
+}
+
+.plan-block.plan-type-evening {
+  border-left-color: var(--warning);
+}
+
+.plan-block.plan-type-night {
+  border-left-color: var(--surface-700);
+  background: var(--surface-100);
+}
+
+.plan-next-day {
+  font-size: 10px;
+  color: var(--surface-600);
+}
+
+.plan-tag {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0 4px;
+  width: fit-content;
+}
+
+.plan-tag-sick {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.plan-tag-warning,
+.plan-tag-open {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* Ledige vakter: stiplet kort, tydelig antall. */
+.plan-block.plan-open-block {
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+/* Medlever-fortsettelse: samme vakt, kompakt markør - ingen fake shifts. */
+.plan-block.plan-cont {
+  opacity: 0.85;
+  border-left-style: dotted;
+}
+
+.plan-cont-label {
+  font-size: 10px;
+  color: var(--surface-600);
+}
+
+/* Kompakt visning: mindre padding og kort, fortsatt lesbart (§25). */
+.plan-compact .plan-grid th,
+.plan-compact .plan-grid td {
+  padding: 2px;
+  min-width: 58px;
+}
+
+.plan-compact .plan-block {
+  padding: 2px 4px;
+  font-size: 10px;
+  margin-bottom: 2px;
+  gap: 1px;
+}
+
+.plan-compact .plan-block strong {
+  font-size: 10px;
+}
+
+.plan-compact .plan-grid .plan-name-col {
+  min-width: 120px;
+}
+
 </style>
   </head>
   <body>
@@ -2583,6 +2753,12 @@ const state = {
   // Timelister: klient styrer avdeling, så avdelingen nullstilles når klienten
   // byttes. Tomme strenger betyr «alle».
   timesheetFilters: { clientId: '', departmentId: '', employeeId: '', week: '' },
+  // Vaktplanens visnings-state (aldri kanonisk data): vis ledige vakter,
+  // kompakt modus, ønsket scrollmål (dato) og sist kjente scrollposisjon.
+  shiftPlanDisplay: { showOpen: true, compact: false },
+  planScrollTo: '',
+  planScroll: { left: 0, top: 0 },
+  planScrolledOnce: false,
   // Avdelinger som egen modul: virksomhet, lønnssystem og sortering. Status
   // filtreres via det generiske statusfilteret (state.filters.status).
   departmentFilters: { clientId: '', paySystemId: '', sort: 'name' },
@@ -3513,6 +3689,20 @@ const copy = {
     'shiftPlan.fileBase': 'Vaktplan',
     'shiftPlan.nightTag': 'Natt',
     'shiftPlan.period': 'Periode',
+    'shiftPlan.gotoDate': 'Gå til dato',
+    'shiftPlan.view': 'Visning',
+    'shiftPlan.showOpen': 'Vis ledige vakter',
+    'shiftPlan.compact': 'Kompakt visning',
+    'shiftPlan.normal': 'Normal visning',
+    'shiftPlan.employeesCount': '{count} ansatte',
+    'shiftPlan.shiftsCount': '{count} vakter',
+    'shiftPlan.openSummary': '{count} ledige',
+    'shiftPlan.staffed': 'Bemannet',
+    'shiftPlan.partialStaffed': 'Delvis bemannet',
+    'shiftPlan.staffedOf': '{staffed} av {total} bemannet',
+    'shiftPlan.nextDay': 'Neste dag',
+    'shiftPlan.openCountPlural': '{count} ledige',
+    'shiftPlan.continues': 'Fortsetter',
     // Tilleggsmotoren: kombinasjonsgrupper, moduser og regelgrunnlag.
     'stacking.section': 'Kombinasjon med andre tillegg',
     'stacking.group': 'Kombinasjonsgruppe',
@@ -4580,6 +4770,20 @@ copy.en = {
   'shiftPlan.fileBase': 'Shift-plan',
   'shiftPlan.nightTag': 'Night',
   'shiftPlan.period': 'Period',
+  'shiftPlan.gotoDate': 'Go to date',
+  'shiftPlan.view': 'View',
+  'shiftPlan.showOpen': 'Show open shifts',
+  'shiftPlan.compact': 'Compact view',
+  'shiftPlan.normal': 'Normal view',
+  'shiftPlan.employeesCount': '{count} employees',
+  'shiftPlan.shiftsCount': '{count} shifts',
+  'shiftPlan.openSummary': '{count} open',
+  'shiftPlan.staffed': 'Staffed',
+  'shiftPlan.partialStaffed': 'Partially staffed',
+  'shiftPlan.staffedOf': '{staffed} of {total} staffed',
+  'shiftPlan.nextDay': 'Next day',
+  'shiftPlan.openCountPlural': '{count} open',
+  'shiftPlan.continues': 'Continues',
   'stacking.section': 'Combination with other premiums', 'stacking.group': 'Combination group',
   'stacking.mode': 'When rules overlap', 'stacking.mode.additive': 'Combine all',
   'stacking.mode.priority': 'Highest priority', 'stacking.mode.highest_amount': 'Highest amount',
@@ -9692,20 +9896,48 @@ function shiftPlanData(departmentId, month) {
   return { monthDays, byEmployee, open, types: [...typeSet].sort((a, b) => a.localeCompare(b)) }
 }
 
-function shiftPlanBlock(entry, iso) {
+// Visuell kategori for kortet - REN visning, ingen ny taxonomy: medlever fra
+// kanonisk shiftType/liveInSnapshot; ellers klassifiseres på vaktens faktiske
+// start/over-midnatt. Teksten (malnavnet) forklarer alltid typen - farge er
+// aldri alene (§13).
+function shiftPlanCategory(assignment) {
+  if (assignment.shiftType === 'live_in' || assignment.liveInSnapshot) return 'live-in'
+  if (assignment.endNextDay || String(assignment.startTime ?? '') >= '21:00') return 'night'
+  if (String(assignment.startTime ?? '') >= '14:00') return 'evening'
+  return 'day'
+}
+
+// «x av y bemannet» utledes av plassene - aldri en ny status (§17).
+function shiftPlanStaffingText(assignment) {
+  const slots = staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled')
+  const staffed = slots.filter(slotIsStaffed).length
+  if (!slots.length) return ''
+  if (staffed === slots.length) return t('shiftPlan.staffed')
+  return t('shiftPlan.staffedOf', { staffed, total: slots.length })
+}
+
+function shiftPlanBlock(entry, iso, openCount = 0) {
   const { assignment, slot, type } = entry
   const time = timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)
-  const liveIn = Boolean(assignment.liveInSnapshot)
-  // Rolige statuser: syk og «venter» er det eneste planen trenger utover
-  // bemannet/ledig - detaljene bor i Vaktoversikten (§12).
+  const category = shiftPlanCategory(assignment)
   const sick = slot.employeeId && activeSickLeaveFor(slot.employeeId, iso)
   const awaiting = ['awaiting_confirmation', 'pending_reconfirmation'].includes(slot.status)
-  const classes = ['plan-block', liveIn ? 'plan-live-in' : '', assignment.endNextDay ? 'plan-night' : '', sick ? 'plan-sick' : ''].filter(Boolean).join(' ')
-  const client = record('clients', assignment.clientId)
-  const department = record('departments', assignment.departmentId)
+  const open = !slot.employeeId
+  const continuation = entry.spanned && !entry.first
+  const classes = ['plan-block', `plan-type-${category}`, category === 'live-in' ? 'plan-live-in' : '', category === 'night' ? 'plan-night' : '', sick ? 'plan-sick' : '', open ? 'plan-open-block' : '', continuation ? 'plan-cont' : ''].filter(Boolean).join(' ')
   const employee = record('employees', slot.employeeId)
-  const tooltip = [type, assignment.startTime && assignment.endTime ? `${assignment.startTime}–${assignment.endTime}` : '', client?.name ?? '', label(department?.name ?? ''), employee?.name ?? ''].filter(Boolean).join(' · ')
-  return `<button type="button" class="${classes}" data-route="job-detail" data-id="${assignment.id}" title="${escapeHtml(tooltip)}"><strong>${escapeHtml(type || '')}</strong><span>${time}</span>${sick ? `<span class="tag danger">${t('sick.sickTag')}</span>` : ''}${awaiting ? `<span class="tag warning">${t('shiftPlan.awaiting')}</span>` : ''}${!slot.employeeId ? `<span class="tag warning">${t('shiftPlan.openCount', { count: 1 })}</span>` : ''}</button>`
+  const staffing = shiftPlanStaffingText(assignment)
+  // Tooltip/title: Vakt-ID, type, dato, tid, ansatt, bemanning og status -
+  // aldri eneste sted statusen finnes (§19, §33).
+  const tooltip = [`${t('staffing.assignmentId')} ${assignment.id}`, type, formatDate(iso), time, employee?.name ?? '', staffing, sick ? t('sick.sickTag') : '', awaiting ? t('shiftPlan.awaiting') : ''].filter(Boolean).join(' · ')
+  if (continuation) {
+    // Medlever over flere døgn: samme kanoniske vakt, visuell sammenheng via
+    // en kompakt fortsettelsesmarkør - aldri en egen «fake» vakt (§14).
+    return `<button type="button" class="${classes}" data-route="job-detail" data-id="${assignment.id}" title="${escapeHtml(tooltip)}"><strong>↔ ${escapeHtml(type || '')}</strong><span class="plan-cont-label">${t('shiftPlan.continues')}</span>${sick ? `<em class="plan-tag plan-tag-sick">${t('sick.sickTag')}</em>` : ''}</button>`
+  }
+  const openTag = open ? `<em class="plan-tag plan-tag-open">${openCount > 1 ? t('shiftPlan.openCountPlural', { count: openCount }) : t('shiftPlan.openCount', { count: 1 })}</em>` : ''
+  const nextDay = assignment.endNextDay && !assignment.liveInSnapshot ? `<span class="plan-next-day">↳ ${t('shiftPlan.nextDay')}</span>` : ''
+  return `<button type="button" class="${classes}" data-route="job-detail" data-id="${assignment.id}" title="${escapeHtml(tooltip)}"><strong>${escapeHtml(type || '')}</strong><span>${time}</span>${nextDay}${sick ? `<em class="plan-tag plan-tag-sick">${t('sick.sickTag')}</em>` : ''}${awaiting ? `<em class="plan-tag plan-tag-warning">${t('shiftPlan.awaiting')}</em>` : ''}${openTag}</button>`
 }
 
 // === Vaktplan: eksport til PDF ===
@@ -9801,44 +10033,65 @@ function shiftPlanPrintDocument(departmentId = state.shiftPlanFilters.department
 
 function renderShiftPlan() {
   const filters = state.shiftPlanFilters
+  const display = state.shiftPlanDisplay
   const month = shiftPlanMonth()
   const clients = collection('clients').filter(item => item.status === 'active')
   const departments = collection('departments').filter(item => item.status === 'active' && (!filters.clientId || item.clientId === filters.clientId))
   const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
-  const nav = `<div class="plan-toolbar"><div class="toolbar-group"><select data-shift-plan-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('common.select')}</option>${clientChoices}</select><select data-shift-plan-filter="departmentId" aria-label="${t('rel.department')}"${departments.length ? '' : ' disabled'}><option value=""${filters.departmentId ? '' : ' selected'}>${t('common.select')}</option>${departmentChoices}</select></div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="shift-plan-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="shift-plan-today">${t('shiftPlan.today')}</button><button type="button" class="button secondary small" data-action="shift-plan-next">${t('calendar.next')}${icon('arrow-right')}</button><button type="button" class="button secondary small" data-action="shift-plan-export-pdf"${filters.departmentId ? '' : ' disabled'}>${icon('file')}${t('shiftPlan.exportPdf')}</button></div></div>`
+  const client = record('clients', filters.clientId)
+  const department = record('departments', filters.departmentId)
+  // Scope-header (§28): brukeren skal se HVILKEN plan dette er uten å lese
+  // selectene. Månedsnavnet er det visuelle hierarkiet: ‹ Måned ›, med «I dag»
+  // som sekundær handling (§8).
+  const scope = `<div class="plan-head"><div><h2 class="plan-title">${t('shiftPlan.title')}</h2>${department ? `<p class="plan-scope">${escapeHtml(client?.name ?? '')} · ${lab(department.name)}</p>` : `<p class="plan-scope muted">${t('shiftPlan.selectDepartment')}</p>`}</div><div class="plan-month-nav"><button type="button" class="button secondary small" data-action="shift-plan-prev" aria-label="${t('calendar.prev')}">${icon('arrow-left')}</button><strong class="plan-month">${escapeHtml(shiftPlanMonthTitle(month))}</strong><button type="button" class="button secondary small" data-action="shift-plan-next" aria-label="${t('calendar.next')}">${icon('arrow-right')}</button><button type="button" class="button ghost small" data-action="shift-plan-today">${t('shiftPlan.today')}</button><label class="plan-goto"><span>${t('shiftPlan.gotoDate')}</span><input type="date" data-shift-plan-goto value=""></label></div></div>`
+  const nav = `<div class="plan-toolbar"><div class="toolbar-group"><select data-shift-plan-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('common.select')}</option>${clientChoices}</select><select data-shift-plan-filter="departmentId" aria-label="${t('rel.department')}"${departments.length ? '' : ' disabled'}><option value=""${filters.departmentId ? '' : ' selected'}>${t('common.select')}</option>${departmentChoices}</select></div><div class="toolbar-group"><label class="checkbox-row plan-view-option"><input type="checkbox" data-action-toggle="shift-plan-toggle-open"${display.showOpen ? ' checked' : ''}>${t('shiftPlan.showOpen')}</label><button type="button" class="button ghost small ${display.compact ? 'is-active' : ''}" data-action="shift-plan-toggle-compact">${display.compact ? t('shiftPlan.normal') : t('shiftPlan.compact')}</button><button type="button" class="button secondary small" data-action="shift-plan-export-pdf"${filters.departmentId ? '' : ' disabled'}>${icon('file')}${t('shiftPlan.exportPdf')}</button></div></div>`
   if (!filters.departmentId) {
-    return `<section class="page">${nav}<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.selectDepartment')}</h3></div></section>`
+    return `<section class="page">${scope}${nav}<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.selectDepartment')}</h3></div></section>`
   }
   const data = shiftPlanData(filters.departmentId, month)
   const typeChoices = data.types.map(type => `<option value="${escapeHtml(type)}"${filters.type === type ? ' selected' : ''}>${escapeHtml(type)}</option>`).join('')
-  const search = `<div class="toolbar-group"><div class="search-control"><span>${icon('search')}</span><input type="search" data-shift-plan-filter="search" value="${escapeHtml(filters.search)}" placeholder="${t('shiftPlan.searchEmployee')}" aria-label="${t('shiftPlan.searchEmployee')}"></div><select data-shift-plan-filter="type" aria-label="${t('shiftPlan.allTypes')}"><option value=""${filters.type ? '' : ' selected'}>${t('shiftPlan.allTypes')}</option>${typeChoices}</select></div>`
+  const search = `<div class="toolbar-group"><div class="search-control"><span>${icon('search')}</span><input type="search" data-shift-plan-filter="search" value="${escapeHtml(filters.search)}" placeholder="${t('shiftPlan.searchEmployee')}" aria-label="${t('shiftPlan.searchEmployee')}"></div><select data-shift-plan-filter="type" aria-label="${t('shiftPlan.allTypes')}" class="${filters.type ? 'is-active-filter' : ''}"><option value=""${filters.type ? '' : ' selected'}>${t('shiftPlan.allTypes')}</option>${typeChoices}</select>${filters.type ? `<span class="tag info">${escapeHtml(filters.type)} <button type="button" class="chip-clear" data-action="shift-plan-clear-type" aria-label="${t('shifts.clearFilters')}">×</button></span>` : ''}</div>`
   const query = filters.search.trim().toLocaleLowerCase()
   const employees = [...data.byEmployee.keys()]
     .map(id => record('employees', id))
     .filter(Boolean)
     .filter(employee => !query || employee.name.toLocaleLowerCase().includes(query))
     .sort((a, b) => a.name.localeCompare(b.name))
+  // Oppsummeringen (§29) utledes BILLIG av den pregrupperte strukturen: antall
+  // synlige ansatte, distinkte vakter og ledige plasser - ingen ny state.
+  const visibleAssignments = new Set()
+  for (const employee of employees) { for (const list of data.byEmployee.get(employee.id).values()) { for (const entry of list) visibleAssignments.add(entry.assignment.id) } }
+  const openEntries = new Set()
+  for (const list of data.open.values()) { for (const entry of list) { if (entry.first || !entry.spanned) openEntries.add(`${entry.assignment.id}:${entry.slot.id}`) } }
+  for (const list of data.open.values()) { for (const entry of list) visibleAssignments.add(entry.assignment.id) }
+  const summary = `<div class="plan-summary"><span class="tag info">${t('shiftPlan.employeesCount', { count: employees.length })}</span><span class="tag info">${t('shiftPlan.shiftsCount', { count: visibleAssignments.size })}</span><span class="tag ${openEntries.size ? 'warning' : 'info'}">${t('shiftPlan.openSummary', { count: openEntries.size })}</span></div>`
   const today = todayIso()
   const weekdays = weekdayLabels()
   const dayClass = iso => {
     const weekday = new Date(`${iso}T00:00:00Z`).getUTCDay()
-    return `${iso === today ? 'plan-today' : ''} ${weekday === 0 || weekday === 6 ? 'plan-weekend' : ''}`.trim()
+    return `${iso === today ? 'plan-today' : ''} ${weekday === 0 || weekday === 6 ? 'plan-weekend' : ''} ${weekday === 1 ? 'plan-week-start' : ''}`.trim()
   }
-  const header = `<tr><th scope="col" class="plan-name-col">${t('jobs.employee')}</th>${data.monthDays.map(iso => `<th scope="col" class="${dayClass(iso)}"><span class="plan-weekday">${weekdays[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7]}</span><span class="plan-day">${Number(iso.slice(8))}</span></th>`).join('')}</tr>`
+  const header = `<tr><th scope="col" class="plan-name-col">${t('jobs.employee')}</th>${data.monthDays.map(iso => `<th scope="col" class="${dayClass(iso)}" data-iso="${iso}" aria-label="${formatDate(iso)}"><span class="plan-weekday">${weekdays[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7]}</span><span class="plan-day">${Number(iso.slice(8))}</span></th>`).join('')}</tr>`
   const employeeRows = employees.map(employee => {
     const perDate = data.byEmployee.get(employee.id)
     const cells = data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(perDate.get(iso) ?? []).map(entry => shiftPlanBlock(entry, iso)).join('')}</td>`).join('')
     return `<tr><th scope="row" class="plan-name-col"><div class="file-name"><strong>${relationLink('employee-detail', employee.id, employee.name)}</strong><span>${lab(employee.profession)}</span></div></th>${cells}</tr>`
   }).join('')
-  const hasOpen = [...data.open.values()].some(list => list.length)
+  // Ledige vakter grupperes per vakt og dato: ETT kort med antall (§16) -
+  // aldri en dummy-ansatt, klikk går til den kanoniske vaktdetaljen.
+  const hasOpen = display.showOpen && [...data.open.values()].some(list => list.length)
   const openRow = hasOpen
-    ? `<tr class="plan-open-row"><th scope="row" class="plan-name-col"><strong>${t('shiftPlan.openShifts')}</strong></th>${data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(data.open.get(iso) ?? []).map(entry => shiftPlanBlock(entry, iso)).join('')}</td>`).join('')}</tr>`
+    ? `<tr class="plan-open-row"><th scope="row" class="plan-name-col"><strong>${t('shiftPlan.openShifts')}</strong></th>${data.monthDays.map(iso => {
+        const grouped = new Map()
+        for (const entry of data.open.get(iso) ?? []) { const key = String(entry.assignment.id); grouped.set(key, { entry: grouped.get(key)?.entry ?? entry, count: (grouped.get(key)?.count ?? 0) + 1 }) }
+        return `<td class="${dayClass(iso)}">${[...grouped.values()].map(({ entry, count }) => shiftPlanBlock(entry, iso, count)).join('')}</td>`
+      }).join('')}</tr>`
     : ''
   const body = employeeRows || openRow
-    ? `<div class="plan-scroll"><table class="plan-grid"><thead>${header}</thead><tbody>${employeeRows}${openRow}</tbody></table></div>`
+    ? `<div class="plan-scroll ${display.compact ? 'plan-compact' : ''}"><table class="plan-grid"><thead>${header}</thead><tbody>${employeeRows}${openRow}</tbody></table></div>`
     : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.empty')}</h3></div>`
-  return `<section class="page"><h2 class="plan-title">${escapeHtml(shiftPlanMonthTitle(month))}</h2>${nav}${search}${body}</section>`
+  return `<section class="page">${scope}${nav}${search}${summary}${body}</section>`
 }
 
 // Container-visningen for Vakter. Vaktmaler er default. Konkrete vakter listes
@@ -11593,6 +11846,15 @@ function shiftRangeStep(direction) {
   return `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`
 }
 
+// «Gå til dato»: åpner månedens plan og setter scrollmålet (§9).
+function shiftPlanGoto(value) {
+  const iso = String(value ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return
+  state.shiftPlanAnchor = `${iso.slice(0, 7)}-01`
+  state.planScrollTo = iso
+  render()
+}
+
 // Ett uke-steg i timelistenes periodenavigator ('' = alle uker).
 function timesheetWeekStep(direction) {
   const anchor = state.timesheetFilters.week || startOfWeekIso(todayIso())
@@ -12384,6 +12646,12 @@ function navigate(route, id = null) {
   // tom liste uten forklaring.
   if (!statusFilterOptions().some(([value]) => value === state.filters.status)) state.filters.status = 'all'
   state.activeTab = route === 'employee-detail' ? 'employee-details' : route === 'client-detail' ? 'client-basic' : route === 'tariff-detail' ? 'tariff-overview' : state.activeTab
+  // Naturlig åpning av Vaktplan i inneværende måned: auto-scroll dagens dato
+  // inn i bildet (§10). Tilbake fra vaktdetaljen beholder i stedet brukerens
+  // egen lagrede scrollposisjon (§20) - aldri en reset etter manuell scroll.
+  if (route === 'shift-plan' && previousRoute !== 'shift-plan' && previousRoute !== 'job-detail' && shiftPlanMonth() === todayIso().slice(0, 7)) {
+    state.planScrollTo = todayIso()
+  }
   render()
   requestAnimationFrame(() => document.getElementById('main-content')?.focus({ preventScroll: true }))
 }
@@ -12437,6 +12705,38 @@ function render() {
   if (typeof window.scrollTo === 'function') window.scrollTo(scrollX, scrollY)
   const mainAfter = document.getElementById('main-content')
   if (mainAfter) mainAfter.scrollTop = mainScroll
+  restorePlanScroll()
+}
+
+// Vaktplanens horisontale/vertikale posisjon: et eksplisitt mål (I dag /
+// Gå til dato) scroller slik at noen dager FØR målet også er synlige; ellers
+// gjenopprettes brukerens sist kjente posisjon fra view-state (§10, §20).
+function restorePlanScroll() {
+  const scroller = document.querySelector?.('.plan-scroll')
+  if (!scroller) return
+  // Første gang planen faktisk vises i inneværende måned (boot rett på ruten,
+  // eller avdeling nettopp valgt): auto-scroll dagens dato inn i bildet én
+  // gang - aldri etter at brukeren selv har scrollet (§10).
+  if (!state.planScrollTo && !state.planScrolledOnce && scroller.querySelector?.(`th[data-iso="${todayIso()}"]`)) {
+    state.planScrollTo = todayIso()
+  }
+  state.planScrolledOnce = true
+  if (state.planScrollTo) {
+    const target = scroller.querySelector?.(`th[data-iso="${state.planScrollTo}"]`)
+    if (target && typeof target.offsetLeft === 'number') {
+      const nameCol = scroller.querySelector('.plan-name-col')
+      const nameWidth = nameCol?.offsetWidth ?? 160
+      const dayWidth = target.offsetWidth || 74
+      // Mål minus ~3 dagers kontekst, aldri forbi venstre kant.
+      const left = Math.max(0, target.offsetLeft - nameWidth - dayWidth * 3)
+      scroller.scrollLeft = left
+      state.planScroll = { left: scroller.scrollLeft, top: scroller.scrollTop }
+    }
+    state.planScrollTo = ''
+    return
+  }
+  scroller.scrollLeft = state.planScroll.left
+  scroller.scrollTop = state.planScroll.top
 }
 
 function openDialog(type, mode = null, draft = {}, editingId = null) {
@@ -13440,9 +13740,13 @@ function actionHandlers(target = null) {
     // statusfilteret som resten av listene bruker - ingen egen filtertilstand.
     'clients-status-filter': () => { const value = target?.dataset?.status; if (value) { state.filters.status = value; render() } },
     // Vaktplanens månedsnavigasjon: ren ankerflytting, ingen egen plan-state.
-    'shift-plan-prev': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(-1); render() },
-    'shift-plan-next': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(1); render() },
-    'shift-plan-today': () => { state.shiftPlanAnchor = ''; render() },
+    // Månedsbytte starter visningen fra dag 1; «I dag» hopper til inneværende
+    // måned og auto-scroller dagens dato inn i bildet (§10).
+    'shift-plan-prev': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(-1); state.planScroll = { left: 0, top: state.planScroll.top }; render() },
+    'shift-plan-next': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(1); state.planScroll = { left: 0, top: state.planScroll.top }; render() },
+    'shift-plan-today': () => { state.shiftPlanAnchor = ''; state.planScrollTo = todayIso(); render() },
+    'shift-plan-toggle-compact': () => { state.shiftPlanDisplay.compact = !state.shiftPlanDisplay.compact; render() },
+    'shift-plan-clear-type': () => { state.shiftPlanFilters.type = ''; render() },
     // Eksporter PDF: print-representasjon av samme kanoniske plandata som
     // skjermen, i eget dokument (A4 landscape). Nettleserens PDF-lagring
     // bruker dokumenttittelen som filnavnforslag.
@@ -15821,6 +16125,16 @@ document.addEventListener('change', event => {
     handleDraftFieldChange(event.target.dataset.field, event.target.type === 'checkbox' ? event.target.checked : event.target.value)
     return
   }
+  // Vaktplan: «Gå til dato» åpner riktig måned og scroller dit (§9).
+  if (event.target.dataset?.shiftPlanGoto !== undefined) {
+    shiftPlanGoto(event.target.value)
+    return
+  }
+  if (event.target.dataset?.actionToggle === 'shift-plan-toggle-open') {
+    state.shiftPlanDisplay.showOpen = event.target.checked
+    render()
+    return
+  }
   if (event.target.dataset?.staffingFilter) {
     const name = event.target.dataset.staffingFilter
     state.staffingFilters[name] = name === 'availableOnly' ? event.target.checked : String(event.target.value)
@@ -15885,6 +16199,16 @@ document.addEventListener('change', event => {
     if (fileLabel) fileLabel.textContent = event.target.files?.[0]?.name || t('financial.noFile')
   }
 })
+
+// Vaktplanens scrollposisjon huskes som view-state, slik at filterendringer og
+// tilbake-navigasjon fra vaktdetaljen lander der brukeren var (§20). Scroll
+// bobler ikke - lytteren bruker capture.
+document.addEventListener('scroll', event => {
+  if (event.target?.classList?.contains?.('plan-scroll')) {
+    state.planScroll = { left: event.target.scrollLeft, top: event.target.scrollTop }
+    state.planScrolledOnce = true
+  }
+}, true)
 
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
@@ -16060,6 +16384,10 @@ window.__workmaticPreview = {
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
   setShiftPlanFilter: (name, value) => { if (name in state.shiftPlanFilters) { state.shiftPlanFilters[name] = String(value); render() } },
   shiftPlanPrintDocument: (departmentId, month) => shiftPlanPrintDocument(departmentId, month),
+  planGoto: value => shiftPlanGoto(value),
+  setPlanDisplay: (name, value) => { if (name in state.shiftPlanDisplay) { state.shiftPlanDisplay[name] = Boolean(value); render() } },
+  setPlanScroll: (left, top) => { state.planScroll = { left: Number(left) || 0, top: Number(top) || 0 } },
+  planViewState: () => JSON.parse(JSON.stringify({ planScrollTo: state.planScrollTo, planScroll: state.planScroll, display: state.shiftPlanDisplay, anchor: state.shiftPlanAnchor })),
   shiftPlanView: (departmentId, month) => {
     const data = shiftPlanData(departmentId, month)
     return JSON.parse(JSON.stringify({
