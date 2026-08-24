@@ -3508,6 +3508,11 @@ const copy = {
     'shiftPlan.searchEmployee': 'Søk ansatt',
     'shiftPlan.allTypes': 'Alle vakttyper',
     'shiftPlan.awaiting': 'Venter',
+    'shiftPlan.exportPdf': 'Eksporter PDF',
+    'shiftPlan.exportedAt': 'Eksportert',
+    'shiftPlan.fileBase': 'Vaktplan',
+    'shiftPlan.nightTag': 'Natt',
+    'shiftPlan.period': 'Periode',
     // Tilleggsmotoren: kombinasjonsgrupper, moduser og regelgrunnlag.
     'stacking.section': 'Kombinasjon med andre tillegg',
     'stacking.group': 'Kombinasjonsgruppe',
@@ -4570,6 +4575,11 @@ copy.en = {
   'shiftPlan.selectDepartment': 'Select a department to view the shift plan',
   'shiftPlan.searchEmployee': 'Search employee', 'shiftPlan.allTypes': 'All shift types',
   'shiftPlan.awaiting': 'Awaiting',
+  'shiftPlan.exportPdf': 'Export PDF',
+  'shiftPlan.exportedAt': 'Exported',
+  'shiftPlan.fileBase': 'Shift-plan',
+  'shiftPlan.nightTag': 'Night',
+  'shiftPlan.period': 'Period',
   'stacking.section': 'Combination with other premiums', 'stacking.group': 'Combination group',
   'stacking.mode': 'When rules overlap', 'stacking.mode.additive': 'Combine all',
   'stacking.mode.priority': 'Highest priority', 'stacking.mode.highest_amount': 'Highest amount',
@@ -9698,6 +9708,97 @@ function shiftPlanBlock(entry, iso) {
   return `<button type="button" class="${classes}" data-route="job-detail" data-id="${assignment.id}" title="${escapeHtml(tooltip)}"><strong>${escapeHtml(type || '')}</strong><span>${time}</span>${sick ? `<span class="tag danger">${t('sick.sickTag')}</span>` : ''}${awaiting ? `<span class="tag warning">${t('shiftPlan.awaiting')}</span>` : ''}${!slot.employeeId ? `<span class="tag warning">${t('shiftPlan.openCount', { count: 1 })}</span>` : ''}</button>`
 }
 
+// === Vaktplan: eksport til PDF ===
+// PDF-en er en PRINT-representasjon av nøyaktig samme avledede plandata som
+// skjermen (shiftPlanData + aktive type-/søkefiltre) - aldri en skjermdump og
+// aldri en egen planmodell. Kun planinnholdet: ingen sidebar, toolbar, knapper
+// eller admin-handlinger. A4 landscape; thead gjentas per side via
+// table-header-group, og radene brytes ikke midt i (break-inside: avoid).
+// Personvern: kun ansattnavn og vaktinformasjon - aldri bank, notater eller
+// dokumenter.
+function shiftPlanFileName(client, month) {
+  const monthName = new Intl.DateTimeFormat(state.locale === 'nb' ? 'nb-NO' : 'en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(`${month}-15T00:00:00Z`))
+  const capitalized = monthName.charAt(0).toLocaleUpperCase() + monthName.slice(1)
+  const sanitize = value => String(value ?? '').replace(/[^0-9A-Za-zÆØÅæøåÄÖäöÜü]+/g, '-').replace(/^-+|-+$/g, '')
+  return `${t('shiftPlan.fileBase')}_${sanitize(client?.name)}_${sanitize(capitalized)}_${month.slice(0, 4)}.pdf`
+}
+
+function shiftPlanPrintBlock(entry, iso) {
+  const { assignment, slot, type } = entry
+  const time = timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)
+  const liveIn = Boolean(assignment.liveInSnapshot)
+  const sick = slot.employeeId && activeSickLeaveFor(slot.employeeId, iso)
+  const awaiting = ['awaiting_confirmation', 'pending_reconfirmation'].includes(slot.status)
+  const classes = ['p-block', liveIn ? 'p-livein' : '', assignment.endNextDay ? 'p-night' : '', sick ? 'p-sick' : '', !slot.employeeId ? 'p-open' : ''].filter(Boolean).join(' ')
+  const tags = [
+    liveIn ? t('medlever.title') : '',
+    assignment.endNextDay ? t('shiftPlan.nightTag') : '',
+    sick ? t('sick.sickTag') : '',
+    awaiting ? t('shiftPlan.awaiting') : '',
+    !slot.employeeId ? t('shiftPlan.openCount', { count: 1 }) : ''
+  ].filter(Boolean)
+  return `<div class="${classes}"><strong>${escapeHtml(type || '')}</strong><span>${time}</span>${tags.map(tag => `<em>${escapeHtml(tag)}</em>`).join('')}</div>`
+}
+
+function shiftPlanPrintDocument(departmentId = state.shiftPlanFilters.departmentId, month = shiftPlanMonth()) {
+  const department = record('departments', departmentId)
+  if (!department) return null
+  const client = record('clients', department.clientId)
+  const data = shiftPlanData(departmentId, month)
+  const query = state.shiftPlanFilters.search.trim().toLocaleLowerCase()
+  const employees = [...data.byEmployee.keys()]
+    .map(id => record('employees', id))
+    .filter(Boolean)
+    .filter(employee => !query || employee.name.toLocaleLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const weekdays = weekdayLabels()
+  const dayClass = iso => { const weekday = new Date(`${iso}T00:00:00Z`).getUTCDay(); return weekday === 0 || weekday === 6 ? 'p-weekend' : '' }
+  const header = `<tr><th class="p-name">${escapeHtml(t('jobs.employee'))}</th>${data.monthDays.map(iso => `<th class="${dayClass(iso)}"><span>${escapeHtml(weekdays[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7])}</span><br>${Number(iso.slice(8))}</th>`).join('')}</tr>`
+  const employeeRows = employees.map(employee => {
+    const perDate = data.byEmployee.get(employee.id)
+    return `<tr><th class="p-name">${escapeHtml(employee.name)}</th>${data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(perDate.get(iso) ?? []).map(entry => shiftPlanPrintBlock(entry, iso)).join('')}</td>`).join('')}</tr>`
+  }).join('')
+  const hasOpen = [...data.open.values()].some(list => list.length)
+  const openRow = hasOpen
+    ? `<tr class="p-open-row"><th class="p-name">${escapeHtml(t('shiftPlan.openShifts'))}</th>${data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(data.open.get(iso) ?? []).map(entry => shiftPlanPrintBlock(entry, iso)).join('')}</td>`).join('')}</tr>`
+    : ''
+  const css = `@page { size: A4 landscape; margin: 8mm }
+    * { box-sizing: border-box }
+    body { margin: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827 }
+    .p-head { margin: 0 0 8px }
+    .p-head h1 { margin: 0; font-size: 16px }
+    .p-head p { margin: 2px 0 0; font-size: 10px; color: #374151 }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 6.5px }
+    thead { display: table-header-group }
+    tr { break-inside: avoid; page-break-inside: avoid }
+    th, td { border: 0.5px solid #9ca3af; padding: 1px; vertical-align: top; text-align: left; overflow-wrap: anywhere }
+    th.p-name { width: 68px; font-size: 7.5px }
+    thead th { background: #f3f4f6; text-align: center; font-size: 6.5px }
+    .p-weekend { background: #f3f4f6 }
+    .p-block { border: 0.5px solid #d1d5db; border-radius: 2px; padding: 1px; margin-bottom: 1px; background: #eff6ff }
+    .p-block strong { display: block; font-size: 6.5px }
+    .p-block span { display: block }
+    .p-block em { display: block; font-style: normal; font-weight: 600 }
+    .p-livein { background: #ecfdf5 }
+    .p-night { background: #eef2ff }
+    .p-sick { background: #fef2f2 }
+    .p-open { background: #fffbeb; border-style: dashed }
+    .p-open-row th { background: #fffbeb }`
+  const heading = `<header class="p-head"><h1>${escapeHtml(t('shiftPlan.title'))}</h1><p>${escapeHtml(client?.name ?? '')} · ${escapeHtml(label(department.name))}</p><p>${escapeHtml(t('shiftPlan.period'))}: ${escapeHtml(shiftPlanMonthTitle(month))}${state.shiftPlanFilters.type ? ` · ${escapeHtml(state.shiftPlanFilters.type)}` : ''}</p><p>${escapeHtml(t('shiftPlan.exportedAt'))}: ${formatDate(todayIso())}</p></header>`
+  const table = employeeRows || openRow
+    ? `<table><thead>${header}</thead><tbody>${employeeRows}${openRow}</tbody></table>`
+    : `<p>${escapeHtml(t('shiftPlan.empty'))}</p>`
+  const fileName = shiftPlanFileName(client, month)
+  const title = fileName.replace(/\.pdf$/, '')
+  // Dokument-taggene settes sammen ved kjøretid: artifact-byggeren avviser
+  // literale doctype/html/head/body-tagger i den innebygde kildekoden.
+  const docTag = (name, attrs, content) => ['<', name, attrs, '>', content, '</', name, '>'].join('')
+  const headPart = docTag('head', '', `<meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style>`)
+  const bodyPart = docTag('body', '', `${heading}${table}`)
+  const html = ['<', '!DOCTYPE html>'].join('') + docTag('html', ` lang="${state.locale}"`, headPart + bodyPart)
+  return { fileName, html }
+}
+
 function renderShiftPlan() {
   const filters = state.shiftPlanFilters
   const month = shiftPlanMonth()
@@ -9705,7 +9806,7 @@ function renderShiftPlan() {
   const departments = collection('departments').filter(item => item.status === 'active' && (!filters.clientId || item.clientId === filters.clientId))
   const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
-  const nav = `<div class="plan-toolbar"><div class="toolbar-group"><select data-shift-plan-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('common.select')}</option>${clientChoices}</select><select data-shift-plan-filter="departmentId" aria-label="${t('rel.department')}"${departments.length ? '' : ' disabled'}><option value=""${filters.departmentId ? '' : ' selected'}>${t('common.select')}</option>${departmentChoices}</select></div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="shift-plan-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="shift-plan-today">${t('shiftPlan.today')}</button><button type="button" class="button secondary small" data-action="shift-plan-next">${t('calendar.next')}${icon('arrow-right')}</button></div></div>`
+  const nav = `<div class="plan-toolbar"><div class="toolbar-group"><select data-shift-plan-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('common.select')}</option>${clientChoices}</select><select data-shift-plan-filter="departmentId" aria-label="${t('rel.department')}"${departments.length ? '' : ' disabled'}><option value=""${filters.departmentId ? '' : ' selected'}>${t('common.select')}</option>${departmentChoices}</select></div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="shift-plan-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="shift-plan-today">${t('shiftPlan.today')}</button><button type="button" class="button secondary small" data-action="shift-plan-next">${t('calendar.next')}${icon('arrow-right')}</button><button type="button" class="button secondary small" data-action="shift-plan-export-pdf"${filters.departmentId ? '' : ' disabled'}>${icon('file')}${t('shiftPlan.exportPdf')}</button></div></div>`
   if (!filters.departmentId) {
     return `<section class="page">${nav}<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.selectDepartment')}</h3></div></section>`
   }
@@ -13342,6 +13443,20 @@ function actionHandlers(target = null) {
     'shift-plan-prev': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(-1); render() },
     'shift-plan-next': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(1); render() },
     'shift-plan-today': () => { state.shiftPlanAnchor = ''; render() },
+    // Eksporter PDF: print-representasjon av samme kanoniske plandata som
+    // skjermen, i eget dokument (A4 landscape). Nettleserens PDF-lagring
+    // bruker dokumenttittelen som filnavnforslag.
+    'shift-plan-export-pdf': () => {
+      const doc = shiftPlanPrintDocument()
+      if (!doc || typeof window.open !== 'function') return
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) return
+      printWindow.document.open()
+      printWindow.document.write(doc.html)
+      printWindow.document.close()
+      printWindow.focus?.()
+      setTimeout(() => { try { printWindow.print() } catch {} }, 150)
+    },
     'shift-view-list': () => { state.shiftView = 'list'; render() },
     'shift-view-calendar': () => { state.shiftView = 'calendar'; render() },
     'calendar-week': () => { state.calendarMode = 'week'; render() },
@@ -15944,6 +16059,7 @@ window.__workmaticPreview = {
   visibleTimesheetRows: () => visibleSlotTimesheets().map(item => item.id),
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
   setShiftPlanFilter: (name, value) => { if (name in state.shiftPlanFilters) { state.shiftPlanFilters[name] = String(value); render() } },
+  shiftPlanPrintDocument: (departmentId, month) => shiftPlanPrintDocument(departmentId, month),
   shiftPlanView: (departmentId, month) => {
     const data = shiftPlanData(departmentId, month)
     return JSON.parse(JSON.stringify({
