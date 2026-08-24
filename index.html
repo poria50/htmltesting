@@ -3479,6 +3479,38 @@ const copy = {
     'shiftPlan.searchEmployee': 'Søk ansatt',
     'shiftPlan.allTypes': 'Alle vakttyper',
     'shiftPlan.awaiting': 'Venter',
+    // Tilleggsmotoren: kombinasjonsgrupper, moduser og regelgrunnlag.
+    'stacking.section': 'Kombinasjon med andre tillegg',
+    'stacking.group': 'Kombinasjonsgruppe',
+    'stacking.mode': 'Ved samtidig treff',
+    'stacking.mode.additive': 'Kombiner alle',
+    'stacking.mode.priority': 'Høyest prioritet',
+    'stacking.mode.highest_amount': 'Høyeste beløp',
+    'stacking.priority': 'Prioritet',
+    'stacking.group.time_day': 'Tid og dag',
+    'stacking.group.live_in': 'Medlever',
+    'stacking.group.function': 'Funksjon',
+    'stacking.group.other': 'Annet',
+    'stacking.newGroup': 'Ny gruppe …',
+    'stacking.newGroupName': 'Navn på ny gruppe',
+    'stacking.appliesToLiveIn': 'Gjelder medleverdøgn',
+    'stacking.invalidPriority': 'Prioritet må være et heltall',
+    'stacking.modeConflict': 'Regler i samme kombinasjonsgruppe må bruke samme modus ved samtidig treff',
+    'trace.title': 'Regelgrunnlag',
+    'trace.applied': 'Regler brukt',
+    'trace.notApplied': 'Regler som ikke ble brukt',
+    'trace.historical': 'Historisk beregningssnapshot brukes.',
+    'trace.blocked.lowerPriority': 'Lavere prioritet',
+    'trace.blocked.lowerAmount': 'Lavere beregnet tillegg',
+    'trace.reason.otherPaySystem': 'Regelen tilhører et annet lønnssystem',
+    'trace.reason.inactive': 'Regelen er inaktiv',
+    'trace.reason.outsidePeriod': 'Utenfor gyldighetsperioden',
+    'trace.reason.notLiveIn': 'Gjelder ikke medleverdøgn',
+    'trace.reason.noFunction': 'Ingen funksjon på plassen',
+    'trace.reason.otherFunction': 'Gjelder en annen funksjon',
+    'trace.reason.zeroAmount': 'Gir ikke noe beløp',
+    'trace.reason.dateMismatch': 'Dato matcher ikke',
+    'trace.reason.outsideWindow': 'Utenfor tidsvinduet',
     'docs.editTitle': 'Rediger dokument',
     'employees.clientNotes': 'Virksomhetsnotater',
     'staffing.assignDirectly': 'Tildel direkte',
@@ -4471,6 +4503,23 @@ copy.en = {
   'shiftPlan.selectDepartment': 'Select a department to view the shift plan',
   'shiftPlan.searchEmployee': 'Search employee', 'shiftPlan.allTypes': 'All shift types',
   'shiftPlan.awaiting': 'Awaiting',
+  'stacking.section': 'Combination with other premiums', 'stacking.group': 'Combination group',
+  'stacking.mode': 'When rules overlap', 'stacking.mode.additive': 'Combine all',
+  'stacking.mode.priority': 'Highest priority', 'stacking.mode.highest_amount': 'Highest amount',
+  'stacking.priority': 'Priority', 'stacking.group.time_day': 'Time and day',
+  'stacking.group.live_in': 'Live-in', 'stacking.group.function': 'Function', 'stacking.group.other': 'Other',
+  'stacking.newGroup': 'New group …', 'stacking.newGroupName': 'New group name',
+  'stacking.appliesToLiveIn': 'Applies to live-in days',
+  'stacking.invalidPriority': 'Priority must be an integer',
+  'stacking.modeConflict': 'Rules in the same combination group must use the same overlap mode',
+  'trace.title': 'Rule calculation', 'trace.applied': 'Rules applied', 'trace.notApplied': 'Rules not applied',
+  'trace.historical': 'Historical calculation snapshot is used.',
+  'trace.blocked.lowerPriority': 'Lower priority', 'trace.blocked.lowerAmount': 'Lower calculated premium',
+  'trace.reason.otherPaySystem': 'The rule belongs to another pay system',
+  'trace.reason.inactive': 'The rule is inactive', 'trace.reason.outsidePeriod': 'Outside the effective period',
+  'trace.reason.notLiveIn': 'Does not apply to live-in days', 'trace.reason.noFunction': 'No function on the slot',
+  'trace.reason.otherFunction': 'Applies to another function', 'trace.reason.zeroAmount': 'Yields no amount',
+  'trace.reason.dateMismatch': 'Date does not match', 'trace.reason.outsideWindow': 'Outside the time window',
   'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
   'staffing.assignDirectly': 'Assign directly',
@@ -6367,6 +6416,17 @@ function migrateCompensationsToPaySystems(data) {
 function migratePremiumRuleFamilies(data) {
   for (const rule of data.premiumRules ?? []) {
     if (!rule.family) rule.family = rule.type === 'holiday' ? 'date' : 'time'
+    // Stacking-migrering (idempotent): legacy additive/highest mappes til
+    // gruppebasert konfigurasjon i regelens familie-avledede gruppe - aldri
+    // én global gruppe. appliesToLiveIn er false for eksisterende tids-/dato-
+    // regler slik at medlever-adferden (og de låste tallene) består.
+    if (!rule.stackingMode) {
+      const groupDefaults = { time: 'time_day', date: 'time_day', medlever: 'live_in', function: 'function' }
+      rule.stackingGroup = rule.stackingGroup ?? (groupDefaults[rule.family] ?? 'other')
+      rule.stackingMode = rule.stacking === 'highest' ? 'highest_amount' : 'additive'
+      rule.priority = Number.isFinite(Number(rule.priority)) ? Number(rule.priority) : 0
+      rule.appliesToLiveIn = rule.family === 'function' || rule.family === 'medlever'
+    }
     if (rule.family !== 'date' || rule.dates) continue
     // Helligdagsregelen bærer nå sine egne datoer. En eldre regel med én dato
     // pakkes inn; en enda eldre regel som pekte på den sentrale kalenderen får
@@ -9295,8 +9355,9 @@ function shiftCompensation(shiftInput) {
   const resolution = resolveCompensation(employee, assignment, shift.date)
   if (!resolution.ok) return resolution
   // Medlever (§26, §37): betalte timer kommer fra den fryste betalingsplanen -
-  // ALDRI fra fysisk varighet. Tids-/dato-tillegg og overtid anvendes ikke
-  // automatisk over medleverdøgn; funksjonstillegg bruker de betalte timene.
+  // ALDRI fra fysisk varighet. Hvilke tilleggsregler som gjelder medleverdøgn
+  // er regelkonfigurasjon (appliesToLiveIn) - overtid hopper fortsatt over
+  // medlever i lønnsgrunnlaget (eget, dokumentert unntak).
   const liveIn = assignment?.liveInSnapshot ?? null
   const hours = liveIn ? liveIn.totalPaidHours : Math.max(0, shiftDuration(shift) - Math.max(0, Number(shift.breakMinutes) || 0) / 60)
   // Tillegg og overtid kommer fra reglene på lønnssystemet avdelingen har valgt.
@@ -9319,6 +9380,8 @@ function shiftCompensation(shiftInput) {
     hours,
     ordinaryAmount,
     premiumLines: premium.applied,
+    premiumBlocked: premium.blocked,
+    premiumConsidered: premium.considered,
     premiumAmount: premium.amount,
     overtimeHours,
     overtimeAmount,
@@ -9871,7 +9934,8 @@ function premiumRuleCard(rule) {
   if (family === 'medlever') window = `${t(`financial.unit.${rule.unit || 'hour'}`)} · ${t(`financial.payMode.${rule.payMode || 'add'}`)}`
   const perUnit = family === 'medlever' && rule.method !== 'percentage' && rule.unit !== 'hour' ? '' : '/t'
   const value = rule.method === 'percentage' ? `+${rule.amount} %` : `+${rule.amount} kr${perUnit}`
-  const stacking = t(rule.stacking === 'highest' ? 'financial.overlap.highest' : 'financial.overlap.additive')
+  const groupText = key => ({ time_day: t('stacking.group.time_day'), live_in: t('stacking.group.live_in'), function: t('stacking.group.function'), other: t('stacking.group.other') }[key] ?? key)
+  const stacking = `${groupText(ruleStackingGroup(rule))} · ${t(`stacking.mode.${ruleStackingMode(rule)}`)}${ruleStackingMode(rule) === 'priority' ? ` · ${t('stacking.priority')} ${rulePriority(rule)}` : ''}`
   return `<article class="card"><div class="card-header"><div><h3>${escapeHtml(rule.name)}</h3><p>${window} · ${value}</p></div>
     <div class="list-actions"><button type="button" class="button secondary small" data-action="edit-premium" data-id="${rule.id}">${icon('edit')}${t('financial.editRule')}</button><button type="button" class="button secondary small danger" data-action="delete-premium" data-id="${rule.id}">${icon('trash')}${t('financial.deleteRule')}</button></div></div>
     <dl class="detail-list"><div><dt>${t('financial.stacking')}</dt><dd>${stacking}</dd></div>${ruleValidity(rule)}</dl></article>`
@@ -9960,7 +10024,7 @@ function renderPremiums() {
   const visible = filterList('premiumRules', ['name', 'type'])
   const rows = visible.map(item => {
     const system = record('tariffs', item.paySystemId)
-    return `<tr><td>${escapeHtml(item.name)}</td><td>${t(`comp.rules.type.${item.type}`)}</td><td>${relationLink('tariff-detail', system?.id, system ? label(system.name) : '')}</td><td>${escapeHtml(item.start)}–${escapeHtml(item.end)}</td><td>${formatMoney(item.amount)}</td><td>${t(`comp.rules.stacking.${item.stacking}`)}</td><td>${statusTag(item.status)}</td>${rowActions('premium', item.id)}</tr>`
+    return `<tr><td>${escapeHtml(item.name)}</td><td>${t(`comp.rules.type.${item.type}`)}</td><td>${relationLink('tariff-detail', system?.id, system ? label(system.name) : '')}</td><td>${escapeHtml(item.start)}–${escapeHtml(item.end)}</td><td>${formatMoney(item.amount)}</td><td>${t(`stacking.mode.${ruleStackingMode(item)}`)}</td><td>${statusTag(item.status)}</td>${rowActions('premium', item.id)}</tr>`
   })
   return `<section class="page">${pageHeading('comp.pages.premiumsTitle', 'comp.pages.premiumsDesc', button('comp.rules.newPremium', 'create-premium', '', 'plus'))}${searchToolbar()}${dataTable('premiumRules', ['common.name', 'common.type', 'comp.nav.schemeTab', 'comp.ui.timeWindow', 'comp.forms.premiumValue', 'comp.forms.stacking', 'common.status', 'common.actions'], rows, collection('premiumRules').length)}</section>`
 }
@@ -9995,6 +10059,11 @@ function addDays(iso, days) {
   return date.toISOString().slice(0, 10)
 }
 
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+// Delt datoaritmetikk: samme funksjon under navnet resten av appen bruker.
+const isoAddDays = addDays
+
 function weekday(iso) {
   const [year, month, day] = iso.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
@@ -10026,45 +10095,87 @@ function overlapHours(shiftStart, shiftHours, windowStart, windowEnd) {
   return Math.min(shiftHours, covered / 60)
 }
 
-// Tilleggene som gjelder for en vakt, beregnet fra regelens eget tidsvindu, type
-// og metode. Stablingen avgjør om flere tillegg legges sammen eller om bare det
-// høyeste gjelder.
-// Reglene kommer direkte fra lønnssystemet. Stablingen er uendret.
-// Neste kalenderdato, for vakter og datoregler som krysser midnatt.
-function isoAddDays(iso, days) {
-  const date = new Date(`${iso}T00:00:00Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
+// === Konfigurerbar tilleggsmotor: stackingGroup + stackingMode + priority ===
+// Motoren hardkoder ALDRI at helligdag trumfer natt eller at natt trumfer
+// helg. Den gjør kun: match regler -> grupper på stackingGroup -> evaluer
+// stackingMode per gruppe -> summer vinnerne. Rekkefølgen kommer fra data
+// (Pay System-konfigurasjonen), og «highest» gjelder aldri globalt på tvers
+// av grupper. Medlever blokkerer heller ikke tillegg hardkodet: hver regel
+// sier selv om den gjelder medleverdøgn (appliesToLiveIn).
+
+const PREMIUM_STACKING_MODES = ['additive', 'priority', 'highest_amount']
+const PREMIUM_GROUP_DEFAULTS = { time: 'time_day', date: 'time_day', medlever: 'live_in', function: 'function' }
+
+function ruleStackingGroup(rule) {
+  if (rule.stackingGroup) return rule.stackingGroup
+  const family = rule.family || (rule.type === 'holiday' ? 'date' : 'time')
+  return PREMIUM_GROUP_DEFAULTS[family] ?? 'other'
 }
 
-const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+// Legacy-mapping: gamle regler hadde stacking additive/highest. additive ->
+// additive; highest -> highest_amount i sin egen (familie-avledede) gruppe.
+function ruleStackingMode(rule) {
+  if (PREMIUM_STACKING_MODES.includes(rule.stackingMode)) return rule.stackingMode
+  return rule.stacking === 'highest' ? 'highest_amount' : 'additive'
+}
 
-// Tidsregler: den historiske vindussemantikken, pluss valgfrie ukedager.
-function timeRuleHours(rule, iso, start, shiftHours) {
+function rulePriority(rule) {
+  const value = Number(rule.priority)
+  return Number.isFinite(value) ? value : 0
+}
+
+function ruleNumericId(rule) {
+  const digits = String(rule.id).replace(/\D/g, '')
+  return digits ? Number(digits) : Number.MAX_SAFE_INTEGER
+}
+
+// Dekkede intervaller i minutter relativt til vaktstart - segmentgrunnlaget
+// som lar to regler i samme gruppe vinne hver sin del av vakten.
+function overlapIntervals(shiftStart, shiftHours, windowStart, windowEnd) {
+  const from = minutes(shiftStart)
+  const to = from + shiftHours * 60
+  const start = minutes(windowStart)
+  const end = minutes(windowEnd)
+  const windows = end > start ? [[start, end]] : [[start, 1440], [0, end]]
+  const intervals = []
+  for (const [windowFrom, windowTo] of windows) {
+    for (const offset of [0, 1440]) {
+      const a = Math.max(from, windowFrom + offset)
+      const b = Math.min(to, windowTo + offset)
+      if (b > a) intervals.push([a - from, b - from])
+    }
+  }
+  return intervals
+}
+
+function timeRuleIntervals(rule, iso, start, shiftHours) {
   const day = weekday(iso)
-  if (rule.days?.length && !rule.days.includes(WEEKDAY_KEYS[day])) return 0
-  if (rule.type === 'weekend' && !(day === 0 || day === 6)) return 0
-  if (rule.type === 'weekend') return shiftHours
-  return overlapHours(start, shiftHours, rule.start, rule.end)
+  if (rule.days?.length && !rule.days.includes(WEEKDAY_KEYS[day])) return []
+  if (rule.type === 'weekend') return day === 0 || day === 6 ? [[0, shiftHours * 60]] : []
+  return overlapIntervals(start, shiftHours, rule.start, rule.end)
 }
 
-// Helligdagsregler: én regel, én sats, flere konkrete datoer. Datoene på regelen
-// er den eneste aktive kilden - ingen sentral kalender. Bare timene som faktisk
-// ligger på en av datoene matcher, også når vakten krysser midnatt, og en dato
-// uten «hele dagen» begrenses av sitt fra/til-vindu.
-function dateRuleHours(rule, iso, start, shiftHours) {
+// Helligdags-/datoregler: kun timene som faktisk ligger på regel-datoen
+// matcher - også når vakten krysser midnatt inn i (eller ut av) datoen.
+function dateRuleIntervals(rule, iso, start, shiftHours) {
   const from = minutes(start)
   const to = from + shiftHours * 60
-  let covered = 0
+  const intervals = []
   for (const entry of rule.dates ?? []) {
     const dayOffset = entry.date === iso ? 0 : entry.date === isoAddDays(iso, 1) ? 1440 : null
     if (dayOffset === null) continue
     const wholeDay = entry.allDay !== false
     const windowFrom = wholeDay ? 0 : minutes(entry.start || '00:00')
     const windowTo = wholeDay || !entry.end ? 1440 : minutes(entry.end)
-    covered += Math.max(0, Math.min(to, dayOffset + windowTo) - Math.max(from, dayOffset + windowFrom))
+    const a = Math.max(from, dayOffset + windowFrom)
+    const b = Math.min(to, dayOffset + windowTo)
+    if (b > a) intervals.push([a - from, b - from])
   }
-  return Math.min(shiftHours, covered / 60)
+  return intervals
+}
+
+function intervalMinutes(intervals) {
+  return intervals.reduce((sum, [a, b]) => sum + (b - a), 0)
 }
 
 // Medlever: enheten avgjør hva den faste satsen ganger med. En dag teller når
@@ -10083,60 +10194,116 @@ function medleverMatch(rule, start, shiftHours, rate) {
   return { units: shiftHours, amount: shiftHours * value }
 }
 
-function premiumsFor(paySystemId, iso, start, shiftHours, rate, functionId = null, functionOnly = false) {
-  const rules = premiumRulesForPaySystem(paySystemId, iso)
-  const matches = rules
-    .map(rule => {
-      const family = rule.family || (rule.type === 'holiday' ? 'date' : 'time')
-      // Medlever (§34): tids-/dato-/medleverregler anvendes ikke automatisk
-      // over medleverdøgnenes betalte timer - kun funksjonstillegg gjelder.
-      if (functionOnly && family !== 'function') return null
-      // Funksjonstillegg (§16-§24): bare et vanlig tillegg i samme motor.
-      // Ingen funksjon på plassen => null tillegg, selv med konfigurert regel;
-      // ingen matchende regel => null tillegg, aldri et oppfunnet beløp.
-      // Prosentgrunnlaget er DOKUMENTERT: grunnlønn for de betalte timene
-      // (sats × timer), FØR helligdag, overtid og andre tillegg (§21).
-      if (family === 'function') {
-        if (functionId === null || functionId === undefined || String(rule.functionId) !== String(functionId)) return null
-        const value = Number(rule.amount) || 0
-        const amount = rule.method === 'percentage' ? shiftHours * rate * (value / 100)
-          : rule.method === 'hourly' ? shiftHours * value
-          : value
-        if (amount <= 0) return null
-        // fixed_shift er et flatt beløp per vakt - aldri multiplisert med timer.
-        return { rule, hours: rule.method === 'fixed_shift' ? 0 : shiftHours, amount, replacesBase: 0 }
-      }
-      if (family === 'medlever') {
-        const { units, amount } = medleverMatch(rule, start, shiftHours, rate)
-        if (amount <= 0) return null
-        // «Erstatter ordinær lønn»: grunnlønnen for de matchede timene trekkes
-        // fra hos konsumenten, slik at det aldri dobbelbetales.
-        const replacesBase = rule.payMode === 'replace' ? shiftHours * rate : 0
-        return { rule, hours: units, amount, replacesBase }
-      }
-      const covered = family === 'date'
-        ? dateRuleHours(rule, iso, start, shiftHours)
-        : timeRuleHours(rule, iso, start, shiftHours)
-      if (covered <= 0) return null
-      const amount = rule.method === 'percentage'
-        ? covered * rate * ((Number(rule.amount) || 0) / 100)
-        : covered * (Number(rule.amount) || 0)
-      return { rule, hours: covered, amount, replacesBase: 0 }
-    })
-    .filter(Boolean)
+// Én regel-kandidat: hvorfor matcher den ikke, eller hva dekker/koster den.
+function premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn) {
+  const family = rule.family || (rule.type === 'holiday' ? 'date' : 'time')
+  if (!ruleEffectiveOn(rule, iso)) return { rule, reasonKey: rule.status && rule.status !== 'active' ? 'trace.reason.inactive' : 'trace.reason.outsidePeriod' }
+  // Medlever er et vaktfaktum; om regelen gjelder medleverdøgn er Pay
+  // System-konfigurasjon på regelen - aldri en hardkodet familie-blokkering.
+  if (liveIn && family !== 'function' && !rule.appliesToLiveIn) return { rule, reasonKey: 'trace.reason.notLiveIn' }
+  if (family === 'function') {
+    if (functionId === null || functionId === undefined) return { rule, reasonKey: 'trace.reason.noFunction' }
+    if (String(rule.functionId) !== String(functionId)) return { rule, reasonKey: 'trace.reason.otherFunction' }
+    const value = Number(rule.amount) || 0
+    const amount = rule.method === 'percentage' ? shiftHours * rate * (value / 100)
+      : rule.method === 'hourly' ? shiftHours * value
+      : value
+    if (amount <= 0) return { rule, reasonKey: 'trace.reason.zeroAmount' }
+    return { rule, hours: rule.method === 'fixed_shift' ? 0 : shiftHours, amount, replacesBase: 0, intervals: [[0, shiftHours * 60]], linear: false }
+  }
+  if (family === 'medlever') {
+    const { units, amount } = medleverMatch(rule, start, shiftHours, rate)
+    if (amount <= 0) return { rule, reasonKey: 'trace.reason.zeroAmount' }
+    const replacesBase = rule.payMode === 'replace' ? shiftHours * rate : 0
+    return { rule, hours: units, amount, replacesBase, intervals: [[0, shiftHours * 60]], linear: rule.method === 'percentage' || (rule.unit || 'hour') === 'hour' }
+  }
+  const intervals = family === 'date'
+    ? dateRuleIntervals(rule, iso, start, shiftHours)
+    : timeRuleIntervals(rule, iso, start, shiftHours)
+  const covered = Math.min(shiftHours, intervalMinutes(intervals) / 60)
+  if (covered <= 0) return { rule, reasonKey: family === 'date' ? 'trace.reason.dateMismatch' : 'trace.reason.outsideWindow' }
+  const amount = rule.method === 'percentage'
+    ? covered * rate * ((Number(rule.amount) || 0) / 100)
+    : covered * (Number(rule.amount) || 0)
+  return { rule, hours: covered, amount, replacesBase: 0, intervals, linear: true }
+}
 
-  if (!matches.length) return { amount: 0, applied: [], blocked: [], baseReplacement: 0 }
+// Deterministisk vinnersammenlikning (§33): prioritet -> beregnet beløp ->
+// lavest numerisk regel-id. Aldri tilfeldig array-rekkefølge.
+function premiumWinnerFirst(a, b) {
+  return rulePriority(b.rule) - rulePriority(a.rule)
+    || b.amount - a.amount
+    || ruleNumericId(a.rule) - ruleNumericId(b.rule)
+}
 
-  // «Høyeste verdi» lar bare det største tillegget gjelde; resten blokkeres.
-  const result = matches.some(match => match.rule.stacking === 'highest')
-    ? (() => {
-        const best = matches.reduce((top, match) => (match.amount > top.amount ? match : top))
-        return { amount: best.amount, applied: [best], blocked: matches.filter(match => match !== best) }
-      })()
-    : { amount: matches.reduce((sum, match) => sum + match.amount, 0), applied: matches, blocked: [] }
-  // Bare anvendte regler kan erstatte grunnlønn, og aldri mer enn hele grunnlaget.
-  result.baseReplacement = Math.min(shiftHours * rate, result.applied.reduce((sum, match) => sum + (match.replacesBase || 0), 0))
-  return result
+// Prioritetsgrupper evalueres SEGMENTBASERT: reglene deler vakten i
+// delsegmenter, og vinneren per delsegment er regelen med høyest prioritet
+// som faktisk dekker segmentet. En regel som bare dekker deler av vakten
+// blokkerer aldri andre regler utenfor sin egen dekning (§19-§20).
+function resolvePriorityGroup(groupMatches) {
+  // Ikke-lineære beløp (fast per vakt/døgn) kan ikke skaleres per segment:
+  // da avgjøres hele gruppen av den deterministiske vinnerrekkefølgen.
+  if (groupMatches.some(match => match.linear === false)) {
+    const [winner, ...rest] = [...groupMatches].sort(premiumWinnerFirst)
+    return { applied: [winner], blocked: rest.map(match => ({ ...match, reasonKey: 'trace.blocked.lowerPriority' })) }
+  }
+  const points = [...new Set(groupMatches.flatMap(match => match.intervals.flat()))].sort((a, b) => a - b)
+  const won = new Map(groupMatches.map(match => [match, 0]))
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const [a, b] = [points[i], points[i + 1]]
+    const covering = groupMatches.filter(match => match.intervals.some(([x, y]) => x <= a && y >= b))
+    if (!covering.length) continue
+    const winner = [...covering].sort(premiumWinnerFirst)[0]
+    won.set(winner, won.get(winner) + (b - a))
+  }
+  const applied = []
+  const blocked = []
+  for (const match of groupMatches) {
+    const minutesWon = won.get(match)
+    if (minutesWon <= 0) { blocked.push({ ...match, reasonKey: 'trace.blocked.lowerPriority' }); continue }
+    const share = minutesWon / intervalMinutes(match.intervals)
+    applied.push({ ...match, hours: match.hours * share, amount: match.amount * share })
+  }
+  return { applied, blocked }
+}
+
+function premiumsFor(paySystemId, iso, start, shiftHours, rate, functionId = null, liveIn = false) {
+  const applied = []
+  const blocked = []
+  const considered = []
+  const matches = []
+  for (const rule of collection('premiumRules')) {
+    if (rule.paySystemId !== paySystemId) { considered.push({ rule, reasonKey: 'trace.reason.otherPaySystem' }); continue }
+    const candidate = premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn)
+    if (candidate.reasonKey) considered.push(candidate)
+    else matches.push(candidate)
+  }
+  // Grupper konkurrerer bare med seg selv; ulike grupper kombineres alltid.
+  const groups = new Map()
+  for (const match of matches) {
+    const key = ruleStackingGroup(match.rule)
+    groups.set(key, [...(groups.get(key) ?? []), match])
+  }
+  for (const [groupKey, groupMatches] of groups) {
+    // Deterministisk gruppepolicy: gruppens modus er modusen til regelen som
+    // står først i den deterministiske vinnerrekkefølgen - aldri tilfeldig
+    // array-rekkefølge (relevant midlertidig hvis en gruppe er under ommodusering).
+    const mode = ruleStackingMode([...groupMatches].sort(premiumWinnerFirst)[0].rule)
+    if (mode === 'additive' || groupMatches.length === 1) {
+      applied.push(...groupMatches)
+    } else if (mode === 'highest_amount') {
+      const [winner, ...rest] = [...groupMatches].sort((a, b) => b.amount - a.amount || premiumWinnerFirst(a, b))
+      applied.push(winner)
+      blocked.push(...rest.map(match => ({ ...match, reasonKey: 'trace.blocked.lowerAmount', groupKey })))
+    } else {
+      const resolved = resolvePriorityGroup(groupMatches)
+      applied.push(...resolved.applied)
+      blocked.push(...resolved.blocked.map(match => ({ ...match, groupKey })))
+    }
+  }
+  const amount = applied.reduce((sum, match) => sum + match.amount, 0)
+  const baseReplacement = Math.min(shiftHours * rate, applied.reduce((sum, match) => sum + (match.replacesBase || 0), 0))
+  return { amount, applied, blocked, considered, baseReplacement }
 }
 
 // Overtidsregelen som gjelder for en periodetype på arbeidsdatoen.
@@ -10966,7 +11133,12 @@ function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
   const employee = record('employees', employeeId)
   const assignment = record('assignments', assignmentId)
   const client = record('clients', assignment?.clientId)
-  const shiftResult = shiftId ? shiftCompensation(shiftId) : null
+  // Uten en konkret registrert vakt bygges regelgrunnlaget som en prognose
+  // over oppdragets tider - samme motor, samme trace.
+  const forecast = !shiftId && assignment?.date && assignment.startTime && assignment.endTime
+    ? shiftCompensation({ employeeId, assignmentId, date, start: assignment.startTime, end: assignment.endTime, breakMinutes: assignment.breakMinutes })
+    : null
+  const shiftResult = shiftId ? shiftCompensation(shiftId) : (forecast?.ok ? forecast : null)
   const result = shiftResult?.ok ? shiftResult : resolveCompensation(employee, assignment, date)
   if (!employee || !assignment) return ''
   if (!result.ok) {
@@ -11014,8 +11186,22 @@ function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
     return `<div class="summary-line"><span>${escapeHtml(rule.name)}${meta}</span><strong>${value}</strong></div>`
   }
   const ruleCards = `<article class="card"><h3>${t('financial.premiumRules')}</h3>${usedPremiums.length ? usedPremiums.map(ruleLine).join('') : `<p class="muted">${t('financial.noPremiumRules')}</p>`}</article><article class="card"><h3>${t('financial.overtimeRules')}</h3>${usedOvertime.length ? usedOvertime.map(ruleLine).join('') : `<p class="muted">${t('financial.noOvertimeRules')}</p>`}</article>`
-  const shiftLines = shiftResult?.ok ? `<article class="card"><h3>${t('shifts.estimatedPayForShift')}</h3><div class="summary-line"><span>${t('shifts.basePay')}</span><strong>${formatMoney(shiftResult.ordinaryAmount)}</strong></div>${shiftResult.premiumLines.map(line => `<div class="summary-line"><span>${escapeHtml(line.rule.name)}</span><strong>${formatMoney(line.amount)}</strong></div>`).join('')}<div class="summary-line"><span>${t('shifts.overtimePay')}</span><strong>${formatMoney(shiftResult.overtimeAmount)}</strong></div><div class="summary-line total"><span>${t('shifts.estimatedTotal')}</span><strong>${formatMoney(shiftResult.total)}</strong></div></article>` : ''
-  const body = `<div class="relationship-trace">${t('shifts.relationshipTrace')}</div><article class="card"><dl class="detail-list">${rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl></article>${shiftLines}${ruleCards}`
+  // Regelgrunnlaget (§24-§27): hvilke regler ble brukt, hvilke ble blokkert av
+  // stackingen (og hvorfor), og hvilke matchet ikke (med konkret årsak).
+  // Historiske snapshotter reberegnes aldri - da sier tracen det eksplisitt.
+  const groupText = key => ({ time_day: t('stacking.group.time_day'), live_in: t('stacking.group.live_in'), function: t('stacking.group.function'), other: t('stacking.group.other') }[key] ?? key)
+  const traceCard = shiftResult?.historical
+    ? `<article class="card"><h3>${t('trace.title')}</h3><div class="banner info">${icon('bell')}${t('trace.historical')}</div></article>`
+    : shiftResult?.ok
+      ? (() => {
+          const appliedRows = (shiftResult.premiumLines ?? []).map(line => `<div class="summary-line"><span>✓ ${escapeHtml(line.rule.name)} <span class="muted">· ${escapeHtml(groupText(ruleStackingGroup(line.rule)))}${ruleStackingMode(line.rule) === 'priority' ? ` · ${t('stacking.priority')} ${rulePriority(line.rule)}` : ''}</span></span><strong>${formatMoney(line.amount)}</strong></div>`).join('')
+          const blockedRows = (shiftResult.premiumBlocked ?? []).map(line => `<div class="summary-line"><span>✕ ${escapeHtml(line.rule.name)} <span class="muted">· ${t(line.reasonKey)} (${escapeHtml(groupText(ruleStackingGroup(line.rule)))})</span></span><span class="muted">${formatMoney(line.amount)}</span></div>`).join('')
+          const consideredRows = (shiftResult.premiumConsidered ?? []).filter(line => line.reasonKey !== 'trace.reason.otherPaySystem').map(line => `<div class="summary-line"><span class="muted">– ${escapeHtml(line.rule.name)} · ${t(line.reasonKey)}</span></div>`).join('')
+          return `<article class="card"><h3>${t('trace.title')}</h3><h4>${t('trace.applied')}</h4>${appliedRows || `<p class="muted">${t('common.none')}</p>`}<h4>${t('trace.notApplied')}</h4>${blockedRows}${consideredRows}${!blockedRows && !consideredRows ? `<p class="muted">${t('common.none')}</p>` : ''}</article>`
+        })()
+      : ''
+  const shiftLines = shiftId && shiftResult?.ok ? `<article class="card"><h3>${t('shifts.estimatedPayForShift')}</h3><div class="summary-line"><span>${t('shifts.basePay')}</span><strong>${formatMoney(shiftResult.ordinaryAmount)}</strong></div>${shiftResult.premiumLines.map(line => `<div class="summary-line"><span>${escapeHtml(line.rule.name)}</span><strong>${formatMoney(line.amount)}</strong></div>`).join('')}<div class="summary-line"><span>${t('shifts.overtimePay')}</span><strong>${formatMoney(shiftResult.overtimeAmount)}</strong></div><div class="summary-line total"><span>${t('shifts.estimatedTotal')}</span><strong>${formatMoney(shiftResult.total)}</strong></div></article>` : ''
+  const body = `<div class="relationship-trace">${t('shifts.relationshipTrace')}</div><article class="card"><dl class="detail-list">${rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl></article>${shiftLines}${traceCard}${ruleCards}`
   return drawerShell(t('shifts.rateOrigin', { rate: `${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}` }), t('staffing.compensationBasis'), body)
 }
 
@@ -12673,7 +12859,20 @@ function premiumDialog() {
   const calcFields = family === 'function'
     ? bound('amount', t('functions.value'), { type: 'number' })
     : `${calculationTypeField(draftValue('method', 'fixed'))}${ruleValueSuffix('amount')}`
-  const body = `${formError()}<div class="grid cols-2">${boundSelect('family', t('financial.ruleFamily'), familyChoices)}${bound('name', t('common.name'), { required: true })}${familyFields}${calcFields}${boundSelect('stacking', t('financial.overlap'), stackChoices)}${bound('effectiveFrom', t('financial.effectiveFrom'), { type: 'date' })}${bound('effectiveTo', t('financial.effectiveTo'), { type: 'date' })}</div>${storageNote()}`
+  // Kombinasjon med andre tillegg (§10-§11): gruppe + modus + prioritet er
+  // regelens egen konfigurasjon. Standardgruppene suppleres av grupper som
+  // allerede finnes i lønnssystemet, pluss «Ny gruppe» med eget navn.
+  const existingGroups = [...new Set(collection('premiumRules').map(rule => ruleStackingGroup(rule)))]
+  const groupKeys = [...new Set(['time_day', 'live_in', 'function', 'other', ...existingGroups])]
+  const groupText = key => ({ time_day: t('stacking.group.time_day'), live_in: t('stacking.group.live_in'), function: t('stacking.group.function'), other: t('stacking.group.other') }[key] ?? key)
+  const currentGroup = draftValue('stackingGroup', '') || ({ time: 'time_day', date: 'time_day', medlever: 'live_in', function: 'function' }[family] ?? 'other')
+  const groupChoices = [...groupKeys.map(key => `<option value="${escapeHtml(key)}"${currentGroup === key ? ' selected' : ''}>${escapeHtml(groupText(key))}</option>`), `<option value="custom"${currentGroup === 'custom' ? ' selected' : ''}>${t('stacking.newGroup')}</option>`].join('')
+  const mode = String(draftValue('stackingMode', 'additive'))
+  const modeChoicesMarkup = [['additive', 'stacking.mode.additive'], ['priority', 'stacking.mode.priority'], ['highest_amount', 'stacking.mode.highest_amount']].map(([value, key]) => `<option value="${value}"${mode === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  const customField = draftValue('stackingGroup', '') === 'custom' ? bound('stackingGroupCustom', t('stacking.newGroupName')) : ''
+  const liveInField = family === 'function' || family === 'medlever' ? '' : boundCheckbox('appliesToLiveIn', t('stacking.appliesToLiveIn'))
+  const stackingSection = `<div class="form-section"><h3>${t('stacking.section')}</h3><div class="grid cols-2"><div class="field"><label for="f-stackingGroup">${t('stacking.group')}</label><select id="f-stackingGroup" data-field="stackingGroup">${groupChoices}</select></div>${customField}<div class="field"><label for="f-stackingMode">${t('stacking.mode')}</label><select id="f-stackingMode" data-field="stackingMode">${modeChoicesMarkup}</select></div>${mode === 'priority' ? bound('priority', t('stacking.priority'), { type: 'number' }) : ''}${liveInField}</div></div>`
+  const body = `${formError()}<div class="grid cols-2">${boundSelect('family', t('financial.ruleFamily'), familyChoices)}${bound('name', t('common.name'), { required: true })}${familyFields}${calcFields}${bound('effectiveFrom', t('financial.effectiveFrom'), { type: 'date' })}${bound('effectiveTo', t('financial.effectiveTo'), { type: 'date' })}</div>${stackingSection}${storageNote()}`
   return modalShell(t(editing ? 'financial.editRule' : 'financial.addRule'), t('financial.premiumRules'), 'chart', body, formFooter('save-premium'), 'medium')
 }
 
@@ -14345,7 +14544,14 @@ const entities = {
           ? (['fixed_shift', 'hourly', 'percentage'].includes(draft.method) ? draft.method : 'fixed_shift')
           : draft.method === 'percentage' ? 'percentage' : 'fixed',
         amount: Number(draft.amount) || 0,
-        stacking: draft.stacking || 'additive',
+        // Kombinasjonskonfigurasjonen: gruppe + modus + prioritet er data på
+        // regelen (§2). «Ny gruppe» gir en egen nøkkel fra fritekstfeltet.
+        stackingGroup: (draft.stackingGroup === 'custom'
+          ? String(draft.stackingGroupCustom ?? '').trim().toLocaleLowerCase().replace(/\s+/g, '_')
+          : draft.stackingGroup) || ({ time: 'time_day', date: 'time_day', medlever: 'live_in', function: 'function' }[family] ?? 'other'),
+        stackingMode: ['additive', 'priority', 'highest_amount'].includes(draft.stackingMode) ? draft.stackingMode : 'additive',
+        priority: Number.isInteger(Number(draft.priority)) && String(draft.priority).trim() !== '' ? Number(draft.priority) : 0,
+        appliesToLiveIn: family === 'function' || family === 'medlever' || Boolean(draft.appliesToLiveIn),
         status: draft.status ?? 'active'
       }
     }
@@ -14681,6 +14887,20 @@ function crudHandlers(target) {
       if (family === 'date' && !state.draft.dates?.length && !state.draft.date) {
         state.formError = 'financial.dateRequired'; render(); return
       }
+      // Kombinasjonsvalidering (§31-§32): heltalls-prioritet, og én modus per
+      // kombinasjonsgruppe innen samme lønnssystem.
+      if (String(state.draft.priority ?? '').trim() !== '' && !Number.isInteger(Number(state.draft.priority))) {
+        state.formError = 'stacking.invalidPriority'; render(); return
+      }
+      // Nye regler må følge gruppens etablerte modus. Ved REDIGERING tillates
+      // avvik midlertidig (ellers kunne en gruppe aldri bytte modus regel for
+      // regel); motoren har en deterministisk gruppepolicy i mellomtiden.
+      const values = entities.premium.fromDraft(state.draft)
+      const conflicting = !state.editingId && collection('premiumRules').some(rule => rule.paySystemId === values.paySystemId
+        && rule.status === 'active'
+        && ruleStackingGroup(rule) === values.stackingGroup
+        && ruleStackingMode(rule) !== values.stackingMode)
+      if (conflicting) { state.formError = 'stacking.modeConflict'; render(); return }
       commit(entities.premium.collection, entities.premium.prefix, entities.premium.nameField, entities.premium.fromDraft)
     },
     'save-overtime': () => {
@@ -15060,7 +15280,7 @@ function captureReportField(element) {
 // re-rendring midt i skrivingen river noden ut under markøren. Verdifelter
 // oppdaterer derfor bare kladden; feltet beholder sin egen verdi og fokus.
 const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees', 'contact', 'client'])
-const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit', 'payMode', 'type'])
+const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit', 'payMode', 'type', 'stackingGroup', 'stackingMode'])
 
 function handleDraftFieldChange(name, value) {
   applyDraftChange(name, value)
@@ -15251,6 +15471,7 @@ window.__workmaticPreview = {
   reset: () => { resetData(); render() },
   storageAvailable: () => storageWorks,
   premiumsFor: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId),
+  premiumsForLiveIn: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId, true),
   functions: () => JSON.parse(JSON.stringify(functionsCollection())),
   sickLeaves: () => JSON.parse(JSON.stringify(sickLeavesCollection())),
   reportField: element => captureReportField(element),
