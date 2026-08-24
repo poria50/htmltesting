@@ -2575,14 +2575,14 @@ const state = {
   tariffBannerVisible: true,
   lastTrigger: null,
   // Valgt post per detaljrute, skjemakladd, redigert id og sletteanmodning.
-  selected: { client: 'c1', department: 'd1', payrollEmployee: 'e1', candidate: 'n1', employee: 'e1', assignment: 'a1', job: 'j1', timesheet: 'ts1', workSession: 'ws1', tariff: 't1', scheme: 's1' },
+  selected: { client: 'c1', department: 'd1', payrollEmployee: 'e1', candidate: 'n1', employee: 'e1', assignment: '90001', job: 'j1', timesheet: 'ts1', workSession: 'ws1', tariff: 't1', scheme: 's1' },
   draft: {},
   editingId: null,
   formError: null,
   deleteTarget: null,
   // Timelister: klient styrer avdeling, så avdelingen nullstilles når klienten
   // byttes. Tomme strenger betyr «alle».
-  timesheetFilters: { clientId: '', departmentId: '' },
+  timesheetFilters: { clientId: '', departmentId: '', employeeId: '', week: '' },
   // Avdelinger som egen modul: virksomhet, lønnssystem og sortering. Status
   // filtreres via det generiske statusfilteret (state.filters.status).
   departmentFilters: { clientId: '', paySystemId: '', sort: 'name' },
@@ -2631,7 +2631,9 @@ const state = {
   // Den delte filtermodellen for Vakter: periode, klient, avdeling og
   // bemanningssituasjon. Status filtreres via det generiske statusfilteret
   // (state.filters.status, deriverte verdier) - én kilde, ikke to.
-  shiftFilters: { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '' },
+  shiftFilters: { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '', rangeMode: 'month', rangeAnchor: '', employeeId: '', functionId: '', shiftType: '', timesheetStatus: '', attention: false, sort: 'date-asc' },
+  // «Flere filtre»-panelet i Vaktoversikt: ren UI-tilstand.
+  shiftMoreFilters: false,
   // Revisjonsloggen: periode, modul, hendelsestype og utfører.
   auditFilters: { entityType: 'all', eventType: 'all', actor: 'all', startDate: '', endDate: '' }
 }
@@ -2795,7 +2797,34 @@ const copy = {
     'staffing.sitOpen': 'Ledige plasser',
     'staffing.sitFull': 'Fullt bemannet',
     'staffing.sitRequested': 'Avventer svar',
-    'shifts.clearFilters': 'Fjern filtre',
+    'shifts.clearFilters': 'Nullstill filtre',
+    'staffing.sitPartial': 'Delvis bemannet',
+    'shifts.range.day': 'Dag',
+    'shifts.range.week': 'Uke',
+    'shifts.range.month': 'Måned',
+    'shifts.range.year': 'År',
+    'shifts.range.all': 'Hele perioden',
+    'shifts.moreFilters': 'Flere filtre',
+    'shifts.requiresAction': 'Krever handling',
+    'shifts.filterOnClick': 'Filtrer på denne',
+    'shifts.shiftType': 'Vakttype',
+    'shifts.timesheetStatus': 'Timelistestatus',
+    'shifts.ts.none': 'Uten timeliste',
+    'shifts.sort.dateAsc': 'Dato (stigende)',
+    'shifts.sort.dateDesc': 'Dato (synkende)',
+    'shifts.sort.client': 'Virksomhet A–Å',
+    'shifts.sort.department': 'Avdeling A–Å',
+    'shifts.yearOpen': '{count} ledige',
+    'shifts.yearAttention': '{count} krever handling',
+    'attention.partial': 'Delvis bemannet ({count} ledig)',
+    'attention.openSlots': 'Ledige plasser ({count})',
+    'attention.requestWaiting': 'Forespørsel venter på svar',
+    'attention.confirmation': 'Avventer bekreftelse',
+    'attention.sickReplacement': 'Sykefravær uten erstatter',
+    'attention.timesheetApprove': 'Timeliste til godkjenning',
+    'attention.timesheetCorrect': 'Timeliste må korrigeres',
+    'timesheets.allEmployees': 'Alle ansatte',
+    'timesheets.thisWeek': 'Denne uken',
     'shifts.emptyFiltered': 'Ingen vakter i valgt periode og filter.',
     'series.enable': 'Flere datoer / Gjenta vakten',
     'series.title': 'Vaktserie',
@@ -3965,7 +3994,34 @@ copy.en = {
   'staffing.sitOpen': 'Open slots',
   'staffing.sitFull': 'Fully staffed',
   'staffing.sitRequested': 'Awaiting reply',
-  'shifts.clearFilters': 'Clear filters',
+  'shifts.clearFilters': 'Reset filters',
+  'staffing.sitPartial': 'Partially staffed',
+  'shifts.range.day': 'Day',
+  'shifts.range.week': 'Week',
+  'shifts.range.month': 'Month',
+  'shifts.range.year': 'Year',
+  'shifts.range.all': 'All time',
+  'shifts.moreFilters': 'More filters',
+  'shifts.requiresAction': 'Requires action',
+  'shifts.filterOnClick': 'Filter on this',
+  'shifts.shiftType': 'Shift type',
+  'shifts.timesheetStatus': 'Timesheet status',
+  'shifts.ts.none': 'No timesheet',
+  'shifts.sort.dateAsc': 'Date (ascending)',
+  'shifts.sort.dateDesc': 'Date (descending)',
+  'shifts.sort.client': 'Business A–Z',
+  'shifts.sort.department': 'Department A–Z',
+  'shifts.yearOpen': '{count} open',
+  'shifts.yearAttention': '{count} need action',
+  'attention.partial': 'Partially staffed ({count} open)',
+  'attention.openSlots': 'Open slots ({count})',
+  'attention.requestWaiting': 'Request awaiting reply',
+  'attention.confirmation': 'Awaiting confirmation',
+  'attention.sickReplacement': 'Sick leave without replacement',
+  'attention.timesheetApprove': 'Timesheet pending approval',
+  'attention.timesheetCorrect': 'Timesheet needs correction',
+  'timesheets.allEmployees': 'All employees',
+  'timesheets.thisWeek': 'This week',
   'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
   'series.enable': 'Multiple dates / Repeat shift',
   'series.title': 'Shift series',
@@ -6203,7 +6259,7 @@ const menu = [
 // Demo-data holdes språknøytralt: felt som skal oversettes lagres som
 // katalognøkler, datoer som ISO og tall som tall. Poster teamet oppretter selv
 // lagrer fritekst, som label() sender uendret gjennom.
-const SEED_VERSION = 13
+const SEED_VERSION = 14
 const STORAGE_KEY = 'workmatic-preview-demo'
 
 function seedData() {
@@ -6255,23 +6311,23 @@ function seedData() {
       { id: 'e3', employeeNumber: 'A-1091', name: 'Lea Solheim', firstName: 'Lea', lastName: 'Solheim', profession: 'demo.profession.assistant', departmentId: 'd1', start: '2024-02-03', employmentStatus: 'active', employmentPercentage: 60, employmentType: 'temporary', birthDate: '1995-06-21', email: 'lea.solheim@demo.no', phone: '+47 900 12 347', address: 'Helsegata 9, 0560 Oslo', education: 'no_formal_qualification', qualification: 'none', tradeCertificate: false, authorization: false, certifications: ['first_aid'], competenceTags: ['care'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2020-02-03', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', field: 'demo.field.nursing', kinName: 'Ola Solheim', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 555', availability: ['day', 'night'], status: 'active', salaryHistory: [] }
     ],
     assignments: [
-      { id: 'a1', assignmentNumber: 'OPP-000001', name: 'Solsiden miljøtjeneste', clientId: 'c1', departmentId: 'd1', shiftTemplateId: 'st1', shiftTemplateSnapshot: { name: 'Dagvakt', startTime: '07:00', endTime: '15:00', breakMinutes: 30 }, location: 'Storgata 14, 0184 Oslo', county: 'demo.county.oslo', date: '2026-08-12', startTime: '07:00', endTime: '15:00', breakMinutes: 30, endNextDay: false, role: 'environment_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: ['first_aid'], tariffCategory: 'environment_worker', from: '2026-01-01', to: '2026-12-31', slots: 10, employeeIds: ['e1', 'e2', 'e3'], status: 'active' },
-      { id: 'a2', assignmentNumber: 'OPP-000002', name: 'Avdeling Vest', clientId: 'c2', departmentId: 'd2', location: 'Bryggeveien 8, Sandvika', role: 'healthcare_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: ['first_aid'], tariffCategory: 'healthcare_worker', from: '2026-08-01', to: '2026-12-31', slots: 4, employeeIds: ['e1'], status: 'active' },
-      { id: 'a3', assignmentNumber: 'OPP-000003', name: 'Oppdrag uten tariff', clientId: 'c3', departmentId: 'd3', location: 'Oslo', role: 'environment_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
-      { id: 'a4', assignmentNumber: 'OPP-000004', name: 'Oppdrag uten publisert versjon', clientId: 'c4', departmentId: 'd6', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
-      { id: 'a5', assignmentNumber: 'OPP-000005', name: 'Oppdrag uten lønnstreff', clientId: 'c5', departmentId: 'd7', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
-      { id: 'a6', assignmentNumber: 'OPP-000006', name: 'Oppdrag med tvetydig treff', clientId: 'c6', departmentId: 'd8', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' }
+      { id: '90001', assignmentNumber: 'OPP-000001', name: 'Solsiden miljøtjeneste', clientId: 'c1', departmentId: 'd1', shiftTemplateId: 'st1', shiftTemplateSnapshot: { name: 'Dagvakt', startTime: '07:00', endTime: '15:00', breakMinutes: 30 }, location: 'Storgata 14, 0184 Oslo', county: 'demo.county.oslo', date: '2026-08-12', startTime: '07:00', endTime: '15:00', breakMinutes: 30, endNextDay: false, role: 'environment_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: ['first_aid'], tariffCategory: 'environment_worker', from: '2026-01-01', to: '2026-12-31', slots: 10, employeeIds: ['e1', 'e2', 'e3'], status: 'active' },
+      { id: '90002', assignmentNumber: 'OPP-000002', name: 'Avdeling Vest', clientId: 'c2', departmentId: 'd2', location: 'Bryggeveien 8, Sandvika', role: 'healthcare_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: ['first_aid'], tariffCategory: 'healthcare_worker', from: '2026-08-01', to: '2026-12-31', slots: 4, employeeIds: ['e1'], status: 'active' },
+      { id: '90003', assignmentNumber: 'OPP-000003', name: 'Oppdrag uten tariff', clientId: 'c3', departmentId: 'd3', location: 'Oslo', role: 'environment_worker', requiredEducation: 'healthcare_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
+      { id: '90004', assignmentNumber: 'OPP-000004', name: 'Oppdrag uten publisert versjon', clientId: 'c4', departmentId: 'd6', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
+      { id: '90005', assignmentNumber: 'OPP-000005', name: 'Oppdrag uten lønnstreff', clientId: 'c5', departmentId: 'd7', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' },
+      { id: '90006', assignmentNumber: 'OPP-000006', name: 'Oppdrag med tvetydig treff', clientId: 'c6', departmentId: 'd8', location: 'Oslo', role: 'environment_worker', requiredQualification: 'trade_certificate', requiredCertificates: [], tariffCategory: 'environment_worker', from: '2026-08-01', to: '2026-12-31', slots: 2, employeeIds: ['e1'], status: 'draft' }
     ],
     jobs: [
-      { id: 'j1', assignmentId: 'a1', title: 'Solsiden miljøtjeneste', clientId: 'c1', employeeId: 'e1', role: 'environment_worker', location: 'Oslo', start: '2026-01-01', end: '2026-12-31', status: 'active' },
-      { id: 'j2', assignmentId: 'a2', title: 'Avdeling Vest', clientId: 'c2', employeeId: 'e1', role: 'healthcare_worker', location: 'Bærum', start: '2026-08-01', end: '2026-12-31', status: 'active' },
-      { id: 'j3', assignmentId: 'a1', title: 'Solsiden miljøtjeneste', clientId: 'c1', employeeId: 'e2', role: 'environment_worker', location: 'Oslo', start: '2026-08-01', end: '2026-12-31', status: 'pending' }
+      { id: 'j1', assignmentId: '90001', title: 'Solsiden miljøtjeneste', clientId: 'c1', employeeId: 'e1', role: 'environment_worker', location: 'Oslo', start: '2026-01-01', end: '2026-12-31', status: 'active' },
+      { id: 'j2', assignmentId: '90002', title: 'Avdeling Vest', clientId: 'c2', employeeId: 'e1', role: 'healthcare_worker', location: 'Bærum', start: '2026-08-01', end: '2026-12-31', status: 'active' },
+      { id: 'j3', assignmentId: '90001', title: 'Solsiden miljøtjeneste', clientId: 'c1', employeeId: 'e2', role: 'environment_worker', location: 'Oslo', start: '2026-08-01', end: '2026-12-31', status: 'pending' }
     ],
     shifts: [
-      { id: 'sh1', employeeId: 'e1', jobId: 'j1', assignmentId: 'a1', date: '2026-08-12', start: '14:00', end: '22:00', status: 'completed', calculationSnapshot: { employeeId: 'e1', assignmentId: 'a1', clientId: 'c1', tariffId: 't1', tariffVersionId: 'v1', salaryCellId: 'cell-t1-v1-1', seniorityYears: 8, role: 'environment_worker', qualification: 'trade_certificate', baseRate: 285, rateUnit: 'hourly', hours: 8, ordinaryAmount: 2280, premiumLines: [{ rule: { id: 'pr1', name: 'Ordinært nattillegg' }, hours: 1, amount: 68 }], premiumAmount: 68, overtimeHours: 0, overtimeAmount: 0, total: 2348, trace: [{ step: 'employee', id: 'e1', value: 'Maja Nilsen' }, { step: 'assignment', id: 'a1', value: 'Solsiden miljøtjeneste' }, { step: 'client', id: 'c1', value: 'Oslo Omsorg AS' }, { step: 'tariff', id: 't1', value: 'Helseavtale' }, { step: 'tariff_version', id: 'v1', value: '2026.2' }, { step: 'salary_cell', id: 'cell-t1-v1-1', value: 'environment_worker/trade_certificate/7-9' }] } },
-      { id: 'sh2', employeeId: 'e1', jobId: 'j2', assignmentId: 'a2', shiftTemplateId: 'st1', shiftTemplateSnapshot: { name: 'Dagvakt', startTime: '07:00', endTime: '15:00', breakMinutes: 30 }, breakMinutes: 30, date: '2026-08-19', start: '07:00', end: '15:00', status: 'planned' },
-      { id: 'sh3', employeeId: 'e2', jobId: 'j3', assignmentId: 'a1', date: '2026-08-20', start: '15:00', end: '22:00', status: 'planned' },
-      { id: 'sh4', employeeId: 'e3', jobId: 'j1', assignmentId: 'a1', date: '2026-08-22', start: '08:00', end: '16:00', status: 'planned' }
+      { id: 'sh1', employeeId: 'e1', jobId: 'j1', assignmentId: '90001', date: '2026-08-12', start: '14:00', end: '22:00', status: 'completed', calculationSnapshot: { employeeId: 'e1', assignmentId: '90001', clientId: 'c1', tariffId: 't1', tariffVersionId: 'v1', salaryCellId: 'cell-t1-v1-1', seniorityYears: 8, role: 'environment_worker', qualification: 'trade_certificate', baseRate: 285, rateUnit: 'hourly', hours: 8, ordinaryAmount: 2280, premiumLines: [{ rule: { id: 'pr1', name: 'Ordinært nattillegg' }, hours: 1, amount: 68 }], premiumAmount: 68, overtimeHours: 0, overtimeAmount: 0, total: 2348, trace: [{ step: 'employee', id: 'e1', value: 'Maja Nilsen' }, { step: 'assignment', id: '90001', value: 'Solsiden miljøtjeneste' }, { step: 'client', id: 'c1', value: 'Oslo Omsorg AS' }, { step: 'tariff', id: 't1', value: 'Helseavtale' }, { step: 'tariff_version', id: 'v1', value: '2026.2' }, { step: 'salary_cell', id: 'cell-t1-v1-1', value: 'environment_worker/trade_certificate/7-9' }] } },
+      { id: 'sh2', employeeId: 'e1', jobId: 'j2', assignmentId: '90002', shiftTemplateId: 'st1', shiftTemplateSnapshot: { name: 'Dagvakt', startTime: '07:00', endTime: '15:00', breakMinutes: 30 }, breakMinutes: 30, date: '2026-08-19', start: '07:00', end: '15:00', status: 'planned' },
+      { id: 'sh3', employeeId: 'e2', jobId: 'j3', assignmentId: '90001', date: '2026-08-20', start: '15:00', end: '22:00', status: 'planned' },
+      { id: 'sh4', employeeId: 'e3', jobId: 'j1', assignmentId: '90001', date: '2026-08-22', start: '08:00', end: '16:00', status: 'planned' }
     ],
     timesheets: [
       { id: 'ts1', employeeId: 'e1', week: '2026-W34', totalHours: 15, status: 'pending', sessionIds: ['ws1', 'ws2'] },
@@ -6357,7 +6413,7 @@ function taxonomy(value) {
   return value ? t(`taxonomy.${value}`) : t('common.none')
 }
 
-let db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))))
+let db = migrateAssignmentIds(migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))))
 let storageWorks = true
 
 // Migrering: en eksperimentell runde flyttet lønnstabell og regler til en egen
@@ -6436,6 +6492,48 @@ function migratePremiumRuleFamilies(data) {
       ? [{ id: nextDateId(), date: rule.date, label: '', allDay: rule.allDay !== false, start: rule.start || '', end: rule.end || '' }]
       : (data.holidays ?? []).map(holiday => ({ id: nextDateId(), date: holiday.date, label: holiday.name ?? '', allDay: true, start: '', end: '' }))
     delete rule.date
+  }
+  return data
+}
+
+// Kontrollert migrering: Vakt/Assignment-id-er skal kun være tall. Hver
+// ikke-numerisk id får en ny numerisk fra den delte telleren, og ALLE
+// referanser følger med atomisk: jobs, shifts (inkl. calculationSnapshot og
+// trace - uten å reberegne historisk økonomi), slot-timelister med
+// godkjenningsversjoner, varsler, serier og sykefraværets berørte vakter.
+// Andre entiteters id-er røres aldri. Idempotent: numeriske id-er beholdes.
+function migrateAssignmentIds(data) {
+  const mapping = new Map()
+  for (const assignment of data.assignments ?? []) {
+    if (isNumericSlotId(assignment.id)) continue
+    const next = String(nextNumericSlotId(data))
+    mapping.set(String(assignment.id), next)
+    assignment.id = next
+  }
+  if (!mapping.size) return data
+  const remap = value => mapping.get(String(value)) ?? value
+  for (const job of data.jobs ?? []) job.assignmentId = remap(job.assignmentId)
+  for (const shift of data.shifts ?? []) {
+    shift.assignmentId = remap(shift.assignmentId)
+    if (shift.calculationSnapshot?.assignmentId) shift.calculationSnapshot.assignmentId = remap(shift.calculationSnapshot.assignmentId)
+    for (const step of shift.calculationSnapshot?.trace ?? []) {
+      if (step.step === 'assignment') step.id = remap(step.id)
+    }
+  }
+  for (const sheet of data.slotTimesheets ?? []) {
+    sheet.assignmentId = remap(sheet.assignmentId)
+    for (const version of sheet.approvalVersions ?? []) version.assignmentId = remap(version.assignmentId)
+  }
+  for (const item of data.notifications ?? []) {
+    if (item.assignmentId) item.assignmentId = remap(item.assignmentId)
+    if (item.entityId) item.entityId = remap(item.entityId)
+  }
+  for (const series of data.shiftSeries ?? []) {
+    if (series.sourceAssignmentId) series.sourceAssignmentId = remap(series.sourceAssignmentId)
+  }
+  for (const leave of data.sickLeaves ?? []) {
+    for (const entry of leave.affected ?? []) entry.assignmentId = remap(entry.assignmentId)
+    for (const event of leave.events ?? []) { if (event.assignmentId) event.assignmentId = remap(event.assignmentId) }
   }
   return data
 }
@@ -6619,14 +6717,14 @@ function restore() {
     const raw = store.getItem(STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw)
-    if (parsed?.meta?.version === SEED_VERSION) db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed))))))
+    if (parsed?.meta?.version === SEED_VERSION) db = migrateAssignmentIds(migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(parsed)))))))
   } catch {
     storageWorks = false
   }
 }
 
 function resetData() {
-  db = migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData()))))))
+  db = migrateAssignmentIds(migrateSlotTimesheets(migrateNumericSlotIds(migrateStaffingSlots(migratePremiumRuleFamilies(migrateCompensationsToPaySystems(migrateSchemeRulesToPaySystems(seedData())))))))
   const store = storage()
   try {
     store?.removeItem(STORAGE_KEY)
@@ -7616,7 +7714,7 @@ function renderClientDetail() {
     body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.users')}</h3></div>${rows.length ? table(['common.name', 'common.email', 'common.status', 'access.scope', 'access.permissions', 'common.actions'], rows) : `<p class="muted">${t('access.none')}</p>`}</article>`
   }
   if (tab === 'assignments') {
-    const rows = clientAssignments.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(item.assignmentNumber ?? '')}</button></td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.date ? formatDate(item.date) : ''}</td><td>${formatNumber(item.slots, 0)}</td><td>${shiftStatusTag(item)}</td><td><button class="button ghost small" data-route="job-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
+    const rows = clientAssignments.map(item => `<tr><td><button class="row-link" data-route="job-detail" data-id="${item.id}">${escapeHtml(String(item.id))}</button></td><td>${item.departmentId ? lab(record('departments', item.departmentId)?.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${item.date ? formatDate(item.date) : ''}</td><td>${formatNumber(item.slots, 0)}</td><td>${shiftStatusTag(item)}</td><td><button class="button ghost small" data-route="job-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
     body = `<article class="card">${rows.length ? table(['staffing.assignmentId', 'rel.department', 'assignment.date', 'staffing.slots', 'common.status', 'common.actions'], rows) : `<p class="muted">${t('staffing.noneForClient')}</p>`}</article>`
   }
   if (tab === 'billing') body = `<article class="card"><dl class="detail-list"><div><dt>${t('clients.provision')}</dt><dd>${formatPercent(client.provision)}</dd></div><div><dt>${t('clients.vat')}</dt><dd>${formatPercent(client.vat)}</dd></div><div><dt>${t('clients.invoiceEmail')}</dt><dd>${escapeHtml(client.invoiceEmail)}</dd></div><div><dt>${t('clients.paymentTerms')}</dt><dd>${t('clients.days')}</dd></div></dl></article>`
@@ -7729,7 +7827,7 @@ function renderDepartmentDetail() {
     body = `<article class="card"><div class="card-header"><h2>${t('departments.employeeHistory')}</h2><span class="tag info">${rows.length}</span></div>${rows.length ? table(['common.name', 'comp.payroll.employeeNumber', 'departments.lastWorked', 'departments.shiftCount'], rows) : `<p class="muted">${t('departments.noHistory')}</p>`}</article>`
   }
   if (tab === 'department-assignments') {
-    const rows = departmentAssignments(item.id).map(assignment => `<tr><td><button class="row-link" data-route="job-detail" data-id="${assignment.id}">${escapeHtml(assignment.assignmentNumber ?? '')}</button></td><td>${assignment.date ? formatDate(assignment.date) : ''}</td><td>${escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '')}</td><td>${formatNumber(assignment.slots, 0)}</td><td>${shiftStatusTag(assignment)}</td></tr>`)
+    const rows = departmentAssignments(item.id).map(assignment => `<tr><td><button class="row-link" data-route="job-detail" data-id="${assignment.id}">${escapeHtml(String(assignment.id))}</button></td><td>${assignment.date ? formatDate(assignment.date) : ''}</td><td>${escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '')}</td><td>${formatNumber(assignment.slots, 0)}</td><td>${shiftStatusTag(assignment)}</td></tr>`)
     body = `<article class="card"><div class="card-header"><h2>${t('clients.tabs.assignments')}</h2><span class="tag info">${rows.length}</span></div>${rows.length ? table(['staffing.assignmentId', 'assignment.date', 'shiftTemplates.template', 'staffing.slots', 'common.status'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   }
   if (tab === 'department-documents') {
@@ -7971,7 +8069,7 @@ function renderEmployeeDetail() {
     })()}</dd></div><div><dt>${t('employees.documentationStatus')}</dt><dd>${employee.documentationStatus === 'verified' ? statusTag('active', 'employees.verified') : statusTag('pending')}</dd></div></dl>`],
     [t('employees.history'), `${(() => {
       const worked = employeeWorkHistory(employee.id)
-      const rows = worked.map(entry => `<tr><td>${relationLink('client-detail', entry.client?.id, entry.client?.name ?? '')}</td><td>${entry.department ? lab(entry.department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('job-detail', entry.assignment.id, entry.assignment.assignmentNumber ?? assignmentLabel(entry.assignment))}</td><td>${entry.lastWorked ? formatDate(entry.lastWorked) : ''}</td><td>${entry.shifts}</td></tr>`)
+      const rows = worked.map(entry => `<tr><td>${relationLink('client-detail', entry.client?.id, entry.client?.name ?? '')}</td><td>${entry.department ? lab(entry.department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('job-detail', entry.assignment.id, String(entry.assignment.id))}</td><td>${entry.lastWorked ? formatDate(entry.lastWorked) : ''}</td><td>${entry.shifts}</td></tr>`)
       const workTable = rows.length ? table(['employees.workedFor', 'rel.department', 'staffing.assignmentId', 'departments.lastWorked', 'departments.shiftCount'], rows) : `<p class="muted">${t('rel.none')}</p>`
       return `${workTable}${history ? `<h3 style="margin-top:16px">${t('employees.archivedSalary')}</h3>${history}` : ''}`
     })()}`],
@@ -8054,7 +8152,8 @@ function departmentPaySystemField() {
 // den ikke ennå, så feltet sier at den kommer automatisk. Ingen data-field, så
 // den kan heller ikke skrives til kladden.
 function assignmentIdField() {
-  const current = String(draftValue('assignmentNumber', '') ?? '')
+  // Synlig Vakt-ID er den numeriske kanoniske id-en - aldri et prefiksformat.
+  const current = state.editingId ? String(state.editingId) : ''
   return `<div class="field"><label for="f-assignmentNumber">${t('staffing.assignmentId')}</label><input id="f-assignmentNumber" type="text" value="${escapeHtml(current)}" placeholder="${t('staffing.generated')}" readonly></div>`
 }
 
@@ -8109,14 +8208,92 @@ function shiftFilterControls() {
   const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const departments = collection('departments').filter(item => item.status !== 'archived' && (!filters.clientId || item.clientId === filters.clientId))
   const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
-  const situations = [['open', 'staffing.sitOpen'], ['full', 'staffing.sitFull'], ['requested', 'staffing.sitRequested'], ['awaiting_confirmation', 'staffing.awaitingConfirmation'], ['pending_reconfirmation', 'staffing.pendingReconfirmation']]
+  const situations = [['open', 'staffing.sitOpen'], ['partial', 'staffing.sitPartial'], ['full', 'staffing.sitFull'], ['requested', 'staffing.sitRequested'], ['awaiting_confirmation', 'staffing.awaitingConfirmation'], ['pending_reconfirmation', 'staffing.pendingReconfirmation']]
   const situationChoices = situations.map(([value, key]) => `<option value="${value}"${filters.staffing === value ? ' selected' : ''}>${t(key)}</option>`).join('')
-  return `<input type="date" data-shift-filter="fromDate" value="${escapeHtml(filters.fromDate)}" aria-label="${t('shifts.filter.from')}">
-    <input type="date" data-shift-filter="toDate" value="${escapeHtml(filters.toDate)}" aria-label="${t('shifts.filter.to')}">
-    <select data-shift-filter="clientId" aria-label="${t('rel.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('shifts.filter.allClients')}</option>${clientChoices}</select>
+  return `<select data-shift-filter="clientId" aria-label="${t('rel.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('shifts.filter.allClients')}</option>${clientChoices}</select>
     <select data-shift-filter="departmentId" aria-label="${t('rel.department')}"><option value=""${filters.departmentId ? '' : ' selected'}>${t('shifts.filter.allDepartments')}</option>${departmentChoices}</select>
     <select data-shift-filter="staffing" aria-label="${t('shifts.filter.staffingSituation')}"><option value=""${filters.staffing ? '' : ' selected'}>${t('shifts.filter.allSituations')}</option>${situationChoices}</select>
+    <button type="button" class="button ghost small ${state.shiftFilters.attention ? 'is-active' : ''}" data-action="toggle-attention-filter">${t('shifts.requiresAction')}</button>
+    <button type="button" class="button ghost small" data-action="toggle-more-filters">${t('shifts.moreFilters')}</button>
     <button type="button" class="button ghost small" data-action="clear-shift-filters">${t('shifts.clearFilters')}</button>`
+}
+
+// «Flere filtre»: ansatt, funksjon, vakttype, timelistestatus og sortering.
+// Samme delte filtermodell - panelet er kun UI.
+function shiftMoreFilterControls() {
+  const filters = state.shiftFilters
+  const employees = collection('employees').filter(item => item.status !== 'archived').sort((a, b) => a.name.localeCompare(b.name))
+  const employeeChoices = employees.map(item => `<option value="${item.id}"${filters.employeeId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  const functionChoices = functionsCollection().filter(item => item.active !== false).map(item => `<option value="${item.id}"${String(filters.functionId) === String(item.id) ? ' selected' : ''}>${escapeHtml(functionName(item.id))}</option>`).join('')
+  const types = [...new Set(collection('assignments').map(item => shiftPlanTypeLabel(item)).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const typeChoices = types.map(type => `<option value="${escapeHtml(type)}"${filters.shiftType === type ? ' selected' : ''}>${escapeHtml(type)}</option>`).join('')
+  const tsChoices = [['none', 'shifts.ts.none'], ['not_submitted', 'timesheets.status.not_submitted'], ['submitted', 'timesheets.status.submitted'], ['approved', 'timesheets.status.approved'], ['needs_correction', 'timesheets.status.needs_correction']].map(([value, key]) => `<option value="${value}"${filters.timesheetStatus === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  const sortChoices = [['date-asc', 'shifts.sort.dateAsc'], ['date-desc', 'shifts.sort.dateDesc'], ['client', 'shifts.sort.client'], ['department', 'shifts.sort.department']].map(([value, key]) => `<option value="${value}"${filters.sort === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  return `<div class="toolbar"><div class="toolbar-group">
+    <select data-shift-filter="employeeId" aria-label="${t('jobs.employee')}"><option value=""${filters.employeeId ? '' : ' selected'}>${t('timesheets.allEmployees')}</option>${employeeChoices}</select>
+    <select data-shift-filter="functionId" aria-label="${t('functions.label')}"><option value=""${filters.functionId ? '' : ' selected'}>${t('functions.label')}</option>${functionChoices}</select>
+    <select data-shift-filter="shiftType" aria-label="${t('shifts.shiftType')}"><option value=""${filters.shiftType ? '' : ' selected'}>${t('shifts.shiftType')}</option>${typeChoices}</select>
+    <select data-shift-filter="timesheetStatus" aria-label="${t('shifts.timesheetStatus')}"><option value=""${filters.timesheetStatus ? '' : ' selected'}>${t('shifts.timesheetStatus')}</option>${tsChoices}</select>
+    <select data-shift-filter="sort" aria-label="${t('departments.sort.label')}">${sortChoices}</select>
+  </div></div>`
+}
+
+// Aktive filtre som chips: hvert kryss fjerner ETT filter uten å røre resten.
+function shiftFilterChips() {
+  const filters = state.shiftFilters
+  const chips = []
+  const chip = (label, name, value = '') => chips.push(`<span class="tag info">${label} <button type="button" class="chip-clear" data-action="clear-shift-filter" data-name="${name}" data-value="${value}" aria-label="${t('shifts.clearFilters')}">×</button></span>`)
+  if (filters.clientId) chip(escapeHtml(record('clients', filters.clientId)?.name ?? ''), 'clientId')
+  if (filters.departmentId) chip(lab(record('departments', filters.departmentId)?.name ?? ''), 'departmentId')
+  const situationKeys = { open: 'staffing.sitOpen', partial: 'staffing.sitPartial', full: 'staffing.sitFull', requested: 'staffing.sitRequested', awaiting_confirmation: 'staffing.awaitingConfirmation', pending_reconfirmation: 'staffing.pendingReconfirmation' }
+  if (filters.staffing) chip(t(situationKeys[filters.staffing] ?? 'shifts.filter.staffingSituation'), 'staffing')
+  if (filters.employeeId) chip(escapeHtml(record('employees', filters.employeeId)?.name ?? ''), 'employeeId')
+  if (filters.functionId) chip(escapeHtml(functionName(filters.functionId)), 'functionId')
+  if (filters.shiftType) chip(escapeHtml(filters.shiftType), 'shiftType')
+  if (filters.timesheetStatus) chip(t('shifts.timesheetStatus'), 'timesheetStatus')
+  if (filters.attention) chip(t('shifts.requiresAction'), 'attention')
+  return chips.length ? `<div class="tag-row" style="margin:8px 0">${chips.join(' ')}</div>` : ''
+}
+
+// Tidsnavigatoren: modus + Forrige/I dag/Neste + lesbar periodeoverskrift.
+function shiftRangeTitle() {
+  const filters = state.shiftFilters
+  const range = shiftRangeBounds(filters)
+  if (!range.from) return t('shifts.range.all')
+  const locale = state.locale === 'nb' ? 'nb-NO' : 'en-GB'
+  if (filters.rangeMode === 'day') {
+    const text = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${range.from}T00:00:00Z`))
+    return text.charAt(0).toLocaleUpperCase() + text.slice(1)
+  }
+  if (filters.rangeMode === 'week') return `${t('timesheets.week')} ${isoWeekKey(range.from).split('-W')[1]} · ${formatDate(range.from)}–${formatDate(range.to)}`
+  if (filters.rangeMode === 'year') return range.from.slice(0, 4)
+  const text = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${range.from}T12:00:00Z`))
+  return text.charAt(0).toLocaleUpperCase() + text.slice(1)
+}
+
+function shiftRangeNavigator() {
+  const filters = state.shiftFilters
+  const modes = [['day', 'shifts.range.day'], ['week', 'shifts.range.week'], ['month', 'shifts.range.month'], ['year', 'shifts.range.year']]
+  const modeTabs = modes.map(([value, key]) => `<button type="button" class="tab ${filters.rangeMode === value ? 'is-active' : ''}" data-action="shift-range-mode" data-mode="${value}">${t(key)}</button>`).join('')
+  return `<div class="plan-toolbar"><div class="tabs">${modeTabs}</div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="shift-range-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="shift-range-today">${t('shiftPlan.today')}</button><button type="button" class="button secondary small" data-action="shift-range-next">${t('calendar.next')}${icon('arrow-right')}</button></div></div><h2 class="plan-title">${escapeHtml(shiftRangeTitle())}</h2>`
+}
+
+// År-visningen er en OVERSIKT: tolv månedskort med nøkkeltall, aldri én
+// gigantisk liste. Klikk på en måned åpner Måned-visningen.
+function shiftYearOverview() {
+  const filters = state.shiftFilters
+  const year = (filters.rangeAnchor || todayIso()).slice(0, 4)
+  const cards = Array.from({ length: 12 }, (_, i) => {
+    const month = `${year}-${String(i + 1).padStart(2, '0')}`
+    const monthFilters = { ...filters, rangeMode: 'month', rangeAnchor: `${month}-01`, attention: false }
+    const inMonth = filteredAssignments(monthFilters)
+    const open = inMonth.filter(item => staffingSlotsFor(item).some(slot => slot.status === 'open')).length
+    const attention = inMonth.filter(item => assignmentAttention(item).length).length
+    const locale = state.locale === 'nb' ? 'nb-NO' : 'en-GB'
+    const name = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(new Date(`${month}-15T12:00:00Z`))
+    return `<button type="button" class="stat-card stat-action" data-action="shift-open-month" data-month="${month}-01"><span class="stat-label">${escapeHtml(name.charAt(0).toLocaleUpperCase() + name.slice(1))}</span><strong class="stat-value">${inMonth.length}</strong><span class="stat-label">${t('shifts.yearOpen', { count: open })} · ${t('shifts.yearAttention', { count: attention })}</span></button>`
+  }).join('')
+  return `<div class="dashboard-metrics">${cards}</div>`
 }
 
 // Listevisningen (§21): Dato, Tid, Klient, Avdeling, Rolle, Bemanning,
@@ -8125,10 +8302,10 @@ function shiftListTable(visible) {
   const rows = visible.map(item => {
     const client = record('clients', item.clientId)
     const department = record('departments', item.departmentId)
-    const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(item.assignmentNumber ?? '')}${item.shiftSeriesId ? ` · ${t('series.tag')}` : ''}</span></div>`
+    const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(String(item.id))}${item.shiftSeriesId ? ` · ${t('series.tag')}` : ''}</span></div>`
     // «X av Y bemannet» adskilt fra status; behovet («Antall ansatte») som undertekst (§22, §25).
     const staffing = `<div class="file-name"><strong>${staffedOfLabel(item)}</strong><span>${t('staffing.slots')}: ${formatNumber(item.slots, 0)}</span></div>`
-    return `<tr><td>${dateCell}</td><td>${item.liveInSnapshot ? `${escapeHtml(item.startTime ?? '')} → ${escapeHtml(item.endTime ?? '')} <span class="muted">(+${item.liveInSnapshot.days} ${t('medlever.daysShort')})</span>` : item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
+    return `<tr><td>${dateCell}</td><td>${item.liveInSnapshot ? `${escapeHtml(item.startTime ?? '')} → ${escapeHtml(item.endTime ?? '')} <span class="muted">(+${item.liveInSnapshot.days} ${t('medlever.daysShort')})</span>` : item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td><button class="row-link" data-action="shift-filter-client" data-id="${client?.id ?? ''}" title="${t('shifts.filterOnClick')}">${escapeHtml(client?.name ?? '')}</button>${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? `<button class="row-link" data-action="shift-filter-department" data-id="${department.id}" title="${t('shifts.filterOnClick')}">${lab(department.name)}</button>` : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}${(() => { const reasons = assignmentAttention(item); return reasons.length ? `<div class="muted" style="font-size:11px">${t('shifts.requiresAction')}: ${reasons.map(reason => t(reason.key, { count: reason.count ?? 0 })).join(' · ')}</div>` : '' })()}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
   if (!rows.length) return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shifts.emptyFiltered')}</h3></div>`
   return dataTable('assignments', ['common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
@@ -8184,8 +8361,11 @@ function renderStaffing() {
   // aldri filtrene (§36-§37).
   const visible = filteredAssignments()
   const viewTabs = `<div class="tabs"><button type="button" class="tab ${state.shiftView === 'list' ? 'is-active' : ''}" data-action="shift-view-list">${t('shifts.view.list')}</button><button type="button" class="tab ${state.shiftView === 'calendar' ? 'is-active' : ''}" data-action="shift-view-calendar">${t('shifts.view.calendar')}</button></div>`
-  const content = state.shiftView === 'calendar' ? shiftCalendar(visible) : shiftListTable(visible)
-  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${viewTabs}${searchToolbar(shiftFilterControls())}${content}</section>`
+  const content = state.shiftFilters.rangeMode === 'year'
+    ? shiftYearOverview()
+    : state.shiftView === 'calendar' ? shiftCalendar(visible) : shiftListTable(visible)
+  const more = state.shiftMoreFilters ? shiftMoreFilterControls() : ''
+  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${shiftRangeNavigator()}${viewTabs}${searchToolbar(shiftFilterControls())}${more}${shiftFilterChips()}${content}</section>`
 }
 
 function renderJobDetail() {
@@ -8218,7 +8398,7 @@ function renderJobDetail() {
   const actions = cancelled
     ? button('common.back', 'back-staffing', 'secondary', 'arrow-left')
     : `${button('common.back', 'back-staffing', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-action="manage-assignment-team" data-id="${assignment.id}">${icon('users')}${t('staffing.manageTeam')}</button><button type="button" class="button" data-action="edit-assignment" data-id="${assignment.id}">${icon('edit')}${t('common.edit')}</button>${destructive}`
-  const basicsCard = `<article class="card"><h2>${escapeHtml(assignment.assignmentNumber ?? '')}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(assignment.assignmentNumber ?? '')}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div>${assignment.shiftSeriesId ? (() => { const shifts = seriesShifts(assignment.shiftSeriesId); const index = shifts.findIndex(item => item.id === assignment.id) + 1; return `<div><dt>${t('series.partOf')}</dt><dd>${t('series.position', { index, total: shifts.length })}</dd></div>` })() : ''}<div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
+  const basicsCard = `<article class="card"><h2>${t('staffing.assignmentId')} ${escapeHtml(String(assignment.id))}</h2><p class="field-help">${[client?.name, assignment.departmentId ? label(record('departments', assignment.departmentId)?.name) : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p><dl class="detail-list"><div><dt>${t('staffing.assignmentId')}</dt><dd>${escapeHtml(String(assignment.id))}</dd></div><div><dt>${t('staffing.client')}</dt><dd>${relationLink('client-detail', client?.id, client?.name ?? '')}</dd></div><div><dt>${t('rel.department')}</dt><dd>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : t('common.none')}</dd></div><div><dt>${t('jobs.location')}</dt><dd>${escapeHtml(assignment.location ?? '')}</dd></div><div><dt>${t('shiftTemplates.template')}</dt><dd>${assignment.shiftTemplateId ? escapeHtml(record('shiftTemplates', assignment.shiftTemplateId)?.name ?? '') : t('common.none')}</dd></div><div><dt>${t('assignment.date')}</dt><dd>${assignment.date ? `${formatDate(assignment.date)} · ${escapeHtml(assignment.startTime ?? '')}–${escapeHtml(assignment.endTime ?? '')}` : assignment.from && assignment.to ? formatDateRange(assignment.from, assignment.to) : ''}</dd></div><div><dt>${t('staffing.slots')}</dt><dd>${formatNumber(assignment.slots, 0)}</dd></div><div><dt>${t('staffing.assignEmployee')}</dt><dd>${assignedEmployeesCell(assignment)}</dd></div><div><dt>${t('shifts.statusLabel')}</dt><dd>${shiftStatusTag(assignment)}</dd></div><div><dt>${t('staffing.staffingLabel')}</dt><dd>${staffedOfLabel(assignment)}</dd></div><div><dt>${t('staffing.customerRef')}</dt><dd>${assignment.customerOrderReference ? escapeHtml(assignment.customerOrderReference) : `<span class="muted">${t('common.none')}</span>`}</dd></div>${assignment.shiftSeriesId ? (() => { const shifts = seriesShifts(assignment.shiftSeriesId); const index = shifts.findIndex(item => item.id === assignment.id) + 1; return `<div><dt>${t('series.partOf')}</dt><dd>${t('series.position', { index, total: shifts.length })}</dd></div>` })() : ''}<div><dt>${t('staffing.description')}</dt><dd>${assignment.description ? escapeHtml(assignment.description) : `<span class="muted">${t('common.none')}</span>`}</dd></div></dl></article>`
   const requirementsCard = `<article class="card"><h2>${t('staffing.requirementsPreferences')}</h2><dl class="detail-list"><div><dt>${t('assignment.genderPreference')}</dt><dd>${t({ female: 'assignment.genderWomen', male: 'assignment.genderMen' }[assignment.genderPreference] ?? 'assignment.genderBoth')}</dd></div><div><dt>${t('staffing.educationPreference')}</dt><dd>${t({ educated: 'assignment.educated', not_educated: 'assignment.notEducated' }[assignment.educationPreference] ?? 'assignment.educationBoth')}</dd></div></dl><h3 style="margin-top:16px">${t('staffing.roleRequirements')}</h3><dl class="detail-list"><div><dt>${t('staffing.requiredQualification')}</dt><dd>${escapeHtml(taxonomy(assignment.requiredQualification))}</dd></div><div><dt>${t('staffing.requiredCertificates')}</dt><dd>${(assignment.requiredCertificates ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div></dl></article>`
   // Lønnskontekst, lønnsgrunnlag, tildelte ansatte og kommende vakter hører til
   // et bemannet oppdrag. Før tildeling handler kortet om jobben og om hvem som
@@ -8472,7 +8652,7 @@ function removeWorkerDialogBody() {
   const warning = workerHasRegisteredWork(assignment.id, employee.id)
     ? `<div class="banner warning">${icon('bell')}${t('staffing.hasRegisteredWork')} ${t('staffing.historyKept')}</div>`
     : ''
-  const body = `<p>${t('staffing.removeBody')}</p><article class="card"><div class="file-row"><div class="file-name"><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(assignment.assignmentNumber ?? '')}</span></div></div></article>${warning}${bound('reason', t('staffing.reason'))}<p class="field-help">${t('staffing.historyKept')}</p>`
+  const body = `<p>${t('staffing.removeBody')}</p><article class="card"><div class="file-row"><div class="file-name"><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(String(assignment.id))}</span></div></div></article>${warning}${bound('reason', t('staffing.reason'))}<p class="field-help">${t('staffing.historyKept')}</p>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-remove-worker">${icon('trash')}${t('staffing.remove')}</button></div>`
   return { body, footer }
 }
@@ -9708,6 +9888,9 @@ function sessionMatchesFilters(context) {
 }
 
 function timesheetMatchesFilters(timesheet) {
+  const { employeeId, week } = state.timesheetFilters
+  if (employeeId && timesheet.employeeId !== employeeId) return false
+  if (week && timesheet.week !== isoWeekKey(week)) return false
   if (!state.timesheetFilters.clientId) return true
   return timesheetContext(timesheet).contexts.some(sessionMatchesFilters)
 }
@@ -9733,9 +9916,23 @@ function timesheetFilterControls() {
   const { clientId, departmentId } = state.timesheetFilters
   const clientChoices = collection('clients').map(item => `<option value="${item.id}"${clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const clientSelect = `<select data-timesheet-filter="clientId" aria-label="${t('timesheets.client')}"><option value=""${clientId ? '' : ' selected'}>${t('timesheets.allClients')}</option>${clientChoices}</select>`
-  if (!clientId) return `${clientSelect}<select data-timesheet-filter="departmentId" aria-label="${t('timesheets.department')}" disabled><option value="">${t('timesheets.selectClientFirst')}</option></select>`
+  if (!clientId) return `${clientSelect}<select data-timesheet-filter="departmentId" aria-label="${t('timesheets.department')}" disabled><option value="">${t('timesheets.selectClientFirst')}</option></select>${timesheetEmployeeSelect()}`
   const departmentChoices = collection('departments').filter(item => item.clientId === clientId).map(item => `<option value="${item.id}"${departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
-  return `${clientSelect}<select data-timesheet-filter="departmentId" aria-label="${t('timesheets.department')}"><option value=""${departmentId ? '' : ' selected'}>${t('timesheets.allDepartments')}</option>${departmentChoices}</select>`
+  return `${clientSelect}<select data-timesheet-filter="departmentId" aria-label="${t('timesheets.department')}"><option value=""${departmentId ? '' : ' selected'}>${t('timesheets.allDepartments')}</option>${departmentChoices}</select>${timesheetEmployeeSelect()}`
+}
+
+function timesheetEmployeeSelect() {
+  const { employeeId } = state.timesheetFilters
+  const employees = collection('employees').filter(item => item.status !== 'archived').sort((a, b) => a.name.localeCompare(b.name))
+  const choices = employees.map(item => `<option value="${item.id}"${employeeId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  return `<select data-timesheet-filter="employeeId" aria-label="${t('jobs.employee')}"><option value=""${employeeId ? '' : ' selected'}>${t('timesheets.allEmployees')}</option>${choices}</select>`
+}
+
+// Ukenavigatoren for timelister: flytter bare perioden, aldri filtrene (§27).
+function timesheetWeekNavigator() {
+  const week = state.timesheetFilters.week
+  const label = week ? `${t('timesheets.week')} ${isoWeekKey(week).split('-W')[1]} · ${formatDate(week)}–${formatDate(addDays(week, 6))}` : t('shifts.range.all')
+  return `<div class="plan-toolbar"><div class="toolbar-group"><button type="button" class="button secondary small" data-action="timesheet-week-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small ${week && week === startOfWeekIso(todayIso()) ? 'is-active' : ''}" data-action="timesheet-week-this">${t('timesheets.thisWeek')}</button><button type="button" class="button secondary small" data-action="timesheet-week-next">${t('calendar.next')}${icon('arrow-right')}</button>${week ? `<button type="button" class="button ghost small" data-action="timesheet-week-all">${t('shifts.range.all')}</button>` : ''}</div><strong class="calendar-range">${escapeHtml(label)}</strong></div>`
 }
 
 // Tom-tilstanden forteller hvilket av de to filtrene som tømte listen.
@@ -9765,13 +9962,13 @@ function slotTimesheetTable() {
       : assignment?.departmentId
         ? `<button class="row-link" data-route="department-detail" data-id="${assignment.departmentId}"><span class="tag warning">${t('timesheets.noApprover')}</span></button>`
         : `<span class="tag warning">${t('timesheets.noApprover')}</span>`
-    return `<tr><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${timeRangeLabel(item.plannedStart, item.plannedEnd, item.endNextDay)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approverCell}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
+    return `<tr><td>${relationLink('job-detail', assignment?.id, String(assignment?.id ?? item.assignmentId))}</td><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${timeRangeLabel(item.plannedStart, item.plannedEnd, item.endNextDay)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approverCell}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
   })
   // Kortet vises alltid når et filter er aktivt (status ELLER klient/avdeling),
   // slik at et tomt utvalg forklares i stedet for at tabellen bare forsvinner.
   if (!rows.length && !statusFilter && !state.timesheetFilters.clientId) return ''
   const body = rows.length
-    ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)
+    ? table(['staffing.assignmentId', 'financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'timesheets.approver', 'common.actions'], rows)
     : `<p class="muted">${t('timesheets.emptyFiltered')}</p>`
   return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${filterBanner}${body}</article>`
 }
@@ -9787,7 +9984,7 @@ function renderTimesheets() {
   const list = !rows.length && state.timesheetFilters.clientId
     ? timesheetEmptyState()
     : dataTable('timesheets', headers, rows, collection('timesheets').length)
-  return `<section class="page">${slotTimesheetTable()}${workforceTabs('timesheets')}${searchToolbar(timesheetFilterControls())}${list}</section>`
+  return `<section class="page">${slotTimesheetTable()}${workforceTabs('timesheets')}${timesheetWeekNavigator()}${searchToolbar(timesheetFilterControls())}${list}</section>`
 }
 
 function renderTimesheetReview() {
@@ -11245,15 +11442,38 @@ function activeSlotTimesheets() {
 // eksisterende klient-/avdelingsfilteret på Timelister-siden. Klient og
 // avdeling utledes av oppdraget timelisten hører til - aldri av den ansatte.
 function visibleSlotTimesheets() {
-  const { clientId, departmentId } = state.timesheetFilters
+  const { clientId, departmentId, employeeId, week } = state.timesheetFilters
+  const weekEnd = week ? addDays(week, 6) : ''
   return activeSlotTimesheets().filter(item => {
     if (state.slotTimesheetFilter && item.status !== state.slotTimesheetFilter) return false
+    if (employeeId && item.employeeId !== employeeId) return false
+    if (week && (!item.plannedDate || item.plannedDate < week || item.plannedDate > weekEnd)) return false
     if (!clientId && !departmentId) return true
     const assignment = record('assignments', item.assignmentId)
     if (clientId && assignment?.clientId !== clientId) return false
     if (departmentId && assignment?.departmentId !== departmentId) return false
     return true
   })
+}
+
+// Ett steg frem/tilbake i vaktoversiktens tidsnavigator, i valgt modus.
+function shiftRangeStep(direction) {
+  const filters = state.shiftFilters
+  const anchor = filters.rangeAnchor || todayIso()
+  if (filters.rangeMode === 'day') return addDays(anchor, direction)
+  if (filters.rangeMode === 'week') return addDays(startOfWeekIso(anchor), direction * 7)
+  if (filters.rangeMode === 'year') return `${Number(anchor.slice(0, 4)) + direction}-01-15`
+  const [year, month] = anchor.split('-').map(Number)
+  const next = month + direction
+  const targetYear = next < 1 ? year - 1 : next > 12 ? year + 1 : year
+  const targetMonth = next < 1 ? 12 : next > 12 ? 1 : next
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`
+}
+
+// Ett uke-steg i timelistenes periodenavigator ('' = alle uker).
+function timesheetWeekStep(direction) {
+  const anchor = state.timesheetFilters.week || startOfWeekIso(todayIso())
+  return addDays(anchor, direction * 7)
 }
 
 // Matcher en plass dashboardfilteret? «Forespørsler venter» krever en aktiv
@@ -11278,29 +11498,98 @@ function shiftMatchesStaffing(assignment, situation) {
   if (situation === 'requested') return slots.some(slot => Boolean(activeSlotRequest(slot)))
   if (situation === 'awaiting_confirmation') return slots.some(slot => slot.status === 'awaiting_confirmation')
   if (situation === 'pending_reconfirmation') return slots.some(slot => slot.status === 'pending_reconfirmation')
+  if (situation === 'partial') return slots.some(slot => slot.status === 'open') && slots.some(slotIsStaffed)
   if (situation === 'full') return slots.length > 0 && slots.every(slotIsStaffed)
   return true
 }
 
-// Perioden måles mot assignment.date; en midnattskryssende vakt hører til
-// startdatoen sin - aldri en duplikatoppføring neste dag (§8, §30).
+// === Tidsnavigatoren: Dag/Uke/Måned/År over samme delte filtermodell ===
+// Perioden er en avledet [fra, til]-grense av rangeMode + anker; «berører
+// perioden» tar hensyn til vakter over midnatt og medleverdøgn via vaktens
+// faktiske sluttdato - aldri en duplikatoppføring neste dag (§8, §30).
+function shiftRangeBounds(filters = state.shiftFilters, now = new Date()) {
+  const anchor = filters.rangeAnchor || now.toISOString().slice(0, 10)
+  if (filters.rangeMode === 'day') return { from: anchor, to: anchor }
+  if (filters.rangeMode === 'week') { const start = startOfWeekIso(anchor); return { from: start, to: addDays(start, 6) } }
+  if (filters.rangeMode === 'year') return { from: `${anchor.slice(0, 4)}-01-01`, to: `${anchor.slice(0, 4)}-12-31` }
+  if (filters.rangeMode === 'month') {
+    const [year, month] = anchor.split('-').map(Number)
+    const nextStart = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`
+    return { from: `${anchor.slice(0, 7)}-01`, to: addDays(nextStart, -1) }
+  }
+  return { from: null, to: null }
+}
+
+function assignmentEndDate(assignment) {
+  const offset = assignment.liveInSnapshot ? Number(assignment.liveInSnapshot.days) || 0 : assignment.endNextDay ? 1 : 0
+  return offset && assignment.date ? addDays(assignment.date, offset) : assignment.date
+}
+
+// «Krever handling» er en AVLEDET visning - aldri en ny vaktstatus. Årsakene
+// kommer fra de kanoniske kildene og navngis, så flagget aldri er anonymt.
+function assignmentAttention(assignment) {
+  if (assignment.status === 'cancelled') return []
+  const reasons = []
+  const slots = staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled')
+  const open = slots.filter(slot => slot.status === 'open').length
+  if (open && slots.some(slotIsStaffed)) reasons.push({ key: 'attention.partial', count: open })
+  else if (open) reasons.push({ key: 'attention.openSlots', count: open })
+  if (slots.some(slot => Boolean(activeSlotRequest(slot)))) reasons.push({ key: 'attention.requestWaiting' })
+  if (slots.some(slot => ['awaiting_confirmation', 'pending_reconfirmation'].includes(slot.status))) reasons.push({ key: 'attention.confirmation' })
+  // Sykefravær der plassen ble gjenåpnet og fortsatt står ledig.
+  if (sickLeavesCollection().some(leave => (leave.affected ?? []).some(entry => entry.handling === 'reopened' && String(entry.assignmentId) === String(assignment.id) && slots.some(slot => String(slot.id) === String(entry.slotId) && slot.status === 'open')))) {
+    reasons.push({ key: 'attention.sickReplacement' })
+  }
+  const sheets = collection('slotTimesheets').filter(item => !item.voided && !item.superseded && String(item.assignmentId) === String(assignment.id))
+  if (sheets.some(item => item.status === 'submitted')) reasons.push({ key: 'attention.timesheetApprove' })
+  if (sheets.some(item => item.status === 'needs_correction')) reasons.push({ key: 'attention.timesheetCorrect' })
+  return reasons
+}
+
+// Timelistestatus for en vakt - AVLEDET av de kanoniske slot-timelistene,
+// aldri kopiert inn på vakten.
+function assignmentTimesheetStatus(assignment) {
+  const sheets = collection('slotTimesheets').filter(item => !item.voided && !item.superseded && String(item.assignmentId) === String(assignment.id))
+  if (!sheets.length) return 'none'
+  if (sheets.some(item => item.status === 'needs_correction')) return 'needs_correction'
+  if (sheets.some(item => item.status === 'submitted')) return 'submitted'
+  if (sheets.every(item => item.status === 'approved')) return 'approved'
+  return 'not_submitted'
+}
+
 function filteredAssignments(filters = state.shiftFilters, now = new Date()) {
   const query = state.filters.search.trim().toLocaleLowerCase()
   const status = state.filters.status
+  const range = shiftRangeBounds(filters, now)
+  const sortMode = filters.sort ?? 'date-asc'
   return collection('assignments')
     .filter(item => {
       if (filters.clientId && item.clientId !== filters.clientId) return false
       if (filters.departmentId && item.departmentId !== filters.departmentId) return false
       if (filters.fromDate && (!item.date || item.date < filters.fromDate)) return false
       if (filters.toDate && (!item.date || item.date > filters.toDate)) return false
+      // Tidsnavigatoren: vakten berører perioden (inkl. over midnatt/medlever).
+      if (range.from && (!item.date || String(assignmentEndDate(item)) < range.from || item.date > range.to)) return false
       if (status !== 'all' && shiftOperationalStatus(item, now) !== status) return false
       if (!shiftMatchesStaffing(item, filters.staffing)) return false
-      return !query || searchable(item, ['assignmentNumber', 'name']).includes(query)
+      if (filters.employeeId && !staffingSlotsFor(item).some(slot => slot.employeeId === filters.employeeId && slot.status !== 'cancelled')) return false
+      if (filters.functionId && !staffingSlotsFor(item).some(slot => String(slot.functionId ?? '') === String(filters.functionId) && slot.status !== 'cancelled')) return false
+      if (filters.shiftType && shiftPlanTypeLabel(item) !== filters.shiftType) return false
+      if (filters.timesheetStatus && assignmentTimesheetStatus(item) !== filters.timesheetStatus) return false
+      if (filters.attention && !assignmentAttention(item).length) return false
+      if (!query) return true
+      const derived = [record('clients', item.clientId)?.name, label(record('departments', item.departmentId)?.name ?? ''), ...staffingSlotsFor(item).map(slot => record('employees', slot.employeeId)?.name ?? ''), ...staffingSlotsFor(item).map(slot => slot.functionId ? functionName(slot.functionId) : '')].join(' ').toLocaleLowerCase()
+      return searchable(item, ['id', 'assignmentNumber', 'name']).includes(query) || derived.includes(query)
     })
-    // Deterministisk rekkefølge i begge visningene: dato, starttid, vakt-id (§29).
-    .sort((a, b) => String(a.date ?? '9999').localeCompare(String(b.date ?? '9999'))
-      || String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''))
-      || String(a.assignmentNumber ?? a.id).localeCompare(String(b.assignmentNumber ?? b.id)))
+    // Deterministisk sortering, konfigurerbar - beholdes ved filterendring (§20).
+    .sort((a, b) => {
+      if (sortMode === 'date-desc') return String(b.date ?? '').localeCompare(String(a.date ?? '')) || String(b.startTime ?? '').localeCompare(String(a.startTime ?? ''))
+      if (sortMode === 'client') return String(record('clients', a.clientId)?.name ?? '').localeCompare(String(record('clients', b.clientId)?.name ?? '')) || String(a.date ?? '').localeCompare(String(b.date ?? ''))
+      if (sortMode === 'department') return label(record('departments', a.departmentId)?.name ?? '').localeCompare(label(record('departments', b.departmentId)?.name ?? '')) || String(a.date ?? '').localeCompare(String(b.date ?? ''))
+      return String(a.date ?? '9999').localeCompare(String(b.date ?? '9999'))
+        || String(a.startTime ?? '').localeCompare(String(b.startTime ?? ''))
+        || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
+    })
 }
 
 // === Kalenderen: en ren presentasjon over det filtrerte utvalget ===
@@ -11976,7 +12265,31 @@ function navigate(route, id = null) {
   requestAnimationFrame(() => document.getElementById('main-content')?.focus({ preventScroll: true }))
 }
 
+// Root cause for fokus-tap og scrollhopp: render() bytter innerHTML, som
+// erstatter selve input-noden (fokus dør) og kan la vinduet hoppe når høyden
+// kolapser et øyeblikk. Arkitekturen bevarer derfor kontroll-tilstanden
+// gjennom renderingen: aktivt felt identifiseres av sine stabile data-/id-
+// attributter og får fokus + markørposisjon tilbake i SAMME render-kall
+// (ingen setTimeout-hack), og scrollposisjonen gjenopprettes ved vanlige
+// state-endringer. Navigasjon til ny rute starter naturlig øverst som før.
+function focusSelector(element) {
+  if (!element || element === document.body) return null
+  const names = ['data-filter', 'data-shift-plan-filter', 'data-department-filter', 'data-employee-filter', 'data-timesheet-filter', 'data-shift-filter', 'data-report-field', 'data-payroll-filter', 'data-staffing-filter', 'data-field', 'data-audit-filter']
+  for (const name of names) {
+    const value = element.getAttribute?.(name)
+    if (value !== null && value !== undefined) return `[${name}="${value}"]`
+  }
+  return element.id ? `#${element.id}` : null
+}
+
 function render() {
+  const active = document.activeElement
+  const selector = focusSelector(active)
+  const selection = selector && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null
+  const scrollX = window.scrollX
+  const scrollY = window.scrollY
+  // Selve innholds-scrolleren er #main-content (overflow:auto) - bevar den også.
+  const mainScroll = document.getElementById('main-content')?.scrollTop ?? 0
   document.documentElement.lang = state.locale
   document.documentElement.dataset.theme = state.theme
   document.body.classList.toggle('sidebar-open', state.sidebarOpen)
@@ -11989,6 +12302,18 @@ function render() {
   const drawerRoot = document.getElementById('drawer-root')
   if (drawerRoot) drawerRoot.innerHTML = renderDrawer()
   document.title = `Workmatic · ${t((routes[state.route] || routes.dashboard)[0])} · ${t('app.demo')}`
+  if (selector) {
+    const replacement = document.querySelector(selector)
+    if (replacement) {
+      replacement.focus?.({ preventScroll: true })
+      if (selection && typeof replacement.setSelectionRange === 'function') {
+        try { replacement.setSelectionRange(selection[0], selection[1]) } catch { /* felt uten range-støtte */ }
+      }
+    }
+  }
+  if (typeof window.scrollTo === 'function') window.scrollTo(scrollX, scrollY)
+  const mainAfter = document.getElementById('main-content')
+  if (mainAfter) mainAfter.scrollTop = mainScroll
 }
 
 function openDialog(type, mode = null, draft = {}, editingId = null) {
@@ -12342,7 +12667,7 @@ function directAssignDialog() {
   const functionChoices = selectableFunctions(draftValue('slotFunctionId')).map(item => ({ value: String(item.id), text: state.locale === 'nb' ? item.nameNo : item.nameEn }))
   const body = `${formError()}<div class="grid cols-1">${assignEmployeeField(assignment)}${boundSelect('slotFunctionId', t('functions.label'), functionChoices, { placeholder: t('functions.none') })}</div>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-direct-assign">${t('staffing.confirmAssignment')}</button></div>`
-  return modalShell(t('staffing.assignDirectly'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'medium')
+  return modalShell(t('staffing.assignDirectly'), escapeHtml(String(assignment.id)), 'users', body, footer, 'medium')
 }
 
 // Endre funksjon på en konkret bemanningsplass (§14): standard Ingen, og
@@ -12355,7 +12680,7 @@ function slotFunctionDialog() {
   const employee = slot.employeeId ? record('employees', slot.employeeId) : null
   const body = `${formError()}<dl class="detail-list"><div><dt>${t('jobs.employee')}</dt><dd>${employee ? escapeHtml(employee.name) : `<span class="muted">${t('functions.none')}</span>`}</dd></div><div><dt>${t('functions.label')}</dt><dd>${escapeHtml(functionName(slot.functionId))}</dd></div></dl>${boundSelect('slotFunctionId', t('functions.label'), functionChoices, { placeholder: t('functions.none') })}<p class="field-help">${t('functions.changeHelp')}</p>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-slot-function">${t('common.save')}</button></div>`
-  return modalShell(t('functions.changeAction'), escapeHtml(assignment.assignmentNumber ?? ''), 'users', body, footer, 'small')
+  return modalShell(t('functions.changeAction'), escapeHtml(String(assignment.id)), 'users', body, footer, 'small')
 }
 
 // Finn ansatt (§2, §24-§25): beslutningsstøtte for én åpen plass. Fakta,
@@ -12372,7 +12697,7 @@ function matchEmployeesDialog() {
     .filter(match => !query || match.employee.name.toLocaleLowerCase().includes(query))
     .filter(match => !onlyEligible || match.eligible)
     .filter(match => !onlyAvailable || match.available)
-  const context = `<p class="field-help">${escapeHtml(assignment.assignmentNumber ?? '')} · ${formatDate(assignment.date)} ${timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)}${slot.functionId ? ` · ${t('functions.label')}: ${escapeHtml(functionName(slot.functionId))}` : ''}</p>`
+  const context = `<p class="field-help">${escapeHtml(String(assignment.id))} · ${formatDate(assignment.date)} ${timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)}${slot.functionId ? ` · ${t('functions.label')}: ${escapeHtml(functionName(slot.functionId))}` : ''}</p>`
   const line = (ok, text) => `<span class="match-line ${ok ? 'match-ok' : 'match-block'}">${ok ? '✓' : '✕'} ${text}</span>`
   const rows = candidates.map(match => {
     const employee = match.employee
@@ -12406,7 +12731,7 @@ function sickLeaveDialog() {
   const endDate = String(draftValue('endDate', ''))
   const affected = startDate && endDate ? sickLeaveAffectedShifts(employee.id, startDate, endDate) : []
   const overlaps = startDate && endDate ? overlappingSickLeaves(employee.id, startDate, endDate) : []
-  const rows = affected.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.assignment.assignmentNumber ?? '')} · ${formatDate(item.assignment.date)}</strong><span>${item.manualReview ? t('sick.manualReview') : Number(draftValue('absencePercent', 100)) >= 100 ? t('sick.willReopen') : t('sick.keepsSlot')}</span></div>${item.approved ? `<span class="tag warning">${t('timesheets.status.approved')}</span>` : shiftStatusTag(item.assignment)}</div>`).join('')
+  const rows = affected.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(String(item.assignment.id))} · ${formatDate(item.assignment.date)}</strong><span>${item.manualReview ? t('sick.manualReview') : Number(draftValue('absencePercent', 100)) >= 100 ? t('sick.willReopen') : t('sick.keepsSlot')}</span></div>${item.approved ? `<span class="tag warning">${t('timesheets.status.approved')}</span>` : shiftStatusTag(item.assignment)}</div>`).join('')
   const preview = startDate && endDate
     ? `<article class="card" style="margin-top:8px"><div class="card-header"><h3>${t('sick.affectedShifts')}</h3><span class="tag info">${affected.length}</span></div>${rows || `<p class="muted">${t('common.none')}</p>`}</article>`
     : ''
@@ -12504,7 +12829,7 @@ function slotRequestDialog() {
     <div class="field field-wide"><label>${t('staffing.queueHeading')}</label>${rows || `<p class="muted">${t('staffing.queueEmpty')}</p>`}</div>
     <div class="grid cols-2">${boundSelect('channel', t('staffing.requestChannel'), channels)}${bound('responseDeadline', t('staffing.responseDeadline'), { type: 'date' })}</div>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="send-slot-request">${t('staffing.sendRequest')}</button></div>`
-  return modalShell(t('staffing.sendRequest'), escapeHtml(assignment.assignmentNumber ?? ''), 'envelope', body, footer, 'medium')
+  return modalShell(t('staffing.sendRequest'), escapeHtml(String(assignment.id)), 'envelope', body, footer, 'medium')
 }
 
 // Timelisten for én bemanningsplass, med hele livsløpet: redigerbar før
@@ -13009,11 +13334,56 @@ function actionHandlers(target = null) {
       render()
     },
     'clear-shift-filters': () => {
-      state.shiftFilters = { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '' }
+      // Nullstill filtre - men behold valgt periode og sortering (§16, §20).
+      const { rangeMode, rangeAnchor, sort } = state.shiftFilters
+      state.shiftFilters = { fromDate: '', toDate: '', clientId: '', departmentId: '', staffing: '', rangeMode, rangeAnchor, employeeId: '', functionId: '', shiftType: '', timesheetStatus: '', attention: false, sort }
       state.filters.search = ''
       state.filters.status = 'all'
       render()
     },
+    // Ett kryss på en chip fjerner ETT filter uten å røre resten (§16).
+    'clear-shift-filter': () => {
+      const name = target?.dataset?.name
+      if (!name) return
+      if (name === 'attention') state.shiftFilters.attention = false
+      else state.shiftFilters[name] = ''
+      if (name === 'clientId') state.shiftFilters.departmentId = ''
+      render()
+    },
+    'toggle-more-filters': () => { state.shiftMoreFilters = !state.shiftMoreFilters; render() },
+    'toggle-attention-filter': () => { state.shiftFilters.attention = !state.shiftFilters.attention; render() },
+    // Klikk på virksomhet/avdeling i raden AKTIVERER filteret - navigerer ikke (§17).
+    'shift-filter-client': () => {
+      const id = target?.dataset?.id
+      if (!id) return
+      state.shiftFilters.clientId = id
+      state.shiftFilters.departmentId = ''
+      render()
+    },
+    'shift-filter-department': () => {
+      const id = target?.dataset?.id
+      if (!id) return
+      const department = record('departments', id)
+      if (department) state.shiftFilters.clientId = department.clientId
+      state.shiftFilters.departmentId = id
+      render()
+    },
+    // Tidsnavigatoren: modusbytte beholder ankeret; Forrige/Neste flytter ett
+    // steg i valgt modus; «I dag» hopper til perioden som inneholder i dag (§2).
+    'shift-range-mode': () => { state.shiftFilters.rangeMode = target?.dataset?.mode ?? 'month'; render() },
+    'shift-range-today': () => { state.shiftFilters.rangeAnchor = ''; render() },
+    'shift-range-prev': () => { state.shiftFilters.rangeAnchor = shiftRangeStep(-1); render() },
+    'shift-range-next': () => { state.shiftFilters.rangeAnchor = shiftRangeStep(1); render() },
+    'shift-open-month': () => {
+      state.shiftFilters.rangeMode = 'month'
+      state.shiftFilters.rangeAnchor = target?.dataset?.month ?? ''
+      render()
+    },
+    // Timelister: ukenavigatoren flytter bare perioden - aldri filtrene (§27).
+    'timesheet-week-this': () => { state.timesheetFilters.week = startOfWeekIso(todayIso()); render() },
+    'timesheet-week-all': () => { state.timesheetFilters.week = ''; render() },
+    'timesheet-week-prev': () => { state.timesheetFilters.week = timesheetWeekStep(-1); render() },
+    'timesheet-week-next': () => { state.timesheetFilters.week = timesheetWeekStep(1); render() },
     // Varsler: å åpne panelet, lese eller merke lest endrer ALDRI fagdata (§23).
     'toggle-notifications': () => { state.notificationsOpen = !state.notificationsOpen; render() },
     'read-all-notifications': () => {
@@ -13320,7 +13690,7 @@ function actionHandlers(target = null) {
     // fra vaktmalen det er knyttet til.
     'create-shift': () => {
       const assignment = record('assignments', target?.dataset?.id)
-      if (!assignment) return openDialog('shift', 'create', { employeeId: 'e1', jobId: 'j1', assignmentId: 'a1', date: '2026-08-12', start: '14:00', end: '22:00', status: 'planned' })
+      if (!assignment) return openDialog('shift', 'create', { employeeId: 'e1', jobId: 'j1', assignmentId: '90001', date: '2026-08-12', start: '14:00', end: '22:00', status: 'planned' })
       const job = collection('jobs').find(item => item.assignmentId === assignment.id)
       openDialog('shift', 'create', {
         employeeId: assignment.employeeIds?.[0] ?? '',
@@ -15218,14 +15588,10 @@ function captureAssignEmployee(element) {
 document.addEventListener('input', event => {
   // Ingen render mens man skriver, ellers mister feltet fokus.
   if (captureAssignEmployee(event.target)) return
-  // Vaktplanens ansattsøk: rendrer, men gjenoppretter fokus og markørposisjon
-  // slik at feltet aldri mister fokus per tastetrykk.
+  // Vaktplanens ansattsøk: render() bevarer selv fokus og markørposisjon.
   if (event.target.dataset?.shiftPlanFilter === 'search') {
     state.shiftPlanFilters.search = event.target.value
-    const caret = event.target.selectionStart
     render()
-    const input = document.querySelector('[data-shift-plan-filter="search"]')
-    if (input) { input.focus(); try { input.setSelectionRange(caret, caret) } catch { /* search-input uten range-støtte */ } }
     return
   }
   if (event.target.dataset?.payrollFilter === 'search') { setPayrollFilter('search', event.target.value); return }
@@ -15523,6 +15889,7 @@ window.__workmaticPreview = {
   migrateSchemeRules: data => migrateSchemeRulesToPaySystems(data),
   migrateCompensations: data => migrateCompensationsToPaySystems(data),
   migrateNumericSlotIds: data => migrateNumericSlotIds(data),
+  migrateAssignmentIds: data => migrateAssignmentIds(data),
   migrateSlotTimesheets: data => migrateSlotTimesheets(data),
   payrollBasis: (period = null) => JSON.parse(JSON.stringify(timesheetPayrollBasis(period))),
   invoiceBasis: (period = null) => JSON.parse(JSON.stringify(timesheetInvoiceBasis(period))),
@@ -15532,6 +15899,10 @@ window.__workmaticPreview = {
   staffedCount: assignmentId => staffedSlotCount(record('assignments', assignmentId)),
   // Vakter: den delte spørringen og kalenderprojeksjonen, for testene.
   filteredShifts: (nowIso = null) => filteredAssignments(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()).map(item => item.id),
+  shiftRange: (nowIso = null) => ({ ...shiftRangeBounds(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()) }),
+  shiftAttention: assignmentId => assignmentAttention(record('assignments', assignmentId)).map(reason => ({ ...reason })),
+  shiftTimesheetStatus: assignmentId => assignmentTimesheetStatus(record('assignments', assignmentId)),
+  visibleTimesheetRows: () => visibleSlotTimesheets().map(item => item.id),
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
   setShiftPlanFilter: (name, value) => { if (name in state.shiftPlanFilters) { state.shiftPlanFilters[name] = String(value); render() } },
   shiftPlanView: (departmentId, month) => {
