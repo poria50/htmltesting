@@ -1111,9 +1111,6 @@ tbody tr:hover td {
   transform: translateY(-50%);
 }
 
-.search-control input {
-  padding-left: 36px;
-}
 
 .field {
   display: grid;
@@ -1144,6 +1141,13 @@ tbody tr:hover td {
   min-height: 92px;
   resize: vertical;
 }
+
+/* Søkeikonet ligger absolutt ved venstrekanten; venstre padding må derfor
+   overleve den generiske feltregelen over (samme spesifisitet, senere vinner). */
+.search-control input {
+  padding-left: 36px;
+}
+
 
 .field-wide {
   grid-column: 1 / -1;
@@ -2456,6 +2460,8 @@ const state = {
   // Avdelinger som egen modul: virksomhet, lønnssystem og sortering. Status
   // filtreres via det generiske statusfilteret (state.filters.status).
   departmentFilters: { clientId: '', paySystemId: '', sort: 'name' },
+  // Ansattoversikten: stillingfilter og sortering. Status via delte filteret.
+  employeeFilters: { position: '', sort: 'name' },
   // Fakturagrunnlag: periode, klient og avdelingsfilter.
   // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
   // avdelinger. departmentId er den ENE sannheten - ingen parallell liste.
@@ -3284,6 +3290,53 @@ const copy = {
     'employees.kinName': 'Navn på pårørende',
     'employees.relationship': 'Relasjon',
     'employees.adminNotes': 'Interne notater',
+    'employees.adminNotesHelp': 'Kun synlig for administratorer. Den ansatte kan ikke se disse notatene.',
+    // Ansattoversikten: stillingfilter og sortering.
+    'employees.filter.allPositions': 'Alle stillinger',
+    'employees.sort.nameAsc': 'Navn A–Å',
+    'employees.sort.nameDesc': 'Navn Å–A',
+    'employees.sort.numberAsc': 'Ansattnr. stigende',
+    'employees.sort.numberDesc': 'Ansattnr. synkende',
+    'employees.sort.positionAsc': 'Stilling A–Å',
+    'employees.sort.positionDesc': 'Stilling Å–A',
+    // Adresse og bank: landstyrt kontovalidering (Norge = 11 siffer + mod11).
+    'employees.addressStreet': 'Gateadresse og husnummer',
+    'employees.country': 'Land',
+    'employees.bank': 'Bankinformasjon',
+    'employees.bankCountry': 'Bankland',
+    'employees.bankAccount': 'Kontonummer',
+    'employees.bankInvalidNo': 'Kontonummeret må være et gyldig norsk kontonummer med 11 siffer.',
+    'country.NO': 'Norge',
+    'country.SE': 'Sverige',
+    'country.DK': 'Danmark',
+    'country.other': 'Annet land',
+    // Utdanning: type (lønnsrelevant nivå) og menneskelesbart navn er to felt.
+    'employees.educationName': 'Utdanningsnavn / kompetanse',
+    'employees.eduType.no_formal_qualification': 'Ingen formell utdanning',
+    'employees.eduType.trade_certificate': 'Fagbrev',
+    'employees.eduType.bachelor': 'Bachelor',
+    'employees.eduType.bachelor_further': 'Bachelor med videreutdanning',
+    'employees.eduType.master': 'Master',
+    'employees.eduType.phd': 'PhD',
+    'docs.uploaded': 'Lastet opp',
+    // Verifiserbare dokumenter: politiattest og vitnemål har en ekte
+    // verifiseringsflyt; andre dokumenter er bare lastet opp.
+    'docs.category.police_certificate': 'Politiattest',
+    'docs.category.diploma': 'Vitnemål',
+    'docs.date': 'Dokumentdato',
+    'docs.verification': 'Verifiseringsstatus',
+    'docs.status.not_verified': 'Ikke verifisert',
+    'docs.status.pending': 'Til vurdering',
+    'docs.status.verified': 'Verifisert',
+    'docs.status.rejected': 'Avvist',
+    'docs.markPending': 'Til vurdering',
+    'docs.verify': 'Verifiser',
+    'docs.reject': 'Avvis',
+    'docs.undoVerify': 'Angre verifisering',
+    'docs.verifiedBy': 'Verifisert av',
+    'employees.policeCertificate': 'Politiattest',
+    'employees.policeCertificateDate': 'Dato for politiattest',
+    'employees.policeCertificateMissing': 'Mangler',
     'employees.clientNotes': 'Virksomhetsnotater',
     'staffing.assignDirectly': 'Tildel direkte',
     'staffing.sendRequestSlot': 'Send forespørsel',
@@ -4241,6 +4294,33 @@ copy.en = {
   'employees.upload': 'Select files', 'employees.sensitive': 'Sensitive employee document',
   'employees.kinName': 'Next-of-kin name', 'employees.relationship': 'Relationship',
   'employees.adminNotes': 'Internal notes', 'employees.clientNotes': 'Business notes',
+  'employees.adminNotesHelp': 'Visible to administrators only. The employee cannot see these notes.',
+  'employees.filter.allPositions': 'All positions',
+  'employees.sort.nameAsc': 'Name A–Z', 'employees.sort.nameDesc': 'Name Z–A',
+  'employees.sort.numberAsc': 'Employee no. ascending', 'employees.sort.numberDesc': 'Employee no. descending',
+  'employees.sort.positionAsc': 'Position A–Z', 'employees.sort.positionDesc': 'Position Z–A',
+  'employees.addressStreet': 'Street address and house number', 'employees.country': 'Country',
+  'employees.bank': 'Bank information', 'employees.bankCountry': 'Bank country',
+  'employees.bankAccount': 'Bank account number',
+  'employees.bankInvalidNo': 'Enter a valid Norwegian bank account number with 11 digits.',
+  'country.NO': 'Norway', 'country.SE': 'Sweden', 'country.DK': 'Denmark', 'country.other': 'Other country',
+  'employees.educationName': 'Education / qualification name',
+  'employees.eduType.no_formal_qualification': 'No formal education',
+  'employees.eduType.trade_certificate': 'Trade certificate',
+  'employees.eduType.bachelor': 'Bachelor',
+  'employees.eduType.bachelor_further': 'Bachelor with further education',
+  'employees.eduType.master': 'Master',
+  'employees.eduType.phd': 'PhD',
+  'docs.uploaded': 'Uploaded',
+  'docs.category.police_certificate': 'Police certificate', 'docs.category.diploma': 'Diploma',
+  'docs.date': 'Document date', 'docs.verification': 'Verification status',
+  'docs.status.not_verified': 'Not verified', 'docs.status.pending': 'Pending review',
+  'docs.status.verified': 'Verified', 'docs.status.rejected': 'Rejected',
+  'docs.markPending': 'Pending review', 'docs.verify': 'Verify', 'docs.reject': 'Reject',
+  'docs.undoVerify': 'Undo verification', 'docs.verifiedBy': 'Verified by',
+  'employees.policeCertificate': 'Police certificate',
+  'employees.policeCertificateDate': 'Police certificate date',
+  'employees.policeCertificateMissing': 'Missing',
   'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
   'staffing.assignDirectly': 'Assign directly',
@@ -5970,8 +6050,8 @@ function seedData() {
     // NB: employees[].departmentId er et legacy-felt. Ingen aktiv logikk leser
     // det: arbeidskonteksten utledes av oppdrag -> bemanningsplasser.
     employees: [
-      { id: 'e1', employeeNumber: 'A-1042', name: 'Maja Nilsen', firstName: 'Maja', lastName: 'Nilsen', profession: 'demo.profession.healthWorker', departmentId: 'd1', start: '2022-03-01', employmentStatus: 'active', employmentPercentage: 100, employmentType: 'permanent', birthDate: '1991-04-14', email: 'maja.nilsen@demo.no', phone: '+47 900 12 345', address: 'Parkveien 18, 0350 Oslo', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: true, certifications: ['medication', 'first_aid'], competenceTags: ['environmental_work', 'documentation'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2018-08-01', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', seniorityNotes: 'Relevant praksis er kontrollert.', field: 'demo.field.nursing', kinName: 'Lars Nilsen', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 333', availability: ['day', 'evening', 'weekend'], status: 'active', salaryHistory: [{ annualSalary: 620000, annualHoursBasis: 1860, tariffId: 't1', tariffVersionId: 'v1', salaryCellRef: 'historical-bachelor-8', effectiveDate: '2026-06-05', payrollRunDate: '2026-06-05', archived: true }] },
-      { id: 'e2', employeeNumber: 'A-1088', name: 'Jonas Berg', firstName: 'Jonas', lastName: 'Berg', profession: 'demo.profession.healthWorker', departmentId: 'd2', start: '2025-06-15', employmentStatus: 'active', employmentPercentage: 80, employmentType: 'temporary', birthDate: '1988-11-02', email: 'jonas.berg@demo.no', phone: '+47 900 12 346', address: 'Fjordgata 4, 1337 Bærum', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: false, certifications: ['first_aid'], competenceTags: ['environmental_work'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '', seniorityApproved: false, seniorityApprovedBy: '', seniorityApprovalDate: '', field: 'demo.field.nursing', kinName: 'Siri Berg', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 444', availability: ['day', 'evening'], status: 'active', salaryHistory: [] },
+      { id: 'e1', employeeNumber: 'A-1042', documents: [{ id: 93, name: 'demo.doc.contract', category: 'agreement', fileName: 'arbeidsavtale_maja.pdf' }, { id: 94, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_2026.pdf', documentDate: '2026-03-12', verificationStatus: 'verified', verifiedAt: '2026-03-15', verifiedBy: 'Kari Nilsen' }], name: 'Maja Nilsen', firstName: 'Maja', lastName: 'Nilsen', profession: 'demo.profession.healthWorker', departmentId: 'd1', start: '2022-03-01', employmentStatus: 'active', employmentPercentage: 100, employmentType: 'permanent', birthDate: '1991-04-14', email: 'maja.nilsen@demo.no', phone: '+47 900 12 345', address: 'Parkveien 18, 0350 Oslo', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: true, certifications: ['medication', 'first_aid'], competenceTags: ['environmental_work', 'documentation'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2018-08-01', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', seniorityNotes: 'Relevant praksis er kontrollert.', field: 'demo.field.nursing', kinName: 'Lars Nilsen', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 333', availability: ['day', 'evening', 'weekend'], status: 'active', salaryHistory: [{ annualSalary: 620000, annualHoursBasis: 1860, tariffId: 't1', tariffVersionId: 'v1', salaryCellRef: 'historical-bachelor-8', effectiveDate: '2026-06-05', payrollRunDate: '2026-06-05', archived: true }] },
+      { id: 'e2', employeeNumber: 'A-1088', documents: [{ id: 95, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_jonas.pdf', documentDate: '2026-05-20', verificationStatus: 'not_verified' }], name: 'Jonas Berg', firstName: 'Jonas', lastName: 'Berg', profession: 'demo.profession.healthWorker', departmentId: 'd2', start: '2025-06-15', employmentStatus: 'active', employmentPercentage: 80, employmentType: 'temporary', birthDate: '1988-11-02', email: 'jonas.berg@demo.no', phone: '+47 900 12 346', address: 'Fjordgata 4, 1337 Bærum', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: false, certifications: ['first_aid'], competenceTags: ['environmental_work'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '', seniorityApproved: false, seniorityApprovedBy: '', seniorityApprovalDate: '', field: 'demo.field.nursing', kinName: 'Siri Berg', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 444', availability: ['day', 'evening'], status: 'active', salaryHistory: [] },
       { id: 'e3', employeeNumber: 'A-1091', name: 'Lea Solheim', firstName: 'Lea', lastName: 'Solheim', profession: 'demo.profession.assistant', departmentId: 'd1', start: '2024-02-03', employmentStatus: 'active', employmentPercentage: 60, employmentType: 'temporary', birthDate: '1995-06-21', email: 'lea.solheim@demo.no', phone: '+47 900 12 347', address: 'Helsegata 9, 0560 Oslo', education: 'no_formal_qualification', qualification: 'none', tradeCertificate: false, authorization: false, certifications: ['first_aid'], competenceTags: ['care'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2020-02-03', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', field: 'demo.field.nursing', kinName: 'Ola Solheim', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 555', availability: ['day', 'night'], status: 'active', salaryHistory: [] }
     ],
     assignments: [
@@ -6677,7 +6757,10 @@ function formatMoney(value, decimals = 0) {
 // Lønnscellen matches på utdanning. Celler fra før education-aksen fanst har
 // bare den historiske qualification-nøkkelen, og støttes gjennom employeePayCategory.
 function cellMatchesEmployee(cell, employee) {
-  if (cell.education) return cell.education === employee?.education
+  // Eksakt nivåtreff: cellens education-nøkkel mot ansattens nivå (med
+  // les-kompatibel mapping av historiske verdier), ellers den historiske
+  // qualification-nøkkelen mot samme nivå.
+  if (cell.education) return cell.education === employee?.education || cell.education === employeePayCategory(employee)
   return cell.qualification === employeePayCategory(employee)
 }
 
@@ -6687,10 +6770,36 @@ function salaryCellRoles(version) {
   return [...new Set((version?.salaryCells ?? []).map(cell => cell.role).filter(Boolean))]
 }
 
+// Utdanningsnivået matcher lønnsraden DIREKTE - det finnes ingen egen
+// faglært/ufaglært-dimensjon lenger. Bachelor matcher Bachelor, Master matcher
+// Master. Historiske verdier mapper til sitt faktiske nivå (les-kompatibilitet,
+// aldri ny sannhet), og godkjente calculationSnapshots vinner uansett.
+const EDUCATION_CELL_KEYS = {
+  no_formal_qualification: 'none',
+  trade_certificate: 'trade_certificate',
+  bachelor: 'bachelor',
+  bachelor_further: 'bachelor_further',
+  master: 'master',
+  phd: 'phd',
+  healthcare_worker: 'trade_certificate',
+  'demo.education.skilled': 'trade_certificate',
+  'demo.education.bachelor': 'bachelor',
+  'demo.education.master': 'master'
+}
+
+// Nivåhierarkiet brukes KUN av vaktkrav («krever minst fagbrev») - aldri av
+// lønnsoppslaget, som krever eksakt nivåtreff.
+const EDUCATION_RANK = { none: 0, trade_certificate: 1, bachelor: 2, bachelor_further: 3, master: 4, phd: 5 }
+
 function employeePayCategory(employee) {
   const education = employee?.education
   if (!education) return employee?.qualification ?? ''
-  return education === 'no_formal_qualification' ? 'none' : 'trade_certificate'
+  return EDUCATION_CELL_KEYS[education] ?? 'trade_certificate'
+}
+
+function educationMeetsRequirement(employee, required) {
+  if (!required) return true
+  return (EDUCATION_RANK[employeePayCategory(employee)] ?? 0) >= (EDUCATION_RANK[required] ?? 0)
 }
 
 function deriveHourlyRate(annualSalary, annualHoursBasis) {
@@ -6817,7 +6926,9 @@ function resolveCompensation(employeeInput, assignmentInput, shiftDate) {
   const certificates = new Set(employee.certifications ?? [])
   // Et oppdrag uten kvalifikasjonskrav skal ikke gjøre noen ukvalifisert. Uten
   // denne vakten ga tom streng !== 'trade_certificate' mismatch for alle.
-  const qualificationMismatch = Boolean(assignment.requiredQualification) && payCategory !== assignment.requiredQualification
+  // Kravet er et MINSTEKRAV i nivåhierarkiet (fagbrev-krav oppfylles av
+  // bachelor+), mens selve lønnscellen alltid krever eksakt nivåtreff.
+  const qualificationMismatch = Boolean(assignment.requiredQualification) && !educationMeetsRequirement(employee, assignment.requiredQualification)
   if (qualificationMismatch || requiredCertificates.some(item => !certificates.has(item))) {
     return blockingResolution('qualification_mismatch', context, trace)
   }
@@ -6922,11 +7033,10 @@ function icon(name, className = '') {
   return `<svg class="pi-icon ${className}" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.file}</svg>`
 }
 
-// Utdanningsverdier finnes både som taksonomi (helsefagarbeider) og som
-// katalognøkler (demo.education.bachelor). Én etikett-oppslag for begge.
+// Én lesbar utdanningsetikett for både nye nivåer og historiske verdier -
+// delegerer til nivåoppslaget som aldri viser rå nøkler.
 function educationLabel(value) {
-  if (!value) return t('common.none')
-  return String(value).startsWith('demo.') ? label(value) : taxonomy(value)
+  return educationTypeLabel(value)
 }
 
 function statusTag(status) {
@@ -7398,7 +7508,7 @@ function renderDepartmentDetail() {
     ? `${escapeHtml(approver)}${manager ? '' : ` <span class="muted">(${t('departments.approverFromClient')})</span>`}`
     : `<span class="tag warning">${t('timesheets.noApprover')}</span>`
   const contactInfo = `<article class="card"><h2>${t('departments.contactInfo')}</h2><dl class="detail-list"><div><dt>${t('departments.manager')}</dt><dd>${manager ? escapeHtml(manager) : `<span class="muted">${t('departments.noManager')}</span>`}</dd></div><div><dt>${t('departments.approver')}</dt><dd>${approverMarkup}</dd></div><div><dt>${t('departments.phone')}</dt><dd>${departmentPhoneLink(item.managerPhone)}</dd></div><div><dt>${t('departments.departmentPhone')}</dt><dd>${departmentPhoneLink(item.departmentPhone)}</dd></div></dl></article>`
-  const team = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.workedHere')}</h2><span class="tag info">${employees.length}</span></div>${employees.length ? table(['common.name', 'employees.educationLevel', 'common.status'], employees.map(employee => `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(taxonomy(employee.education))}</td><td>${statusTag(employee.status)}</td></tr>`)) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  const team = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.workedHere')}</h2><span class="tag info">${employees.length}</span></div>${employees.length ? table(['common.name', 'employees.educationLevel', 'common.status'], employees.map(employee => `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(educationTypeLabel(employee.education))}</td><td>${statusTag(employee.status)}</td></tr>`)) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   const tabs = [['department-overview', 'dashboard.overview'], ['department-history', 'departments.employeeHistory'], ['department-assignments', 'clients.tabs.assignments'], ['department-documents', 'clients.tabs.documents']]
   const tab = tabs.some(([name]) => name === state.activeTab) ? state.activeTab : 'department-overview'
   const tabBar = `<div class="tabs">${tabs.map(([name, key]) => `<button class="tab ${tab === name ? 'is-active' : ''}" data-tab="${name}">${t(key)}</button>`).join('')}</div>`
@@ -7472,10 +7582,123 @@ function renderCandidateDetail() {
   return `<section><div class="profile-header"><div class="profile-identity"><span class="profile-avatar">${escapeHtml(initials(candidate.name))}</span><div><h1>${escapeHtml(candidate.name)}</h1><p>${escapeHtml(candidate.email)} · ${escapeHtml(candidate.phone)}</p><div class="tag-row">${statusTag(candidate.status)}</div></div></div><div class="page-actions">${button('common.back', 'back-candidates', 'secondary', 'arrow-left')}<button type="button" class="button" data-action="convert-candidate" data-id="${candidate.id}">${icon('arrow-right')}${t('candidates.convert')}</button><button type="button" class="button secondary" data-action="edit-candidate" data-id="${candidate.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-candidate" data-id="${candidate.id}">${icon('trash')}${t('common.delete')}</button></div></div><div class="page"><div class="grid cols-2"><article class="card"><h3>${t('common.details')}</h3><dl class="detail-list"><div><dt>${t('candidates.profession')}</dt><dd>${lab(candidate.profession)}</dd></div><div><dt>${t('candidates.experience')}</dt><dd>${t('demo.years', { count: candidate.years })}</dd></div><div><dt>${t('candidates.availability')}</dt><dd>${candidate.available ? formatDate(candidate.available) : t('demo.now')}</dd></div></dl></article><article class="card"><h3>${t('rel.positions')}</h3>${linkList(applied.map(item => ({ link: relationLink('recruitment', item.id, label(item.title)), meta: item.deadline ? formatDate(item.deadline) : '' })))}</article></div></div></section>`
 }
 
+// === Utdanning: type (lønnsrelevant nivå) og navn (menneskelesbar tekst) ===
+// employee.education er fortsatt den autoritative lønnsdimensjonen
+// (employeePayCategory/cellMatchesEmployee i resolvern er urørt). De nye
+// UI-nivåene lagres i samme felt; historiske verdier består og mapper som før.
+const EMPLOYEE_EDUCATION_TYPES = ['no_formal_qualification', 'trade_certificate', 'bachelor', 'bachelor_further', 'master', 'phd']
+
+// Menneskelesbar utdanningsetikett: aldri en rå taxonomy-nøkkel. Nye nivåer
+// har egne tekster; historiske verdier (healthcare_worker, demo.education.*)
+// oversettes via sine eksisterende nøkler.
+function educationTypeLabel(education) {
+  if (!education) return t('common.none')
+  if (EMPLOYEE_EDUCATION_TYPES.includes(education)) return t(`employees.eduType.${education}`)
+  if (String(education).startsWith('demo.education.')) return t(education)
+  return taxonomy(education)
+}
+
+// Sekundærlinjen på ansattkort/-liste: det konkrete utdanningsnavnet
+// («Sosionom») når det finnes, ellers nivåetiketten - aldri en intern nøkkel.
+function employeeEducationDisplay(employee) {
+  const name = String(employee.educationName ?? '').trim()
+  return name || educationTypeLabel(employee.education)
+}
+
+// === Landstyrt bankkontovalidering ===
+// Norge valideres fullt ut (11 siffer + mod11-kontrollsiffer). Strukturen er
+// per land, klar til utvidelse - andre land valideres IKKE i previewen, og vi
+// later aldri som noe annet.
+const BANK_ACCOUNT_VALIDATORS = {
+  NO: value => {
+    const digits = normalizeBankAccount(value)
+    if (!/^\d{11}$/.test(digits)) return false
+    const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    const sum = weights.reduce((acc, weight, i) => acc + weight * Number(digits[i]), 0)
+    const control = (11 - (sum % 11)) % 11
+    return control !== 10 && control === Number(digits[10])
+  }
+}
+
+// Mellomrom og punktum aksepteres i input, men normaliseres før validering.
+function normalizeBankAccount(value) {
+  return String(value ?? '').replace(/[\s.]/g, '')
+}
+
+function bankAccountError(country, value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const validator = BANK_ACCOUNT_VALIDATORS[country]
+  if (!validator) return null
+  return validator(raw) ? null : 'employees.bankInvalidNo'
+}
+
+function formatBankAccount(country, value) {
+  const digits = normalizeBankAccount(value)
+  if (country === 'NO' && /^\d{11}$/.test(digits)) return `${digits.slice(0, 4)} ${digits.slice(4, 6)} ${digits.slice(6)}`
+  return String(value ?? '')
+}
+
+// === Verifiserbare ansattdokumenter ===
+// Politiattest og vitnemål inngår i en ekte verifiseringsflyt
+// (not_verified -> pending -> verified/rejected); andre dokumenter er bare
+// lastet opp og får ALDRI en kunstig review-status.
+const VERIFIABLE_DOCUMENT_CATEGORIES = new Set(['police_certificate', 'diploma'])
+
+function documentStatusMarkup(item) {
+  if (!VERIFIABLE_DOCUMENT_CATEGORIES.has(item.category)) return `<span class="tag">${t('docs.uploaded')}</span>`
+  const status = item.verificationStatus ?? 'not_verified'
+  const tones = { verified: 'success', pending: 'warning', rejected: 'danger', not_verified: '' }
+  return `<span class="tag ${tones[status] ?? ''}">${t(`docs.status.${status}`)}</span>`
+}
+
+// Én sentral resolver for gjeldende politiattest: avviste dokumenter teller
+// aldri, verifiserte foretrekkes, og nyeste dokumentdato vinner - aldri
+// tilfeldig første element i arrayet.
+function latestRelevantPoliceCertificate(employee) {
+  const candidates = (employee?.documents ?? [])
+    .filter(item => item.category === 'police_certificate' && item.verificationStatus !== 'rejected')
+  if (!candidates.length) return null
+  const byDate = (a, b) => String(b.documentDate ?? '').localeCompare(String(a.documentDate ?? ''))
+  const verified = candidates.filter(item => item.verificationStatus === 'verified').sort(byDate)
+  return verified[0] ?? [...candidates].sort(byDate)[0]
+}
+
+// Kompakt status + dato for ansattkort og vaktflater. Vakten leser alltid
+// live employee-dokumentstate gjennom denne - ingen kopier på vakt/plass.
+function policeCertificateSummary(employee) {
+  const certificate = latestRelevantPoliceCertificate(employee)
+  if (!certificate) return { key: 'employees.policeCertificateMissing', tone: 'danger', date: '' }
+  const status = certificate.verificationStatus ?? 'not_verified'
+  const tones = { verified: 'success', pending: 'warning', not_verified: 'warning' }
+  return { key: `docs.status.${status}`, tone: tones[status] ?? '', date: certificate.documentDate ?? '' }
+}
+
+function policeCertificateMarkup(employee) {
+  const summary = policeCertificateSummary(employee)
+  return `<span class="tag ${summary.tone}">${t('employees.policeCertificate')}: ${t(summary.key)}${summary.date ? ` · ${formatDate(summary.date)}` : ''}</span>`
+}
+
 function renderEmployees() {
-  const visible = filterList('employees', ['name', 'profession', 'email', 'employeeNumber', 'phone', 'education', 'qualification'])
-  const rows = visible.map(item => `<tr><td><button class="row-link" data-route="employee-detail" data-id="${item.id}">${escapeHtml(item.name)}</button></td><td>${escapeHtml(String(item.employeeNumber ?? item.id).toUpperCase())}</td><td><div class="file-name"><strong>${lab(item.profession)}</strong><span>${escapeHtml(taxonomy(item.education))}</span></div></td><td>${escapeHtml(item.phone ?? '')}</td><td>${escapeHtml(item.email ?? '')}</td><td>${statusTag(item.status)}</td>${rowActions('employee', item.id, 'employee-detail')}</tr>`)
-  return `<section class="page">${pageHeading('nav.employees', 'page.employees.desc', button('employees.new', 'create-employee', '', 'plus'))}${searchToolbar()}${dataTable('employees', ['common.name', 'comp.payroll.employeeNumber', 'employees.position', 'common.phone', 'common.email', 'common.status', 'common.actions'], rows, collection('employees').length)}</section>`
+  const filters = state.employeeFilters
+  const numberOf = item => String(item.employeeNumber ?? item.id).toUpperCase()
+  const visible = filterList('employees', ['name', 'profession', 'email', 'employeeNumber', 'phone', 'education', 'educationName', 'qualification'])
+    .filter(item => !filters.position || item.profession === filters.position)
+    .sort((a, b) => {
+      if (filters.sort === 'name-desc') return b.name.localeCompare(a.name)
+      if (filters.sort === 'number') return numberOf(a).localeCompare(numberOf(b), undefined, { numeric: true })
+      if (filters.sort === 'number-desc') return numberOf(b).localeCompare(numberOf(a), undefined, { numeric: true })
+      if (filters.sort === 'position') return label(a.profession ?? '').localeCompare(label(b.profession ?? '')) || a.name.localeCompare(b.name)
+      if (filters.sort === 'position-desc') return label(b.profession ?? '').localeCompare(label(a.profession ?? '')) || a.name.localeCompare(b.name)
+      return a.name.localeCompare(b.name)
+    })
+  const rows = visible.map(item => `<tr><td><button class="row-link" data-route="employee-detail" data-id="${item.id}">${escapeHtml(item.name)}</button></td><td>${escapeHtml(numberOf(item))}</td><td><div class="file-name"><strong>${lab(item.profession)}</strong><span>${escapeHtml(employeeEducationDisplay(item))}</span></div></td><td>${escapeHtml(item.phone ?? '')}</td><td>${escapeHtml(item.email ?? '')}</td><td>${statusTag(item.status)}</td>${rowActions('employee', item.id, 'employee-detail')}</tr>`)
+  const positions = [...new Set(collection('employees').map(item => item.profession).filter(Boolean))].sort((a, b) => label(a).localeCompare(label(b)))
+  const positionChoices = positions.map(value => `<option value="${escapeHtml(value)}"${filters.position === value ? ' selected' : ''}>${lab(value)}</option>`).join('')
+  const sortChoices = [['name', 'employees.sort.nameAsc'], ['name-desc', 'employees.sort.nameDesc'], ['number', 'employees.sort.numberAsc'], ['number-desc', 'employees.sort.numberDesc'], ['position', 'employees.sort.positionAsc'], ['position-desc', 'employees.sort.positionDesc']].map(([value, key]) => `<option value="${value}"${filters.sort === value ? ' selected' : ''}>${t(key)}</option>`).join('')
+  const extra = `<select data-employee-filter="position" aria-label="${t('employees.position')}"><option value=""${filters.position ? '' : ' selected'}>${t('employees.filter.allPositions')}</option>${positionChoices}</select>
+    <select data-employee-filter="sort" aria-label="${t('departments.sort.label')}">${sortChoices}</select>`
+  return `<section class="page">${pageHeading('nav.employees', 'page.employees.desc', button('employees.new', 'create-employee', '', 'plus'))}${searchToolbar(extra)}${dataTable('employees', ['common.name', 'comp.payroll.employeeNumber', 'employees.position', 'common.phone', 'common.email', 'common.status', 'common.actions'], rows, collection('employees').length)}</section>`
 }
 
 // Ansatt er personmasterdata. Historikken utledes av faktisk arbeid, så det
@@ -7521,7 +7744,6 @@ function renderEmployeeDetail() {
   const department = record('departments', currentWork[0]?.departmentId)
   const onAssignments = collection('assignments').filter(item => item.employeeIds?.includes(employee.id))
   const availability = (employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')
-  const fileSlug = employee.name.toLowerCase().split(/\s+/)[0] ?? 'demo'
   const history = (employee.salaryHistory ?? []).map(snapshot => {
     const tariff = record('tariffs', snapshot.tariffId)
     const version = tariff?.versions?.find(item => item.id === snapshot.tariffVersionId)
@@ -7530,11 +7752,28 @@ function renderEmployeeDetail() {
   }).join('') || `<p class="muted">${t('common.none')}</p>`
   const seniorityYears = employee.seniorityApproved ? completedYears(employee.seniorityBasisDate, '2026-08-20') : null
   const sections = [
-    [t('employees.personal'), `<dl class="detail-list"><div><dt>${t('employees.birthDate')}</dt><dd>${employee.birthDate ? formatDate(employee.birthDate) : ''}</dd></div><div><dt>${t('common.address')}</dt><dd>${escapeHtml(employee.address)}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(employee.phone)}</dd></div><div><dt>${t('employees.emergencyContact')}</dt><dd>${escapeHtml(employee.kinName)} · ${escapeHtml(employee.kinPhone)} · ${lab(employee.kinRelation)}</dd></div></dl>`],
+    [t('employees.personal'), `<dl class="detail-list"><div><dt>${t('employees.birthDate')}</dt><dd>${employee.birthDate ? formatDate(employee.birthDate) : ''}</dd></div><div><dt>${t('common.address')}</dt><dd>${escapeHtml(employee.addressStreet ? [employee.addressStreet, [employee.addressPostalCode, employee.addressCity].filter(Boolean).join(' ')].filter(Boolean).join(', ') : (employee.address ?? ''))}${employee.addressCountry ? ` · ${t(`country.${employee.addressCountry}`)}` : ''}</dd></div><div><dt>${t('employees.bank')}</dt><dd>${employee.bankAccount ? `${employee.bankCountry ? `${t(`country.${employee.bankCountry}`)} · ` : ''}${escapeHtml(formatBankAccount(employee.bankCountry, employee.bankAccount))}` : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(employee.phone)}</dd></div><div><dt>${t('employees.emergencyContact')}</dt><dd>${escapeHtml(employee.kinName)} · ${escapeHtml(employee.kinPhone)} · ${lab(employee.kinRelation)}</dd></div></dl>`],
     [t('employees.employmentFacts'), `<dl class="detail-list"><div><dt>${t('employees.employeeNumber')}</dt><dd>${escapeHtml(employee.employeeNumber ?? '')}</dd></div><div><dt>${t('employees.employmentDate')}</dt><dd>${employee.start ? formatDate(employee.start) : ''}</dd></div><div><dt>${t('employees.employmentStatus')}</dt><dd>${statusTag(employee.employmentStatus ?? employee.status)}</dd></div><div><dt>${t('employees.employmentPercentage')}</dt><dd>${formatPercent(Number(employee.employmentPercentage) || 0, 0)}</dd></div><div><dt>${t('employees.employmentType')}</dt><dd>${t(`employees.${employee.employmentType ?? 'permanent'}`)}</dd></div><div><dt>${t('employees.currentWorkplace')}</dt><dd>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.availability')}</dt><dd>${availability || `<span class="muted">${t('common.none')}</span>`}</dd></div></dl>`],
-    [t('employees.documentsCompliance'), `<div class="file-row"><div class="file-name"><strong>${t('demo.doc.contract')}</strong><span>arbeidsavtale_${escapeHtml(fileSlug)}.pdf · ${t('employees.sensitive')}</span></div>${button('common.download', 'demo-toast', 'secondary small')}</div><div class="file-row"><div class="file-name"><strong>${t('demo.doc.policeCertificate')}</strong><span>politiattest_2026.pdf · ${t('employees.sensitive')}</span></div>${button('common.download', 'demo-toast', 'secondary small')}</div>`],
-    [t('employees.educationCompetence'), `<dl class="detail-list"><div><dt>${t('employees.educationLevel')}</dt><dd>${escapeHtml(taxonomy(employee.education))}</dd></div><div><dt>${t('employees.position')}</dt><dd>${lab(employee.profession)}</dd></div><div><dt>${t('employees.competence')}</dt><dd>${(employee.competenceTags ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.approvedPaySeniority')}</dt><dd>${seniorityYears === null ? statusTag('pending') : t('demo.years', { count: seniorityYears })}</dd></div><div><dt>${t('employees.seniorityDate')}</dt><dd>${employee.seniorityBasisDate ? formatDate(employee.seniorityBasisDate) : '—'}</dd></div></dl>${!employee.seniorityApproved ? `<button class="button secondary small" data-action="approve-seniority" data-id="${employee.id}">${t('employees.approveSeniority')}</button>` : ''}${employeeFactsComplete(employee) ? '' : `<p class="field-help">${t('employees.payFactsMissing')}</p>`}<p class="field-help">${t('employees.payInfoHelp')}</p>`],
-    [t('employees.licences'), `<dl class="detail-list"><div><dt>${t('employees.authorization')}</dt><dd>${employee.authorization ? `${t('common.yes')} ${licenceStatus(employee.authorizationExpiry) ?? `<span class="tag success">${t('employees.licenceValid')}</span>`}` : t('common.no')}</dd></div><div><dt>${t('employees.tradeCertificate')}</dt><dd>${employee.tradeCertificate ? t('common.yes') : t('common.no')}</dd></div><div><dt>${t('employees.certifications')}</dt><dd>${(employee.certifications ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.documentationStatus')}</dt><dd>${employee.documentationStatus === 'verified' ? statusTag('active', 'employees.verified') : statusTag('pending')}</dd></div></dl>`],
+    // Kun faktisk lagrede dokumenter. Vanlige opplastinger har INGEN kunstig
+    // «Til vurdering»-chip - de vises som lastet opp; compliance-review lever
+    // i documentationStatus-feltet, ikke per fil.
+    [t('employees.documentsCompliance'), `${(employee.documents ?? []).map(item => {
+      const verifiable = VERIFIABLE_DOCUMENT_CATEGORIES.has(item.category)
+      const status = item.verificationStatus ?? 'not_verified'
+      const reviewActions = verifiable
+        ? `<div class="modal-actions">${status !== 'pending' && status !== 'verified' ? `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="pending">${t('docs.markPending')}</button>` : ''}${status !== 'verified' ? `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="verified">${t('docs.verify')}</button>` : `<button type="button" class="button ghost small" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="not_verified">${t('docs.undoVerify')}</button>`}${status !== 'rejected' && status !== 'verified' ? `<button type="button" class="button ghost small danger" data-action="employee-document-status" data-employee-id="${employee.id}" data-id="${item.id}" data-status="rejected">${t('docs.reject')}</button>` : ''}</div>`
+        : button('common.download', 'demo-toast', 'secondary small')
+      return `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.verifiedAt ? ` · ${t('docs.verifiedBy')}: ${escapeHtml(item.verifiedBy ?? '')} ${formatDate(item.verifiedAt)}` : ''}</span></div><div class="modal-actions">${documentStatusMarkup(item)}${reviewActions}</div></div>`
+    }).join('') || `<p class="muted">${t('docs.none')}</p>`}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="upload-employee-document" data-id="${employee.id}">${icon('plus')}${t('docs.upload')}</button></div>`],
+    [t('employees.educationCompetence'), `<dl class="detail-list"><div><dt>${t('employees.educationType')}</dt><dd>${escapeHtml(educationTypeLabel(employee.education))}</dd></div><div><dt>${t('employees.educationName')}</dt><dd>${String(employee.educationName ?? '').trim() ? escapeHtml(employee.educationName) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.position')}</dt><dd>${lab(employee.profession)}</dd></div><div><dt>${t('employees.competence')}</dt><dd>${(employee.competenceTags ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.approvedPaySeniority')}</dt><dd>${seniorityYears === null ? statusTag('pending') : t('demo.years', { count: seniorityYears })}</dd></div><div><dt>${t('employees.seniorityDate')}</dt><dd>${employee.seniorityBasisDate ? formatDate(employee.seniorityBasisDate) : '—'}</dd></div></dl>${!employee.seniorityApproved ? `<button class="button secondary small" data-action="approve-seniority" data-id="${employee.id}">${t('employees.approveSeniority')}</button>` : ''}${employeeFactsComplete(employee) ? '' : `<p class="field-help">${t('employees.payFactsMissing')}</p>`}<p class="field-help">${t('employees.payInfoHelp')}</p>`],
+    // Interne notater er ADMIN-ONLY: de er utelatt fra den ansatt-synlige
+    // projeksjonen (employeeVisibleProfile) og hører aldri hjemme i felter den
+    // ansatte kan se.
+    [t('employees.adminNotes'), `${String(employee.adminNotes ?? '').trim() ? `<p>${escapeHtml(employee.adminNotes)}</p>` : `<p class="muted">${t('common.none')}</p>`}<p class="field-help">${t('employees.adminNotesHelp')}</p>`],
+    [t('employees.licences'), `<dl class="detail-list"><div><dt>${t('employees.authorization')}</dt><dd>${employee.authorization ? `${t('common.yes')} ${licenceStatus(employee.authorizationExpiry) ?? `<span class="tag success">${t('employees.licenceValid')}</span>`}` : t('common.no')}</dd></div><div><dt>${t('employees.tradeCertificate')}</dt><dd>${employee.tradeCertificate ? t('common.yes') : t('common.no')}</dd></div><div><dt>${t('employees.certifications')}</dt><dd>${(employee.certifications ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.policeCertificate')}</dt><dd>${(() => {
+      const summary = policeCertificateSummary(employee)
+      return `<span class="tag ${summary.tone}">${t(summary.key)}</span>${summary.date ? ` ${formatDate(summary.date)}` : ''}`
+    })()}</dd></div><div><dt>${t('employees.documentationStatus')}</dt><dd>${employee.documentationStatus === 'verified' ? statusTag('active', 'employees.verified') : statusTag('pending')}</dd></div></dl>`],
     [t('employees.history'), `${(() => {
       const worked = employeeWorkHistory(employee.id)
       const rows = worked.map(entry => `<tr><td>${relationLink('client-detail', entry.client?.id, entry.client?.name ?? '')}</td><td>${entry.department ? lab(entry.department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('job-detail', entry.assignment.id, entry.assignment.assignmentNumber ?? assignmentLabel(entry.assignment))}</td><td>${entry.lastWorked ? formatDate(entry.lastWorked) : ''}</td><td>${entry.shifts}</td></tr>`)
@@ -7565,7 +7804,6 @@ function renderEmployeeDetail() {
       const rows = records.map(item => `<tr><td>${formatDate(item.startDate)}–${formatDate(item.endDate)}</td><td>${formatPercent(item.absencePercent, 0)}</td><td>${t(`sick.validity.${item.validityStatus}`)}</td><td>${t(`sick.comp.${item.compensationStatus}`)}</td><td>${t(`sick.cost.${item.costResponsibility}`)}</td><td><button class="button ghost small" data-action="open-sick-leave-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
       return `${registerButton}${table(['sick.period', 'sick.degree', 'sick.validityLabel', 'sick.compLabel', 'sick.costLabel', 'common.actions'], rows)}`
     })()}`],
-    [t('employees.uploadAdditional'), `<div class="document-card"><p class="muted">${t('employees.sensitive')}</p><div class="field"><label>${t('employees.upload')}</label><input type="file" multiple></div></div>`]
   ]
   const accordions = sections.map(([title, content]) => `<details class="employee-accordion" open><summary>${title}<span aria-hidden="true">${icon('chevron')}</span></summary><div class="employee-accordion-content">${content}</div></details>`).join('')
   return `<section><div class="profile-header"><div class="profile-identity"><span class="profile-avatar">${escapeHtml(initials(employee.name))}</span><div><h1>${escapeHtml(employee.name)}</h1><p>${escapeHtml(employee.email)} · ${escapeHtml(employee.phone)}</p><div class="tag-row">${statusTag(employee.status)}</div></div></div><div class="page-actions">${button('common.back', 'back-employees', 'secondary', 'arrow-left')}<button type="button" class="button" data-action="edit-employee" data-id="${employee.id}">${icon('edit')}${t('common.edit')}</button><button type="button" class="button secondary danger" data-action="delete-employee" data-id="${employee.id}">${icon('trash')}${t('common.delete')}</button></div></div><div class="page employee-detail-page">${accordions}</div></section>`
@@ -7768,7 +8006,7 @@ function renderJobDetail() {
     const stateMarkup = result.ok
       ? `<div class="file-name"><strong>${t('staffing.qualified')} · ${t('staffing.rateCanResolve')}</strong><span>${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}</span></div>`
       : `<div class="file-name"><strong>${t(blockingMessageKey(result.reason))}</strong><span>${result.reason === 'qualification_mismatch' ? `${t('staffing.requiredQualification')}: ${taxonomy(assignment.requiredQualification)} · ${t('nav.employees')}: ${taxonomy(employee.qualification)}` : t('employees.noAssignmentPayHelp')}</span></div>`
-    return `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(taxonomy(employee.education))}</td><td>${employee.seniorityApproved ? t('demo.years', { count: completedYears(employee.seniorityBasisDate, '2026-08-20') }) : '—'}</td><td>${stateMarkup}</td><td>${result.ok ? `<button class="button ghost small" data-action="explain-rate" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}" data-date="2026-08-20">${t('common.view')}</button>` : `<button class="button ghost small" data-route="employee-detail" data-id="${employee.id}">${t('employees.detail')}</button>`}</td></tr>`
+    return `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(educationTypeLabel(employee.education))}</td><td>${employee.seniorityApproved ? t('demo.years', { count: completedYears(employee.seniorityBasisDate, '2026-08-20') }) : '—'}</td><td>${stateMarkup} ${policeCertificateMarkup(employee)}</td><td>${result.ok ? `<button class="button ghost small" data-action="explain-rate" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}" data-date="2026-08-20">${t('common.view')}</button>` : `<button class="button ghost small" data-route="employee-detail" data-id="${employee.id}">${t('employees.detail')}</button>`}</td></tr>`
   })
   const futureShifts = collection('shifts').filter(item => item.assignmentId === assignment.id)
   const shiftRows = futureShifts.map(shift => {
@@ -7839,7 +8077,8 @@ function renderJobDetail() {
     const functionAction = assignment.status !== 'cancelled' && slot.status !== 'cancelled'
       ? `<button type="button" class="button ghost small" data-action="open-slot-function" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('functions.changeAction')}</button>`
       : ''
-    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span></div><div class="modal-actions">${sickTag}${functionTag}<span class="tag ${tone}">${t(statusKey)}</span>${slotActions}${functionAction}</div></div>`
+    const certificateTag = employee ? policeCertificateMarkup(employee) : ''
+    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span>${certificateTag ? `<span>${certificateTag}</span>` : ''}</div><div class="modal-actions">${sickTag}${functionTag}<span class="tag ${tone}">${t(statusKey)}</span>${slotActions}${functionAction}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
   return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${liveInPlanCard(assignment)}${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${seriesCard(assignment)}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
@@ -7924,8 +8163,8 @@ function qualificationFor(employee, assignment) {
 
   // Krav: kvalifikasjon, sertifikater og kompetansenivå - men bare når de
   // faktisk begrenser noe.
-  if (assignment.requiredQualification && employeePayCategory(employee) !== assignment.requiredQualification) {
-    blockers.push(`${t('staffing.requires')}: ${taxonomy(assignment.requiredQualification)} · ${t('staffing.employeeHas')}: ${taxonomy(employee.education)}`)
+  if (assignment.requiredQualification && !educationMeetsRequirement(employee, assignment.requiredQualification)) {
+    blockers.push(`${t('staffing.requires')}: ${taxonomy(assignment.requiredQualification)} · ${t('staffing.employeeHas')}: ${educationTypeLabel(employee.education)}`)
   }
   const held = new Set(employee.certifications ?? [])
   const missing = (assignment.requiredCertificates ?? []).filter(item => !held.has(item))
@@ -7997,7 +8236,7 @@ function availableEmployeesCard(assignment) {
     const availability = busy
       ? `<span class="tag danger">${t('staffing.unavailable')}</span>`
       : `<span class="tag success">${t('staffing.available')}</span>`
-    return `<tr><td><label class="checkbox-row"><input type="checkbox" data-request-recipient="${employee.id}"${selected.has(employee.id) ? ' checked' : ''}><span>${escapeHtml(employee.name)}</span></label><span class="muted"> ${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())}</span></td><td><div class="file-name"><strong>${lab(employee.profession)}</strong><span>${escapeHtml(taxonomy(employee.education))}</span></div></td><td>${availability}<span class="muted"> ${(employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')}</span></td><td><span class="tag ${match.tone}">${t(match.key)}</span> <span class="tag ${request.tone}">${t(request.key)}</span>${match.detail ? `<div class="muted">${escapeHtml(match.detail)}</div>` : ''}</td><td class="row-actions"><button class="button ghost small" data-action="assign-employee-direct" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.assign')}</button><button class="button ghost small" data-action="open-request" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button></td></tr>`
+    return `<tr><td><label class="checkbox-row"><input type="checkbox" data-request-recipient="${employee.id}"${selected.has(employee.id) ? ' checked' : ''}><span>${escapeHtml(employee.name)}</span></label><span class="muted"> ${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())}</span></td><td><div class="file-name"><strong>${lab(employee.profession)}</strong><span>${escapeHtml(educationTypeLabel(employee.education))}</span></div></td><td>${availability}<span class="muted"> ${(employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')}</span></td><td><span class="tag ${match.tone}">${t(match.key)}</span> <span class="tag ${request.tone}">${t(request.key)}</span> ${policeCertificateMarkup(employee)}${match.detail ? `<div class="muted">${escapeHtml(match.detail)}</div>` : ''}</td><td class="row-actions"><button class="button ghost small" data-action="assign-employee-direct" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.assign')}</button><button class="button ghost small" data-action="open-request" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button></td></tr>`
   })
   const chosen = rows.filter(row => selected.has(row.employee.id)).length
   const bulk = `<div class="tag-row"><button type="button" class="button secondary" data-action="open-request" data-id="${assignment.id}"${chosen ? '' : ' disabled'}>${icon('envelope')}${t('staffing.sendRequest')}</button><span class="muted">${chosen ? t('staffing.selected', { count: chosen }) : t('staffing.selectRecipients')}</span></div>`
@@ -8079,8 +8318,8 @@ function blockingDetail(employee, assignment, result) {
   const match = qualificationFor(employee, assignment)
   if (match.blockers.length) return match.blockers.join(' · ')
   const parts = []
-  if (assignment.requiredQualification && employeePayCategory(employee) !== assignment.requiredQualification) {
-    parts.push(`${t('staffing.requires')}: ${taxonomy(assignment.requiredQualification)} · ${t('staffing.employeeHas')}: ${taxonomy(employee.education)}`)
+  if (assignment.requiredQualification && !educationMeetsRequirement(employee, assignment.requiredQualification)) {
+    parts.push(`${t('staffing.requires')}: ${taxonomy(assignment.requiredQualification)} · ${t('staffing.employeeHas')}: ${educationTypeLabel(employee.education)}`)
   }
   const held = new Set(employee.certifications ?? [])
   const missing = (assignment.requiredCertificates ?? []).filter(item => !held.has(item))
@@ -8151,7 +8390,7 @@ function assignedEmployeesCard(assignment) {
     }
     const tariff = record('tariffs', result.tariffId)
     const version = tariff?.versions?.find(item => item.id === result.tariffVersionId)
-    const basis = [taxonomy(employee.education), taxonomy(result.role), t('demo.years', { count: result.seniorityYears })].filter(Boolean).join(' · ')
+    const basis = [educationTypeLabel(employee.education), taxonomy(result.role), t('demo.years', { count: result.seniorityYears })].filter(Boolean).join(' · ')
     return `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td><span class="tag success">${t('staffing.qualified')}</span></td><td><strong>${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}</strong></td><td><div class="file-name"><strong>${escapeHtml(basis)}</strong><span>${escapeHtml(`${label(tariff?.name ?? '')} ${version?.name ?? ''}`.trim())} · ${t(result.tariffSource === 'department' ? 'staffing.inheritedFromDepartment' : 'staffing.inheritedFromClient')}</span></div></td><td class="row-actions"><button class="button ghost small" data-action="explain-rate" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}" data-date="${assignment.date || '2026-08-20'}">${t('staffing.explainRate')}</button>${workerActionMenu(assignment, employee)}</td></tr>`
   })
   const heading = team.length === 1 ? t('staffing.assignedEmployee') : t('staffing.team')
@@ -9396,7 +9635,7 @@ function paySystemRulesMarkup(tariff, kind) {
 function salaryCellDialogBody() {
   const tariff = record('tariffs', state.selected.tariff)
   const version = tariff?.versions?.[0]
-  const educationChoices = ['no_formal_qualification', 'healthcare_worker', 'demo.education.bachelor', 'demo.education.master'].map(value => ({ value, text: educationLabel(value) }))
+  const educationChoices = EMPLOYEE_EDUCATION_TYPES.map(value => ({ value, text: educationTypeLabel(value) }))
   const roleChoices = ['environment_worker', 'healthcare_worker'].map(value => ({ value, text: taxonomy(value) }))
   const annualSalary = Number(draftValue('annualSalary', 0)) || 0
   const hours = Number(version?.annualHoursBasis) || 0
@@ -9415,7 +9654,7 @@ function salaryTableMarkup(annualHoursBasis = 1860, salaryCells = null, versionN
   if (!cells.length) {
     return `<div class="salary-table-wrap">${basis}${add}<div class="empty-state"><span class="empty-icon">${icon('wallet')}</span><h3>${t('financial.noSalaryCells')}</h3></div></div>`
   }
-  const rows = cells.map(cell => `<tr><td><strong>${cell.role ? escapeHtml(taxonomy(cell.role)) : `<span class="muted">${t('financial.roleNotNeeded')}</span>`}</strong></td><td>${escapeHtml(cell.education ? educationLabel(cell.education) : taxonomy(cell.qualification))}</td><td>${escapeHtml(`${cell.seniorityMin}–${cell.seniorityMax}`)}</td><td>${cell.annualSalary ? formatMoney(cell.annualSalary) : '—'}</td><td>${formatMoney(cell.rate, 2)}/${t('comp.ui.hoursShort')}</td><td class="row-actions"><button class="button ghost small danger" data-action="delete-salary-cell" data-id="${cell.id}">${t('common.delete')}</button></td></tr>`)
+  const rows = cells.map(cell => `<tr><td><strong>${cell.role ? escapeHtml(taxonomy(cell.role)) : `<span class="muted">${t('financial.roleNotNeeded')}</span>`}</strong></td><td>${escapeHtml(cell.education ? educationTypeLabel(cell.education) : taxonomy(cell.qualification))}</td><td>${escapeHtml(`${cell.seniorityMin}–${cell.seniorityMax}`)}</td><td>${cell.annualSalary ? formatMoney(cell.annualSalary) : '—'}</td><td>${formatMoney(cell.rate, 2)}/${t('comp.ui.hoursShort')}</td><td class="row-actions"><button class="button ghost small danger" data-action="delete-salary-cell" data-id="${cell.id}">${t('common.delete')}</button></td></tr>`)
   return `<div class="salary-table-wrap">${basis}${add}${table(['staffing.role', 'employees.educationLevel', 'employees.seniority', 'financial.annualSalary', 'comp.payroll.rate', 'common.actions'], rows)}</div>`
 }
 
@@ -10461,7 +10700,7 @@ function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
       [t('financial.version'), version?.name ?? t('clients.notConfigured')],
       [t('rel.department'), context.department ? label(context.department.name) : t('common.none')],
       [t('financial.workDate'), formatDate(date)],
-      [t('employees.educationLevel'), employee.education ? educationLabel(employee.education) : t('common.none')],
+      [t('employees.educationLevel'), employee.education ? educationTypeLabel(employee.education) : t('common.none')],
       [t('employees.approvedPaySeniority'), employee.seniorityApproved && employee.seniorityBasisDate ? t('demo.years', { count: completedYears(employee.seniorityBasisDate, date) }) : t('common.none')],
       [t('staffing.role'), result.roleRequired ? (result.role ? taxonomy(result.role) : t('common.none')) : t('financial.roleNotNeeded')],
       [t('financial.tableMatches'), String(result.matchCount ?? 0)]
@@ -11416,13 +11655,23 @@ function formError() {
 function employeeDialog() {
   const steps = ['personal', 'education', 'employment', 'files']
   const modeKey = state.dialogMode === 'edit' ? 'employees.modal.edit' : state.dialogMode === 'convert' ? 'employees.modal.convert' : 'employees.modal.create'
-  const educationChoices = [{ value: 'no_formal_qualification', text: t('employees.educationNoFormal') }, { value: 'healthcare_worker', text: t('employees.educationHealthcareWorker') }, ...['demo.education.bachelor', 'demo.education.master'].map(key => ({ value: key, text: t(key) }))]
-  const qualificationChoices = [{ value: 'none', text: t('taxonomy.none') }, { value: 'trade_certificate', text: t('employees.tradeCertificate') }, { value: 'bachelor', text: t('demo.education.bachelor') }]
+  // Utdanningstypen er det lønnsrelevante NIVÅET (lagres i employee.education,
+  // som resolvern leser); utdanningsnavnet er menneskelesbar tekst for kortet.
+  // Yrke/stilling hører til arbeidsforholdet, sertifisering og fagbrev-checkbox
+  // er fjernet fra aktiv UI, og tilgjengelighet konfigureres ikke her.
+  const educationChoices = EMPLOYEE_EDUCATION_TYPES.map(value => ({ value, text: t(`employees.eduType.${value}`) }))
   const employmentTypeChoices = [{ value: 'permanent', text: t('employees.permanent') }, { value: 'temporary', text: t('employees.temporary') }]
-  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${bound('birthDate', t('employees.birthDate'), { type: 'date' })}${bound('address', t('common.address'))}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'))}${bound('kinRelation', t('employees.relationship'))}${bound('kinPhone', t('common.phone'))}</div></div>`
-  if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', t('employees.educationType'), educationChoices, { placeholder: t('common.select') })}${boundSelect('profession', t('employees.profession'), professionOptions(), { placeholder: t('common.select') })}${boundCheckbox('tradeCertificate', t('employees.tradeCertificate'))}${boundCheckbox('authorization', t('employees.authorization'))}${bound('certificationsText', t('employees.certifications'), { help: t('employees.noAssignmentPayHelp') })}${bound('competenceTagsText', t('employees.competenceTags'))}</div></div><div class="form-section"><h3>${t('employees.documentsCompliance')}</h3><div class="grid cols-2">${boundSelect('documentationStatus', t('employees.documentationStatus'), [{ value: 'verified', text: t('employees.verified') }, { value: 'pending', text: t('common.pending') }])}<div class="document-card"><div class="file-row"><div class="file-name"><strong>${t('demo.doc.policeCertificate')}</strong><span>PDF · ${t('common.pending')}</span></div><input type="file" aria-label="${t('employees.documentsCompliance')}"></div></div></div></div>`
-  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'))}${bound('start', t('employees.employmentDate'), { type: 'date' })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%' })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date' })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}${boundTextarea('seniorityNotes', t('common.notes'))}</div></div><div class="form-section"><h3>${t('employees.availability')}</h3><div class="availability-grid">${['day', 'evening', 'night', 'weekend'].map(shift => boundCheckbox(`shift-${shift}`, t(`demo.shift.${shift}`))).join('')}</div></div>`
-  if (state.dialogStep === 3) body = `<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div><div class="field"><label>${t('employees.upload')}</label><input type="file" multiple></div><div class="file-row"><div class="file-name"><strong>${t('demo.doc.contract')}</strong><span>arbeidsavtale_demo.pdf · ${t('common.pending')}</span></div>${statusTag('pending')}</div></div>${storageNote()}`
+  const countryChoices = ['NO', 'SE', 'DK', 'other'].map(value => ({ value, text: t(`country.${value}`) }))
+  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${bound('birthDate', t('employees.birthDate'), { type: 'date' })}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('common.address')}</h3><div class="grid cols-2">${bound('addressStreet', t('employees.addressStreet'))}${bound('addressPostalCode', t('departments.postalCode'))}${bound('addressCity', t('departments.city'))}${boundSelect('addressCountry', t('employees.country'), countryChoices, { placeholder: t('common.select') })}</div></div><div class="form-section"><h3>${t('employees.bank')}</h3><div class="grid cols-2">${boundSelect('bankCountry', t('employees.bankCountry'), countryChoices, { placeholder: t('common.select') })}${bound('bankAccount', t('employees.bankAccount'))}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'))}${bound('kinRelation', t('employees.relationship'))}${bound('kinPhone', t('common.phone'))}</div></div>`
+  if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', t('employees.educationType'), educationChoices, { placeholder: t('common.select') })}${bound('educationName', t('employees.educationName'))}${boundCheckbox('authorization', t('employees.authorization'))}</div></div><div class="form-section"><h3>${t('employees.documentsCompliance')}</h3><div class="grid cols-2">${boundSelect('documentationStatus', t('employees.documentationStatus'), [{ value: 'verified', text: t('employees.verified') }, { value: 'pending', text: t('common.pending') }])}</div></div>`
+  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'))}${boundSelect('profession', t('employees.position'), professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date' })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%' })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date' })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
+  if (state.dialogStep === 3) {
+    // Kun faktisk lagrede dokumenter - aldri forhåndsutfylte demonavn.
+    // Opplasting (med eget visningsnavn) skjer fra ansattkortet.
+    const documents = state.editingId ? (record('employees', state.editingId)?.documents ?? []) : []
+    const rows = documents.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${escapeHtml(item.fileName ?? '')}${item.category ? ` · ${t(`docs.category.${item.category}`)}` : ''}</span></div></div>`).join('')
+    body = `<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div>${documents.length ? rows : `<p class="muted">${t('docs.none')}</p>`}<p class="field-help">${t('docs.uploadedFromCard')}</p></div>${storageNote()}`
+  }
   const stepper = `<div class="stepper" aria-label="${t('employees.progress', { current: state.dialogStep + 1, total: 4 })}">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}"><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`employees.${step}`)}</span></button>`).join('')}</div>${body}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < 3 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-employee">${t('common.save')}</button></div>`
   return modalShell(t(modeKey), t('employees.progress', { current: state.dialogStep + 1, total: 4 }), 'id-card', stepper, footer)
@@ -11542,6 +11791,16 @@ function clientDocumentDialog() {
   return modalShell(t('docs.upload'), t('clients.tabs.documents'), 'file', body, formFooter('save-client-document'), 'small')
 }
 
+// Ansattdokument: fil, eget visningsnavn (fallback = filnavnet) og kategori -
+// alle felter starter tomme.
+function employeeDocumentDialog() {
+  // Politiattest og vitnemål er verifiserbare kategorier; dokumentdatoen (for
+  // eksempel datoen på politiattesten) er et eget business-felt på dokumentet.
+  const categories = ['police_certificate', 'diploma', 'agreement', 'other'].map(key => ({ value: key, text: t(`docs.category.${key}`) }))
+  const body = `${formError()}<div class="grid"><div class="field"><label>${t('docs.file')}</label><input type="file" id="employee-doc-file" aria-label="${t('docs.file')}"></div>${bound('docName', t('docs.name'), { help: t('employees.sensitive') })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}${bound('docDate', t('docs.date'), { type: 'date' })}</div>${storageNote()}`
+  return modalShell(t('docs.upload'), t('employees.files'), 'file', body, formFooter('save-employee-document'), 'small')
+}
+
 // Forhåndsvisning av én brukers faktiske utsyn: ALT innhold under leses
 // gjennom scope- og permissionsfiltrene - data utenfor omfanget finnes ikke
 // her, heller ikke via direkte lenker. Prototypen håndhever dette i
@@ -11653,7 +11912,7 @@ function matchEmployeesDialog() {
     const actions = match.eligible
       ? `<button type="button" class="button small" data-action="match-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${employee.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="match-send-request" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button>`
       : `<span class="tag danger">${t('match.notSelectable')}</span>`
-    return `<div class="file-row match-row"><div class="file-name"><strong>${relationLink('employee-detail', employee.id, employee.name)}</strong><span>${reasons}</span><span>${experience}</span></div><div class="modal-actions">${actions}</div></div>`
+    return `<div class="file-row match-row"><div class="file-name"><strong>${relationLink('employee-detail', employee.id, employee.name)}</strong><span>${policeCertificateMarkup(employee)}</span><span>${reasons}</span><span>${experience}</span></div><div class="modal-actions">${actions}</div></div>`
   }).join('')
   const filters = `<div class="grid cols-2">${bound('matchSearch', t('match.search'))}<div class="form-actions" style="align-items:end">${boundCheckbox('matchOnlyEligible', t('match.onlyEligible'))}${boundCheckbox('matchOnlyAvailable', t('match.onlyAvailable'))}</div></div>`
   const body = `${formError()}${context}${filters}${rows || `<p class="muted">${t('common.noResults')}</p>`}`
@@ -12194,6 +12453,7 @@ const dialogs = {
   'sick-leave': sickLeaveDialog,
   'sick-leave-detail': sickLeaveDetailDialog,
   'client-document': clientDocumentDialog,
+  'employee-document': employeeDocumentDialog,
   'access-preview': accessPreviewDialog,
   'confirm-delete': confirmDeleteDialog,
   'confirm-archive': confirmArchiveDialog,
@@ -12435,6 +12695,49 @@ function actionHandlers(target = null) {
       const index = Number(target?.dataset?.index)
       state.draft.draftContacts = (state.draft.draftContacts ?? []).filter((_, i) => i !== index)
       render()
+    },
+    // Ansattdokumenter: samme kontrakt som virksomhetens - tomt skjema, eget
+    // visningsnavn, originalfilnavnet som fallback, ingen kunstig «Til
+    // vurdering»-status for vanlige opplastinger.
+    'upload-employee-document': () => {
+      state.selected.documentEmployee = target?.dataset?.id ?? state.selected.employee
+      openDialog('employee-document', 'create', { docName: '', docCategory: '' })
+    },
+    'save-employee-document': () => {
+      const employee = record('employees', state.selected.documentEmployee ?? state.selected.employee)
+      if (!employee) return
+      const fileName = document.getElementById('employee-doc-file')?.files?.[0]?.name ?? ''
+      const name = String(state.draft.docName ?? '').trim() || fileName
+      if (!name) { state.formError = 'docs.nameRequired'; render(); return }
+      state.formError = null
+      const category = state.draft.docCategory || 'other'
+      const doc = { id: nextNumericSlotId(), name, category, fileName, documentDate: state.draft.docDate || '' }
+      // Bare verifiserbare kategorier går inn i verifiseringsflyten - et vanlig
+      // dokument er bare lastet opp og får aldri en review-status.
+      if (VERIFIABLE_DOCUMENT_CATEGORIES.has(category)) {
+        doc.verificationStatus = 'not_verified'
+        doc.events = [{ id: nextNumericSlotId(), at: new Date().toISOString(), type: 'document_uploaded', actor: 'demo-admin' }]
+      }
+      employee.documents = [...(employee.documents ?? []), doc]
+      persist(); closeDialog(); showToast('docs.saved')
+    },
+    // Verifiseringsflyten for politiattest/vitnemål: statusskiftene logges som
+    // hendelser på dokumentet og slettes aldri.
+    'employee-document-status': () => {
+      const employee = record('employees', target?.dataset?.employeeId ?? state.selected.employee)
+      const doc = (employee?.documents ?? []).find(item => String(item.id) === String(target?.dataset?.id))
+      const status = target?.dataset?.status
+      if (!doc || !['pending', 'verified', 'rejected', 'not_verified'].includes(status)) return
+      doc.verificationStatus = status
+      if (status === 'verified') {
+        doc.verifiedAt = new Date().toISOString().slice(0, 10)
+        doc.verifiedBy = 'demo-admin'
+      } else {
+        delete doc.verifiedAt
+        delete doc.verifiedBy
+      }
+      doc.events = [...(doc.events ?? []), { id: nextNumericSlotId(), at: new Date().toISOString(), type: `document_${status}`, actor: 'demo-admin' }]
+      persist(); render()
     },
     // Dokumentopplasting: skjemaet starter alltid tomt - navnet foreslås aldri.
     'upload-client-document': () => {
@@ -13474,13 +13777,32 @@ const entities = {
       email: draft.email ?? '',
       phone: draft.phone ?? '',
       birthDate: draft.birthDate ?? '',
-      address: draft.address ?? '',
+      // Adresse i separate felter; det samlede address-feltet holdes i synk for
+      // eldre visninger. Gamle poster uten delte felter beholder strengen sin.
+      addressStreet: draft.addressStreet ?? '',
+      addressPostalCode: draft.addressPostalCode ?? '',
+      addressCity: draft.addressCity ?? '',
+      addressCountry: draft.addressCountry ?? '',
+      address: String(draft.addressStreet ?? '').trim()
+        ? [String(draft.addressStreet).trim(), [String(draft.addressPostalCode ?? '').trim(), String(draft.addressCity ?? '').trim()].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+        : draft.address ?? '',
+      // Bankland styrer valideringen (håndheves i save-employee); kontonummeret
+      // lagres normalisert, uten mellomrom.
+      bankCountry: draft.bankCountry ?? '',
+      bankAccount: normalizeBankAccount(draft.bankAccount),
+      // education er den lønnsrelevante typen (leses av resolvern);
+      // educationName er den menneskelesbare kompetansen («Sosionom»).
       education: draft.education ?? '',
+      educationName: String(draft.educationName ?? '').trim(),
       field: draft.field ?? '',
       profession: draft.profession ?? '',
       qualification: draft.qualification ?? '',
-      tradeCertificate: Boolean(draft.tradeCertificate),
+      // Fagbrev-boolen er pensjonert som eget UI-felt: den DERIVERES av
+      // utdanningstypen (alle nivåer unntatt ufaglært regnes faglært), slik at
+      // det aldri finnes to konkurrerende sannheter.
+      tradeCertificate: Boolean(draft.education && draft.education !== 'no_formal_qualification'),
       authorization: Boolean(draft.authorization),
+      adminNotes: draft.adminNotes ?? '',
       certifications: String(draft.certificationsText ?? '').split(',').map(item => item.trim()).filter(Boolean),
       competenceTags: String(draft.competenceTagsText ?? '').split(',').map(item => item.trim()).filter(Boolean),
       qualificationStatus: draft.qualificationStatus ?? 'pending',
@@ -13791,6 +14113,10 @@ function crudHandlers(target) {
       const spec = entities.employee
       const converting = state.dialogMode === 'convert'
       const sourceId = state.draft.convertedFrom
+      // Landstyrt kontovalidering: Norge krever 11 siffer + gyldig mod11-
+      // kontrollsiffer (mellomrom normaliseres). Andre land valideres ikke her.
+      const bankError = bankAccountError(state.draft.bankCountry, state.draft.bankAccount)
+      if (bankError) { state.formError = bankError; render(); return }
       const saved = commit(spec.collection, spec.prefix, spec.nameField, spec.fromDraft)
       if (saved && converting && sourceId) {
         deleteRecord('candidates', sourceId)
@@ -14425,6 +14751,12 @@ document.addEventListener('change', event => {
     if (name in state.departmentFilters) { state.departmentFilters[name] = String(event.target.value); render() }
     return
   }
+  // Ansattlistens stillingfilter og sortering.
+  if (event.target.dataset?.employeeFilter) {
+    const name = event.target.dataset.employeeFilter
+    if (name in state.employeeFilters) { state.employeeFilters[name] = String(event.target.value); render() }
+    return
+  }
   // Vakters delte filtermodell (§6, §10): klientbytte nullstiller avdelingen
   // når den valgte ikke lenger tilhører klienten.
   if (event.target.dataset?.shiftFilter) {
@@ -14617,6 +14949,25 @@ window.__workmaticPreview = {
   filteredShifts: (nowIso = null) => filteredAssignments(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()).map(item => item.id),
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
   setDepartmentFilter: (name, value) => { if (name in state.departmentFilters) { state.departmentFilters[name] = String(value); render() } },
+  setEmployeeFilter: (name, value) => { if (name in state.employeeFilters) { state.employeeFilters[name] = String(value); render() } },
+  // Den ansatt-synlige projeksjonen: kontrakten som en fremtidig ansatt-portal
+  // skal lese. Interne admin-notater er EKSPLISITT utelatt her - de finnes kun
+  // i admin-flaten. Backend må håndheve samme kontrakt i produksjon.
+  employeeVisibleProfile: employeeId => {
+    const employee = record('employees', employeeId)
+    if (!employee) return null
+    const { adminNotes, seniorityNotes, ...visible } = employee
+    void adminNotes
+    void seniorityNotes
+    // Dokumentmetadata er ansatt-synlig; hvem som verifiserte og de interne
+    // review-hendelsene er admin-only og strippes fra projeksjonen.
+    visible.documents = (employee.documents ?? []).map(({ verifiedBy, events, ...doc }) => { void verifiedBy; void events; return doc })
+    return JSON.parse(JSON.stringify(visible))
+  },
+  policeCertificate: employeeId => {
+    const certificate = latestRelevantPoliceCertificate(record('employees', employeeId))
+    return certificate ? JSON.parse(JSON.stringify(certificate)) : null
+  },
   calendarView: () => { const { range, days } = calendarDays(filteredAssignments()); return JSON.parse(JSON.stringify({ range, days: days.map(day => ({ iso: day.iso, ids: day.entries.map(item => item.id) })) })) },
   setCalendarAnchor: iso => { state.calendarAnchor = iso; render() },
   notifications: () => JSON.parse(JSON.stringify(syncNotifications())),
