@@ -2402,6 +2402,132 @@ button.stat-card.stat-action:hover {
 .match-block { color: var(--danger); }
 .match-warn { color: #b45309; }
 
+/* === Vaktplan: månedsplan per avdeling === */
+/* Ren visning: sticky navnekolonne + datoheader, horisontal scroll for
+   måneden. Blokkene bruker den eksisterende green/slate-paletten. */
+.plan-title {
+  margin: 0 0 12px;
+}
+
+.plan-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.plan-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--surface-200);
+  border-radius: 10px;
+  background: var(--surface-0);
+  margin-top: 12px;
+}
+
+.plan-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+}
+
+.plan-grid th,
+.plan-grid td {
+  border-bottom: 1px solid var(--surface-200);
+  border-right: 1px solid var(--surface-100);
+  padding: 4px;
+  min-width: 74px;
+  vertical-align: top;
+  text-align: left;
+  background: var(--surface-0);
+}
+
+.plan-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-50);
+  font-size: 11px;
+  color: var(--surface-600);
+}
+
+.plan-grid .plan-name-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 160px;
+  background: var(--surface-50);
+}
+
+.plan-grid thead .plan-name-col {
+  z-index: 3;
+}
+
+.plan-weekday {
+  display: block;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.plan-day {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--surface-800);
+}
+
+.plan-grid .plan-weekend {
+  background: var(--surface-50);
+}
+
+.plan-grid .plan-today {
+  background: var(--primary-soft, var(--surface-100));
+}
+
+.plan-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--surface-200);
+  border-left: 3px solid var(--primary-600, #2f9e6e);
+  border-radius: 6px;
+  background: var(--surface-50);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-block strong {
+  font-size: 11px;
+}
+
+.plan-block:hover {
+  border-color: var(--primary-600, #2f9e6e);
+}
+
+/* Medlever skiller seg tydelig fra vanlige vakter. */
+.plan-block.plan-live-in {
+  border-left-color: var(--info-600, #4472c4);
+  background: var(--surface-100);
+}
+
+.plan-block.plan-night {
+  border-left-style: dashed;
+}
+
+.plan-block.plan-sick {
+  border-left-color: var(--danger-600, #c0392b);
+}
+
+.plan-open-row .plan-name-col {
+  color: var(--surface-700);
+}
+
 </style>
   </head>
   <body>
@@ -2462,6 +2588,10 @@ const state = {
   departmentFilters: { clientId: '', paySystemId: '', sort: 'name' },
   // Ansattoversikten: stillingfilter og sortering. Status via delte filteret.
   employeeFilters: { position: '', sort: 'name' },
+  // Vaktplan: månedsplan per avdeling. Ren visning over kanoniske vakter -
+  // egen ankermåned og enkle filtre, ingen egen plan-modell.
+  shiftPlanFilters: { clientId: '', departmentId: '', type: '', search: '' },
+  shiftPlanAnchor: '',
   // Fakturagrunnlag: periode, klient og avdelingsfilter.
   // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
   // avdelinger. departmentId er den ENE sannheten - ingen parallell liste.
@@ -3338,6 +3468,17 @@ const copy = {
     'employees.policeCertificateDate': 'Dato for politiattest',
     'employees.policeCertificateMissing': 'Mangler',
     'docs.dateMissing': 'Dato mangler',
+    // Vaktplan: månedsplan per avdeling - ren visning over kanoniske vakter.
+    'shiftPlan.title': 'Vaktplan',
+    'page.shiftPlan.desc': 'Hvem jobber når - månedsplan per avdeling',
+    'shiftPlan.today': 'I dag',
+    'shiftPlan.openShifts': 'Ledige vakter',
+    'shiftPlan.openCount': '{count} ledig',
+    'shiftPlan.empty': 'Ingen vakter i valgt periode',
+    'shiftPlan.selectDepartment': 'Velg en avdeling for å vise vaktplan',
+    'shiftPlan.searchEmployee': 'Søk ansatt',
+    'shiftPlan.allTypes': 'Alle vakttyper',
+    'shiftPlan.awaiting': 'Venter',
     'docs.editTitle': 'Rediger dokument',
     'employees.clientNotes': 'Virksomhetsnotater',
     'staffing.assignDirectly': 'Tildel direkte',
@@ -4324,6 +4465,12 @@ copy.en = {
   'employees.policeCertificateDate': 'Police certificate date',
   'employees.policeCertificateMissing': 'Missing',
   'docs.dateMissing': 'Date missing', 'docs.editTitle': 'Edit document',
+  'shiftPlan.title': 'Shift plan', 'page.shiftPlan.desc': 'Who works when - monthly plan per department',
+  'shiftPlan.today': 'Today', 'shiftPlan.openShifts': 'Open shifts', 'shiftPlan.openCount': '{count} open',
+  'shiftPlan.empty': 'No shifts in selected period',
+  'shiftPlan.selectDepartment': 'Select a department to view the shift plan',
+  'shiftPlan.searchEmployee': 'Search employee', 'shiftPlan.allTypes': 'All shift types',
+  'shiftPlan.awaiting': 'Awaiting',
   'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
   'staffing.assigned': 'Assigned', 'staffing.open': 'Open positions',
   'staffing.assignDirectly': 'Assign directly',
@@ -5959,6 +6106,7 @@ const routes = {
   'employee-detail': ['employees.detail', 'page.employees.desc'],
   staffing: ['shifts.newTitle', 'page.staffing.desc'],
   'job-detail': ['staffing.detail', 'page.staffing.desc'],
+  'shift-plan': ['shiftPlan.title', 'page.shiftPlan.desc'],
   shifts: ['shifts.pageTitle', 'shifts.pageDesc'],
   timesheets: ['nav.timesheets', 'page.timesheets.desc'],
   'timesheet-review': ['timesheets.review', 'page.timesheets.desc'],
@@ -7157,14 +7305,14 @@ const financeMenu = [
 ]
 
 const financeRoutes = new Set(['financial', 'tariff-detail', 'salary-table', 'premiums', 'overtime', 'invoicing', 'payroll', 'simulation', 'calculation', 'versions', 'version-compare'])
-const shiftRoutes = new Set(['shifts', 'staffing', 'job-detail', 'timesheets', 'timesheet-review', 'timesheet-day'])
+const shiftRoutes = new Set(['shifts', 'staffing', 'shift-plan', 'job-detail', 'timesheets', 'timesheet-review', 'timesheet-day'])
 
 function renderSidebar() {
   const primary = menu.map(([route, iconName]) => {
     const active = route === 'financial' ? financeRoutes.has(state.route) : route === 'shifts' ? shiftRoutes.has(state.route) : route === 'recruitment' ? ['recruitment', 'candidates', 'candidate-detail'].includes(state.route) : state.route === route || state.route === `${route.replace(/s$/, '')}-detail`
     const submenu = route === 'financial'
       ? `<ul class="nav-list nav-submenu">${financeMenu.map(([target, labelKey]) => `<li><a class="nav-link ${state.route === target ? 'is-active' : ''}" href="#${target}" data-route="${target}">${t(labelKey)}</a></li>`).join('')}</ul>`
-      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>`
+      : route === 'shifts' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'staffing' || state.route === 'job-detail' ? 'is-active' : ''}" href="#staffing" data-route="staffing">${t('shifts.newTitle')}</a></li><li><a class="nav-link ${state.route === 'shift-plan' ? 'is-active' : ''}" href="#shift-plan" data-route="shift-plan">${t('shiftPlan.title')}</a></li><li><a class="nav-link ${state.route === 'shifts' ? 'is-active' : ''}" href="#shifts" data-route="shifts">${t('shiftTemplates.title')}</a></li><li><a class="nav-link ${state.route.startsWith('timesheet') ? 'is-active' : ''}" href="#timesheets" data-route="timesheets">${t('nav.timesheets')}</a></li></ul>`
       : route === 'recruitment' ? `<ul class="nav-list nav-submenu"><li><a class="nav-link ${state.route === 'recruitment' ? 'is-active' : ''}" href="#recruitment" data-route="recruitment">${t('recruitment.positionsMenu')}</a></li><li><a class="nav-link ${state.route === 'candidates' || state.route === 'candidate-detail' ? 'is-active' : ''}" href="#candidates" data-route="candidates">${t('nav.candidates')}</a></li></ul>` : ''
     return `<li><a class="nav-link ${active ? 'is-active' : ''}" href="#${route}" data-route="${route}"><span class="nav-icon">${icon(iconName)}</span><span>${t(`nav.${route}`)}</span></a>${submenu}</li>`
   }).join('')
@@ -9183,6 +9331,149 @@ function shiftCompensation(shiftInput) {
 // pensjonert, så funksjonene var bevist uoppnåelig dødkode. Selve jobs-DATAENE
 // består urørt - historiske shifts peker på dem, og erfaringsbeviset i
 // matchingen leser assignmentId via jobs-koblingen.
+
+// === Vaktplan: månedsplan per avdeling ===
+// Ren AVLEDET visning over de kanoniske vaktene: Assignment -> Department ->
+// staffingSlots -> Employee. Ingen egen plan-modell, ingen kopier - vakttypen
+// er vaktens egen (vaktmal-snapshotet eller medlever), og hver blokk lenker
+// til den eksisterende vaktdetaljen.
+
+function shiftPlanMonth() {
+  return (state.shiftPlanAnchor || todayIso()).slice(0, 7)
+}
+
+// Anker forrige/neste måned uten Date.now-avhengighet utover dagens dato.
+function shiftPlanShiftMonth(step) {
+  const [year, month] = shiftPlanMonth().split('-').map(Number)
+  const index = year * 12 + (month - 1) + step
+  const newYear = Math.floor(index / 12)
+  const newMonth = index - newYear * 12 + 1
+  return `${newYear}-${String(newMonth).padStart(2, '0')}-01`
+}
+
+function shiftPlanMonthDays(month) {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const count = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  return Array.from({ length: count }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`)
+}
+
+function shiftPlanMonthTitle(month) {
+  const formatter = new Intl.DateTimeFormat(state.locale === 'nb' ? 'nb-NO' : 'en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const title = formatter.format(new Date(`${month}-15T00:00:00Z`))
+  return title.charAt(0).toLocaleUpperCase() + title.slice(1)
+}
+
+// Vakttypen kommer fra vakten selv: medlever-snapshotet eller navnet på
+// vaktmalen den ble opprettet fra. Uten mal finnes ingen type å gjette.
+function shiftPlanTypeLabel(assignment) {
+  if (assignment.shiftType === 'live_in' || assignment.liveInSnapshot) return t('medlever.title')
+  return label(assignment.shiftTemplateSnapshot?.name ?? '') || ''
+}
+
+// Hvilke datoer i måneden berører vakten? Medlever spenner sine døgn (samme
+// assignment-id på hver berørt dato); nattevakt hører til STARTdatoen sin og
+// markeres med (+1 dag) i tidsintervallet - aldri en ekstra dagen-etter-vakt.
+function shiftPlanDatesFor(assignment, monthDays) {
+  if (!assignment.date) return []
+  const days = assignment.liveInSnapshot ? Math.max(1, Number(assignment.liveInSnapshot.days) || 1) : 1
+  const dates = []
+  for (let offset = 0; offset < days; offset += 1) {
+    const iso = offset ? isoAddDays(assignment.date, offset) : assignment.date
+    if (iso >= monthDays[0] && iso <= monthDays[monthDays.length - 1]) dates.push(iso)
+  }
+  return dates
+}
+
+// Pregruppert visningsdata for måneden: én gjennomgang av vaktene, aldri ett
+// dyrt oppslag per celle. employees-rader + en egen «Ledige vakter»-rad.
+function shiftPlanData(departmentId, month) {
+  const monthDays = shiftPlanMonthDays(month)
+  const byEmployee = new Map()
+  const open = new Map()
+  const typeSet = new Set()
+  for (const assignment of collection('assignments')) {
+    if (String(assignment.departmentId) !== String(departmentId) || assignment.status === 'cancelled') continue
+    const dates = shiftPlanDatesFor(assignment, monthDays)
+    if (!dates.length) continue
+    const type = shiftPlanTypeLabel(assignment)
+    if (type) typeSet.add(type)
+    if (state.shiftPlanFilters.type && type !== state.shiftPlanFilters.type) continue
+    for (const slot of staffingSlotsFor(assignment)) {
+      if (slot.status === 'cancelled') continue
+      const spanStart = dates[0] === assignment.date
+      for (const iso of dates) {
+        const entry = { assignment, slot, type, spanned: dates.length > 1, first: iso === dates[0] }
+        if (slot.employeeId) {
+          const perDate = byEmployee.get(slot.employeeId) ?? new Map()
+          perDate.set(iso, [...(perDate.get(iso) ?? []), entry])
+          byEmployee.set(slot.employeeId, perDate)
+        } else {
+          open.set(iso, [...(open.get(iso) ?? []), entry])
+        }
+      }
+      void spanStart
+    }
+  }
+  return { monthDays, byEmployee, open, types: [...typeSet].sort((a, b) => a.localeCompare(b)) }
+}
+
+function shiftPlanBlock(entry, iso) {
+  const { assignment, slot, type } = entry
+  const time = timeRangeLabel(assignment.startTime, assignment.endTime, assignment.endNextDay)
+  const liveIn = Boolean(assignment.liveInSnapshot)
+  // Rolige statuser: syk og «venter» er det eneste planen trenger utover
+  // bemannet/ledig - detaljene bor i Vaktoversikten (§12).
+  const sick = slot.employeeId && activeSickLeaveFor(slot.employeeId, iso)
+  const awaiting = ['awaiting_confirmation', 'pending_reconfirmation'].includes(slot.status)
+  const classes = ['plan-block', liveIn ? 'plan-live-in' : '', assignment.endNextDay ? 'plan-night' : '', sick ? 'plan-sick' : ''].filter(Boolean).join(' ')
+  const client = record('clients', assignment.clientId)
+  const department = record('departments', assignment.departmentId)
+  const employee = record('employees', slot.employeeId)
+  const tooltip = [type, assignment.startTime && assignment.endTime ? `${assignment.startTime}–${assignment.endTime}` : '', client?.name ?? '', label(department?.name ?? ''), employee?.name ?? ''].filter(Boolean).join(' · ')
+  return `<button type="button" class="${classes}" data-route="job-detail" data-id="${assignment.id}" title="${escapeHtml(tooltip)}"><strong>${escapeHtml(type || '')}</strong><span>${time}</span>${sick ? `<span class="tag danger">${t('sick.sickTag')}</span>` : ''}${awaiting ? `<span class="tag warning">${t('shiftPlan.awaiting')}</span>` : ''}${!slot.employeeId ? `<span class="tag warning">${t('shiftPlan.openCount', { count: 1 })}</span>` : ''}</button>`
+}
+
+function renderShiftPlan() {
+  const filters = state.shiftPlanFilters
+  const month = shiftPlanMonth()
+  const clients = collection('clients').filter(item => item.status === 'active')
+  const departments = collection('departments').filter(item => item.status === 'active' && (!filters.clientId || item.clientId === filters.clientId))
+  const clientChoices = clients.map(item => `<option value="${item.id}"${filters.clientId === item.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  const departmentChoices = departments.map(item => `<option value="${item.id}"${filters.departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
+  const nav = `<div class="plan-toolbar"><div class="toolbar-group"><select data-shift-plan-filter="clientId" aria-label="${t('departments.client')}"><option value=""${filters.clientId ? '' : ' selected'}>${t('common.select')}</option>${clientChoices}</select><select data-shift-plan-filter="departmentId" aria-label="${t('rel.department')}"${departments.length ? '' : ' disabled'}><option value=""${filters.departmentId ? '' : ' selected'}>${t('common.select')}</option>${departmentChoices}</select></div><div class="toolbar-group"><button type="button" class="button secondary small" data-action="shift-plan-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small" data-action="shift-plan-today">${t('shiftPlan.today')}</button><button type="button" class="button secondary small" data-action="shift-plan-next">${t('calendar.next')}${icon('arrow-right')}</button></div></div>`
+  if (!filters.departmentId) {
+    return `<section class="page">${nav}<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.selectDepartment')}</h3></div></section>`
+  }
+  const data = shiftPlanData(filters.departmentId, month)
+  const typeChoices = data.types.map(type => `<option value="${escapeHtml(type)}"${filters.type === type ? ' selected' : ''}>${escapeHtml(type)}</option>`).join('')
+  const search = `<div class="toolbar-group"><div class="search-control"><span>${icon('search')}</span><input type="search" data-shift-plan-filter="search" value="${escapeHtml(filters.search)}" placeholder="${t('shiftPlan.searchEmployee')}" aria-label="${t('shiftPlan.searchEmployee')}"></div><select data-shift-plan-filter="type" aria-label="${t('shiftPlan.allTypes')}"><option value=""${filters.type ? '' : ' selected'}>${t('shiftPlan.allTypes')}</option>${typeChoices}</select></div>`
+  const query = filters.search.trim().toLocaleLowerCase()
+  const employees = [...data.byEmployee.keys()]
+    .map(id => record('employees', id))
+    .filter(Boolean)
+    .filter(employee => !query || employee.name.toLocaleLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const today = todayIso()
+  const weekdays = weekdayLabels()
+  const dayClass = iso => {
+    const weekday = new Date(`${iso}T00:00:00Z`).getUTCDay()
+    return `${iso === today ? 'plan-today' : ''} ${weekday === 0 || weekday === 6 ? 'plan-weekend' : ''}`.trim()
+  }
+  const header = `<tr><th scope="col" class="plan-name-col">${t('jobs.employee')}</th>${data.monthDays.map(iso => `<th scope="col" class="${dayClass(iso)}"><span class="plan-weekday">${weekdays[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7]}</span><span class="plan-day">${Number(iso.slice(8))}</span></th>`).join('')}</tr>`
+  const employeeRows = employees.map(employee => {
+    const perDate = data.byEmployee.get(employee.id)
+    const cells = data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(perDate.get(iso) ?? []).map(entry => shiftPlanBlock(entry, iso)).join('')}</td>`).join('')
+    return `<tr><th scope="row" class="plan-name-col"><div class="file-name"><strong>${relationLink('employee-detail', employee.id, employee.name)}</strong><span>${lab(employee.profession)}</span></div></th>${cells}</tr>`
+  }).join('')
+  const hasOpen = [...data.open.values()].some(list => list.length)
+  const openRow = hasOpen
+    ? `<tr class="plan-open-row"><th scope="row" class="plan-name-col"><strong>${t('shiftPlan.openShifts')}</strong></th>${data.monthDays.map(iso => `<td class="${dayClass(iso)}">${(data.open.get(iso) ?? []).map(entry => shiftPlanBlock(entry, iso)).join('')}</td>`).join('')}</tr>`
+    : ''
+  const body = employeeRows || openRow
+    ? `<div class="plan-scroll"><table class="plan-grid"><thead>${header}</thead><tbody>${employeeRows}${openRow}</tbody></table></div>`
+    : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shiftPlan.empty')}</h3></div>`
+  return `<section class="page"><h2 class="plan-title">${escapeHtml(shiftPlanMonthTitle(month))}</h2>${nav}${search}${body}</section>`
+}
 
 // Container-visningen for Vakter. Vaktmaler er default. Konkrete vakter listes
 // ikke her lenger - de hører til oppdraget i Bemanning - men shift-dataene og
@@ -11427,7 +11718,7 @@ const renderers = {
   contacts: renderContacts, candidates: renderCandidates,
   'candidate-detail': renderCandidateDetail, employees: renderEmployees,
   'employee-detail': renderEmployeeDetail, staffing: renderStaffing, 'job-detail': renderJobDetail,
-  shifts: renderShifts, timesheets: renderTimesheets,
+  'shift-plan': renderShiftPlan, shifts: renderShifts, timesheets: renderTimesheets,
   'timesheet-review': renderTimesheetReview, 'timesheet-day': renderTimesheetDay,
   recruitment: renderRecruitment, messages: renderMessages, financial: renderFinancial,
   'tariff-detail': renderTariffDetail, 'salary-table': renderSalaryTable, settings: renderSettings,
@@ -12499,6 +12790,10 @@ function actionHandlers(target = null) {
     // Statusfanene på Kunder-oversikten skriver til det SAMME generiske
     // statusfilteret som resten av listene bruker - ingen egen filtertilstand.
     'clients-status-filter': () => { const value = target?.dataset?.status; if (value) { state.filters.status = value; render() } },
+    // Vaktplanens månedsnavigasjon: ren ankerflytting, ingen egen plan-state.
+    'shift-plan-prev': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(-1); render() },
+    'shift-plan-next': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(1); render() },
+    'shift-plan-today': () => { state.shiftPlanAnchor = ''; render() },
     'shift-view-list': () => { state.shiftView = 'list'; render() },
     'shift-view-calendar': () => { state.shiftView = 'calendar'; render() },
     'calendar-week': () => { state.calendarMode = 'week'; render() },
@@ -14703,6 +14998,16 @@ function captureAssignEmployee(element) {
 document.addEventListener('input', event => {
   // Ingen render mens man skriver, ellers mister feltet fokus.
   if (captureAssignEmployee(event.target)) return
+  // Vaktplanens ansattsøk: rendrer, men gjenoppretter fokus og markørposisjon
+  // slik at feltet aldri mister fokus per tastetrykk.
+  if (event.target.dataset?.shiftPlanFilter === 'search') {
+    state.shiftPlanFilters.search = event.target.value
+    const caret = event.target.selectionStart
+    render()
+    const input = document.querySelector('[data-shift-plan-filter="search"]')
+    if (input) { input.focus(); try { input.setSelectionRange(caret, caret) } catch { /* search-input uten range-støtte */ } }
+    return
+  }
   if (event.target.dataset?.payrollFilter === 'search') { setPayrollFilter('search', event.target.value); return }
   if (event.target.dataset?.staffingFilter === 'search') { state.staffingFilters.search = event.target.value; render(); return }
   if (captureField(event.target)) return
@@ -14794,6 +15099,20 @@ document.addEventListener('change', event => {
   if (event.target.dataset?.departmentFilter) {
     const name = event.target.dataset.departmentFilter
     if (name in state.departmentFilters) { state.departmentFilters[name] = String(event.target.value); render() }
+    return
+  }
+  // Vaktplanens filtre: virksomhet styrer avdeling; type nullstilles per avdeling.
+  if (event.target.dataset?.shiftPlanFilter) {
+    const name = event.target.dataset.shiftPlanFilter
+    if (name in state.shiftPlanFilters) {
+      state.shiftPlanFilters[name] = String(event.target.value)
+      if (name === 'clientId') {
+        const department = record('departments', state.shiftPlanFilters.departmentId)
+        if (!department || department.clientId !== state.shiftPlanFilters.clientId) state.shiftPlanFilters.departmentId = ''
+      }
+      if (name === 'clientId' || name === 'departmentId') state.shiftPlanFilters.type = ''
+      render()
+    }
     return
   }
   // Ansattlistens stillingfilter og sortering.
@@ -14993,6 +15312,16 @@ window.__workmaticPreview = {
   // Vakter: den delte spørringen og kalenderprojeksjonen, for testene.
   filteredShifts: (nowIso = null) => filteredAssignments(state.shiftFilters, nowIso ? new Date(nowIso) : new Date()).map(item => item.id),
   setShiftFilter: (name, value) => { state.shiftFilters[name] = value; render() },
+  setShiftPlanFilter: (name, value) => { if (name in state.shiftPlanFilters) { state.shiftPlanFilters[name] = String(value); render() } },
+  shiftPlanView: (departmentId, month) => {
+    const data = shiftPlanData(departmentId, month)
+    return JSON.parse(JSON.stringify({
+      monthDays: data.monthDays,
+      types: data.types,
+      employees: [...data.byEmployee.entries()].map(([employeeId, perDate]) => ({ employeeId, days: [...perDate.entries()].map(([iso, entries]) => ({ iso, entries: entries.map(e => ({ assignmentId: e.assignment.id, slotId: e.slot.id, type: e.type })) })) })),
+      open: [...data.open.entries()].map(([iso, entries]) => ({ iso, entries: entries.map(e => ({ assignmentId: e.assignment.id, slotId: e.slot.id, type: e.type })) }))
+    }))
+  },
   setDepartmentFilter: (name, value) => { if (name in state.departmentFilters) { state.departmentFilters[name] = String(value); render() } },
   setEmployeeFilter: (name, value) => { if (name in state.employeeFilters) { state.employeeFilters[name] = String(value); render() } },
   // Den ansatt-synlige projeksjonen: kontrakten som en fremtidig ansatt-portal
