@@ -3285,6 +3285,7 @@ const copy = {
     'docs.nameRequired': 'Dokumentet må ha et navn',
     'docs.saved': 'Dokumentet er lagret',
     'clients.organization': 'Organisasjonsnummer',
+    'clients.orgRequired': 'Organisasjonsnummer er obligatorisk.',
     'clients.contact': 'Kontaktperson',
     // Feltet er det økonomiske PÅSLAGET på fakturagrunnlaget - user-facing
     // heter det Påslag; det interne feltet provision og beregningen er urørt.
@@ -4404,6 +4405,7 @@ copy.en = {
   'dashboard.dev.payrollBlocked': 'Approved work missing payroll basis',
   'dashboard.dev.invoiceBlocked': 'Approved work missing customer price',
   'clients.new': 'New business', 'clients.organization': 'Organization number',
+  'clients.orgRequired': 'Organization number is required.',
   'clients.filter.active': 'Active', 'clients.filter.inactive': 'Inactive',
   'clients.tabs.users': 'Users and access',
   'clients.addContact': 'Add contact',
@@ -12936,7 +12938,7 @@ function clientDialog() {
   const editing = Boolean(state.editingId)
   const range = `${formatNumber(0, 2)}–${formatPercent(100, 2)}`
   const draftContacts = state.draft.draftContacts ?? []
-  let body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('org', t('clients.organization'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${boundSelect('status', t('common.status'), statusOptions())}${boundTextarea('description', t('clients.description'))}${clientPaySystemsField()}</div>${storageNote()}`
+  let body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('org', t('clients.organization'), { required: true })}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${boundSelect('status', t('common.status'), statusOptions())}${boundTextarea('description', t('clients.description'))}${clientPaySystemsField()}</div>${storageNote()}`
   if (tab === 'contacts') {
     const existing = editing ? collection('contacts').filter(item => item.clientId === state.editingId) : []
     const existingRows = existing.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${lab(item.role)}${item.email ? ` · ${escapeHtml(item.email)}` : ''}</span></div><span class="tag ${item.systemAccess ? 'success' : ''}">${t(item.systemAccess ? 'access.systemUser' : 'access.contactOnly')}</span></div>`).join('')
@@ -13036,8 +13038,9 @@ function contactDialog() {
 // Opplasting av virksomhetsdokument: alle felter starter TOMME - aldri
 // forhåndsutfylte demonavn. Kun lagrede dokumenter vises på kortet.
 function clientDocumentDialog() {
-  const categories = ['agreement', 'dpa', 'other'].map(key => ({ value: key, text: t(`docs.category.${key}`) }))
-  const body = `${formError()}<div class="grid"><div class="field"><label>${t('docs.file')}</label><input type="file" aria-label="${t('docs.file')}"></div>${bound('docName', t('docs.name'), { required: true })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}</div>${storageNote()}`
+  // Kun Fil + Navn: kategori er fjernet fra denne opplastingsflyten.
+  // Historiske dokumenter beholder sin lagrede kategori urørt.
+  const body = `${formError()}<div class="grid"><div class="field"><label>${t('docs.file')}</label><input type="file" aria-label="${t('docs.file')}"></div>${bound('docName', t('docs.name'), { required: true })}</div>${storageNote()}`
   return modalShell(t('docs.upload'), t('clients.tabs.documents'), 'file', body, formFooter('save-client-document'), 'small')
 }
 
@@ -14109,7 +14112,7 @@ function actionHandlers(target = null) {
     // Dokumentopplasting: skjemaet starter alltid tomt - navnet foreslås aldri.
     'upload-client-document': () => {
       state.selected.documentClient = target?.dataset?.id ?? state.selected.client
-      openDialog('client-document', 'create', { docName: '', docCategory: '' })
+      openDialog('client-document', 'create', { docName: '' })
     },
     'save-client-document': () => {
       const client = record('clients', state.selected.documentClient ?? state.selected.client)
@@ -14117,7 +14120,7 @@ function actionHandlers(target = null) {
       if (!client) return
       if (!name) { state.formError = 'docs.nameRequired'; render(); return }
       state.formError = null
-      client.documents = [...(client.documents ?? []), { id: nextNumericSlotId(), name, category: state.draft.docCategory || 'other', fileName: '' }]
+      client.documents = [...(client.documents ?? []), { id: nextNumericSlotId(), name, fileName: '' }]
       persist(); closeDialog(); showToast('docs.saved')
     },
     // Å slå av tilgangen stopper Workmatic-bruken, men sletter aldri kontakten
@@ -15524,6 +15527,11 @@ function crudHandlers(target) {
     // Lønnskonteksten skal ikke kunne lagres med referanser til poster som ikke
     // finnes. Statusen etter lagring vises av payConfigStatus på kortet.
     'save-client': () => {
+      // Organisasjonsnummer er obligatorisk - håndheves i lagringslogikken,
+      // ikke bare visuelt i skjemaet.
+      if (!String(state.draft.org ?? '').trim()) {
+        state.formError = 'clients.orgRequired'; render(); return
+      }
       if (state.draft.tariffId && !record('tariffs', state.draft.tariffId)) {
         state.formError = 'common.required'; render(); return
       }
