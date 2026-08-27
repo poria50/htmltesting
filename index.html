@@ -14160,8 +14160,11 @@ function ruleValueSuffix(name) {
   const method = draftValue('method', 'hourly')
   const unit = draftValue('unit', 'hour')
   const family = draftValue('family', '')
-  const suffix = method === 'percentage' ? '%'
-    : family === 'medlever' && unit === 'day' ? `NOK/${t('premiumDisplay.perDay')}`
+  // Medlever: Enheten alene styrer suffikset - et stale method-felt fra en
+  // annen regeltype skal aldri påvirke.
+  const suffix = family === 'medlever'
+    ? (unit === 'day' ? `NOK/${t('premiumDisplay.perDay')}` : `NOK/${t('comp.ui.hoursShort')}`)
+    : method === 'percentage' ? '%'
     : `NOK/${t('comp.ui.hoursShort')}`
   return bound(name, t('financial.ruleValue'), { type: 'number', help: suffix })
 }
@@ -14218,9 +14221,13 @@ function premiumDialog() {
     familyFields = `${boundSelect('functionId', t('functions.label'), functionChoices, { placeholder: t('common.select') })}${boundSelect('method', t('financial.calculationType'), modeChoices)}`
   }
 
+  // Medlever: Enheten (Per time/Per døgn) ER beregningsmåten - det redundante
+  // Beregningstype-feltet vises ikke. Andre regeltyper beholder feltet.
   const calcFields = family === 'function'
     ? bound('amount', t('functions.value'), { type: 'number' })
-    : `${calculationTypeField(draftValue('method', 'fixed'))}${ruleValueSuffix('amount')}`
+    : family === 'medlever'
+      ? ruleValueSuffix('amount')
+      : `${calculationTypeField(draftValue('method', 'fixed'))}${ruleValueSuffix('amount')}`
   // Kombinasjon med andre tillegg: admin ser TRE menneskelige valg - aldri
   // kombinasjonsgruppe, modus eller prioritetstall. Valget mappes til den
   // kanoniske motoren (stackingGroup/stackingMode/priority) ved lagring, og
@@ -16016,7 +16023,12 @@ const entities = {
         // 'hourly' er eldre data for fast beløp per time.
         method: family === 'function'
           ? (['fixed_shift', 'hourly', 'percentage'].includes(draft.method) ? draft.method : 'fixed_shift')
-          : draft.method === 'percentage' ? 'percentage' : 'fixed',
+          // Medlever: Enheten er kilden - method deriveres deterministisk
+          // (hourly/daily) og et stale method-felt overstyrer aldri. Prosent-
+          // medlever finnes kun som legacy-data, aldri via ny lagring.
+          : family === 'medlever'
+            ? (draft.unit === 'day' ? 'daily' : 'hourly')
+            : draft.method === 'percentage' ? 'percentage' : 'fixed',
         amount: Number(draft.amount) || 0,
         // Kombinasjonskonfigurasjonen: gruppe + modus + prioritet er data på
         // regelen (§2). «Ny gruppe» gir en egen nøkkel fra fritekstfeltet.
@@ -17064,7 +17076,7 @@ window.__workmaticPreview = {
   select: (key, id) => { state.selected[key] = id; render() },
   reset: () => { resetData(); render() },
   storageAvailable: () => storageWorks,
-  premiumsFor: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId),
+  premiumsFor: (paySystemId, iso, start, hours, rate, functionId = null, liveIn = false) => premiumsFor(paySystemId, iso, start, hours, rate, functionId, liveIn),
   premiumsForLiveIn: (paySystemId, iso, start, hours, rate, functionId = null) => premiumsFor(paySystemId, iso, start, hours, rate, functionId, true),
   functions: () => JSON.parse(JSON.stringify(functionsCollection())),
   sickLeaves: () => JSON.parse(JSON.stringify(sickLeavesCollection())),
