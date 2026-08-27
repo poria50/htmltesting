@@ -3525,6 +3525,10 @@ const copy = {
     'clients.paySystemTariff': 'Tariff',
     'clients.paySystemCustom': 'Eget lønnssystem',
     'resolution.noDepartmentPaySystem': 'Ingen lønnssystem er konfigurert for avdelingen.',
+    'departments.paySystemRequired': 'Velg lønnssystem. En avdeling kan ikke opprettes uten et tilkoblet lønnssystem.',
+    'staffing.departmentNoPaySystem': 'Kan ikke opprette vakt. Avdelingen mangler et tilkoblet lønnssystem. Koble avdelingen til et lønnssystem før du oppretter vakter.',
+    'dashboard.dev.noPaySystemShift': 'Vakt på avdeling uten lønnssystem',
+    'dashboard.dev.noPaySystemShiftDetail': 'Avdelingen mangler et tilkoblet lønnssystem. Lønn kan ikke beregnes før dette er rettet.',
     'staffing.requirements': 'Krav',
     'staffing.preferences': 'Preferanser',
     'staffing.competenceLevel': 'Kompetansenivå',
@@ -4643,6 +4647,10 @@ copy.en = {
   'clients.paySystemTariff': 'Tariff',
   'clients.paySystemCustom': 'Custom pay system',
   'resolution.noDepartmentPaySystem': 'No pay system is configured for the department.',
+  'departments.paySystemRequired': 'Select a pay system. A department cannot be created without a connected pay system.',
+  'staffing.departmentNoPaySystem': 'Cannot create shift. The department has no connected pay system. Connect the department to a pay system before creating shifts.',
+  'dashboard.dev.noPaySystemShift': 'Shift on department without pay system',
+  'dashboard.dev.noPaySystemShiftDetail': 'The department has no connected pay system. Payroll cannot be calculated until this is fixed.',
   'staffing.requirements': 'Requirements',
   'staffing.preferences': 'Preferences',
   'staffing.competenceLevel': 'Competence level',
@@ -7410,6 +7418,14 @@ function overtimeRulesForPaySystem(paySystemId, iso = null) {
 // Lønnssystemets koblede ordninger, filtrert på arbeidsdatoen. Uten koblinger
 // faller vi tilbake på den historiske klient-/avdelingsordningen, slik at eldre
 // demo-data og godkjent arbeid fortsatt regner likt.
+// Har avdelingen et GYLDIG tilkoblet lønnssystem? Gyldig = referansen peker
+// på et faktisk lønnssystem. Brukes uavhengig ved vaktopprettelse, lønnskjøring
+// og kritiske avvik - avdelingsdata antas aldri å være gyldige (eldre/importert
+// data kan mangle kobling).
+function departmentHasPaySystem(department) {
+  return Boolean(record('tariffs', department?.paySystemId || department?.tariffId || null))
+}
+
 function payContextFor(assignment, shiftDate) {
   const client = record('clients', assignment?.clientId)
   const department = record('departments', assignment?.departmentId)
@@ -7465,30 +7481,16 @@ function resolveCompensation(employeeInput, assignmentInput, shiftDate) {
   trace.push({ step: 'employee', id: employee.id, value: employee.name })
   trace.push({ step: 'assignment', id: assignment.id, value: assignmentLabel(assignment) })
 
-  const payCategory = employeePayCategory(employee)
-  if (!payCategory) return blockingResolution('missing_qualification', context, trace)
-  const requiredCertificates = assignment.requiredCertificates ?? []
-  const certificates = new Set(employee.certifications ?? [])
-  // Et oppdrag uten kvalifikasjonskrav skal ikke gjøre noen ukvalifisert. Uten
-  // denne vakten ga tom streng !== 'trade_certificate' mismatch for alle.
-  // Kravet er et MINSTEKRAV i nivåhierarkiet (fagbrev-krav oppfylles av
-  // bachelor+), mens selve lønnscellen alltid krever eksakt nivåtreff.
-  const qualificationMismatch = Boolean(assignment.requiredQualification) && !educationMeetsRequirement(employee, assignment.requiredQualification)
-  if (qualificationMismatch || requiredCertificates.some(item => !certificates.has(item))) {
-    return blockingResolution('qualification_mismatch', context, trace)
-  }
-  trace.push({ step: 'education', id: employee.education, value: payCategory })
-
-  if (!employee.seniorityApproved || !employee.seniorityBasisDate) return blockingResolution('missing_seniority', context, trace)
-  const seniorityYears = completedYears(employee.seniorityBasisDate, shiftDate)
-  if (seniorityYears === null) return blockingResolution('missing_seniority', context, trace)
-  trace.push({ step: 'seniority', id: employee.seniorityBasisDate, value: seniorityYears })
-
+  // STRUKTURELLE konfigurasjonsfeil sjekkes FØR ansattspesifikke lønnsfakta:
+  // 1) avdeling finnes, 2) avdelingen har tilkoblet lønnssystem, 3) lønns-
+  // systemet/versjonen er tilgjengelig - deretter kvalifikasjon, ansiennitet
+  // og lønnstreff. En avdeling uten lønnssystem skal aldri rapporteres som
+  // «Godkjent ansiennitet mangler».
   const payContext = payContextFor(assignment, shiftDate)
   const client = payContext.client
   const clientContext = { ...context, clientId: client?.id }
   trace.push({ step: 'client', id: client?.id, value: client?.name })
-  if (!payContext.tariffId) return blockingResolution('missing_department_pay_system', clientContext, trace)
+  if (!payContext.department || !payContext.tariffId) return blockingResolution('missing_department_pay_system', clientContext, trace)
 
   const tariff = payContext.tariff
   const tariffContext = { ...clientContext, tariffId: payContext.tariffId, tariffSource: payContext.tariffSource }
@@ -7498,6 +7500,25 @@ function resolveCompensation(employeeInput, assignmentInput, shiftDate) {
   const version = payContext.version
   if (!version) return blockingResolution('missing_published_version', tariffContext, trace)
   trace.push({ step: 'tariff_version', id: version.id, value: version.name })
+
+  const payCategory = employeePayCategory(employee)
+  if (!payCategory) return blockingResolution('missing_qualification', tariffContext, trace)
+  const requiredCertificates = assignment.requiredCertificates ?? []
+  const certificates = new Set(employee.certifications ?? [])
+  // Et oppdrag uten kvalifikasjonskrav skal ikke gjøre noen ukvalifisert. Uten
+  // denne vakten ga tom streng !== 'trade_certificate' mismatch for alle.
+  // Kravet er et MINSTEKRAV i nivåhierarkiet (fagbrev-krav oppfylles av
+  // bachelor+), mens selve lønnscellen alltid krever eksakt nivåtreff.
+  const qualificationMismatch = Boolean(assignment.requiredQualification) && !educationMeetsRequirement(employee, assignment.requiredQualification)
+  if (qualificationMismatch || requiredCertificates.some(item => !certificates.has(item))) {
+    return blockingResolution('qualification_mismatch', tariffContext, trace)
+  }
+  trace.push({ step: 'education', id: employee.education, value: payCategory })
+
+  if (!employee.seniorityApproved || !employee.seniorityBasisDate) return blockingResolution('missing_seniority', tariffContext, trace)
+  const seniorityYears = completedYears(employee.seniorityBasisDate, shiftDate)
+  if (seniorityYears === null) return blockingResolution('missing_seniority', tariffContext, trace)
+  trace.push({ step: 'seniority', id: employee.seniorityBasisDate, value: seniorityYears })
 
   const cells = version.salaryCells ?? []
   const roles = salaryCellRoles(version)
@@ -8381,7 +8402,7 @@ function departmentPaySystemField() {
   if (!available.length) {
     return `<div class="field"><label>${t('clients.paySystem')}</label><input value="" placeholder="${escapeHtml(t('resolution.noDepartmentPaySystem'))}" readonly></div>`
   }
-  return boundSelect('paySystemId', t('clients.paySystem'), available.map(item => ({ value: item.id, text: `${label(item.name)} · ${t(item.paySystemType === 'custom' ? 'clients.paySystemCustom' : 'clients.paySystemTariff')}` })), { placeholder: t('clients.selectPaySystem') })
+  return boundSelect('paySystemId', `${t('clients.paySystem')} *`, available.map(item => ({ value: item.id, text: `${label(item.name)} · ${t(item.paySystemType === 'custom' ? 'clients.paySystemCustom' : 'clients.paySystemTariff')}` })), { placeholder: t('clients.selectPaySystem') })
 }
 
 // Oppdrags-ID-en er systemgenerert og kan ikke redigeres. Ved opprettelse finnes
@@ -12073,6 +12094,19 @@ function criticalDeviations() {
     const employee = record('employees', sheet.employeeId)
     items.push({ key: 'dashboard.dev.submittedWaiting', route: 'timesheets', id: null, context: `${employee?.name ?? ''} · ${sheet.plannedDate ? formatDate(sheet.plannedDate) : ''}` })
   }
+  // Eksisterende (eldre/importerte) vakter på en avdeling uten lønnssystem:
+  // kritisk avvik UMIDDELBART - ikke først ved fullført vakt eller godkjent
+  // timeliste. Nye slike vakter blokkeres allerede ved opprettelse, så dette
+  // gjelder kun legacy-data. Lenken går til avdelingen, der feilen rettes.
+  const flaggedDepartments = new Set()
+  for (const assignment of collection('assignments')) {
+    if (assignment.status === 'cancelled') continue
+    const department = record('departments', assignment.departmentId)
+    if (!department || departmentHasPaySystem(department)) continue
+    items.push({ key: 'dashboard.dev.noPaySystemShift', route: 'job-detail', id: assignment.id, context: `${lab(department.name)} · ${assignment.date ? formatDate(assignment.date) : String(assignment.id)} · ${t('dashboard.dev.noPaySystemShiftDetail')}` })
+    flaggedDepartments.add(department.id)
+  }
+  void flaggedDepartments
   const invoice = timesheetInvoiceBasis()
   for (const item of invoice.payBlocked) {
     items.push({ key: 'dashboard.dev.payrollBlocked', route: 'payroll', id: null, context: `${item.employee?.name ?? ''} · ${formatDate(item.date)}` })
@@ -15500,10 +15534,18 @@ function crudHandlers(target) {
       if (saved) draftContacts.forEach(contact => createRecord('contacts', 'k', { ...contact, clientId: saved.id }))
     },
     'save-department': () => {
+      // Navn valideres først (som i commit), deretter strukturkravet.
+      if (!String(state.draft.name ?? '').trim()) { state.formError = 'common.required'; render(); return }
+      // HARD REGEL: en avdeling kan aldri lagres uten et gyldig tilkoblet
+      // lønnssystem - verken ved opprettelse eller ved at et eksisterende
+      // valg fjernes. Bytte A -> B er lov; -> ingen er det ikke.
+      const paySystemId = state.draft.paySystemId
+      if (!paySystemId || !record('tariffs', paySystemId)) {
+        state.formError = 'departments.paySystemRequired'; render(); return
+      }
       // Avdelingen kan bare bruke et lønnssystem klienten har tilgang til.
       // Nedtrekket begrenser utvalget, men et direkte kall skal heller ikke
       // kunne lagre en ugyldig kombinasjon.
-      const paySystemId = state.draft.paySystemId
       if (paySystemId) {
         const client = record('clients', state.draft.clientId)
         const available = new Set([...(client?.paySystemIds ?? []), ...(client?.tariffId ? [client.tariffId] : [])])
@@ -15555,6 +15597,12 @@ function crudHandlers(target) {
       // Arkivert klient/avdeling kan aldri få nye vakter (§10, §38-§39).
       if (creating && (department?.status === 'archived' || record('clients', state.draft.clientId)?.status === 'archived')) {
         state.formError = 'crud.archivedBlocked'; render(); return
+      }
+      // HARD REGEL: vakter kan aldri opprettes på en avdeling uten gyldig
+      // tilkoblet lønnssystem. Valideres uavhengig av avdelingslagringen -
+      // eldre/importerte avdelinger kan mangle koblingen.
+      if (creating && !departmentHasPaySystem(department)) {
+        state.formError = 'staffing.departmentNoPaySystem'; render(); return
       }
       const before = creating ? null : record('assignments', state.editingId)
       // Krymping kan aldri stille slette en bemannet eller historisk plass (§13).
