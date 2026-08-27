@@ -3290,6 +3290,7 @@ const copy = {
     'departments.numberShort': 'Avd.nr.',
     'departments.pickContact': 'Hent kontakt fra virksomheten',
     'departments.noClientContacts': 'Ingen kontakter registrert på virksomheten.',
+    'employees.fieldRequired': '{field} er obligatorisk.',
     'clients.contact': 'Kontaktperson',
     // Feltet er det økonomiske PÅSLAGET på fakturagrunnlaget - user-facing
     // heter det Påslag; det interne feltet provision og beregningen er urørt.
@@ -4414,6 +4415,7 @@ copy.en = {
   'departments.numberShort': 'Dept. no.',
   'departments.pickContact': 'Fetch contact from the business',
   'departments.noClientContacts': 'No contacts registered on the business.',
+  'employees.fieldRequired': '{field} is required.',
   'clients.filter.active': 'Active', 'clients.filter.inactive': 'Inactive',
   'clients.tabs.users': 'Users and access',
   'clients.addContact': 'Add contact',
@@ -8236,7 +8238,11 @@ function formatBankAccount(country, value) {
 // dokumenter uten dato faller deterministisk bakerst (høyest id sist av dem).
 // Slettede dokumenter er fjernet fra arrayet og finnes dermed ikke her.
 function latestRelevantPoliceCertificate(employee) {
-  const candidates = (employee?.documents ?? []).filter(item => item.category === 'police_certificate')
+  // Kategori er fjernet fra den aktive opplastingsflyten: nye politiattester
+  // gjenkjennes på navnet/filnavnet, historiske på den lagrede kategorien.
+  const isPoliceCertificate = item => item.category === 'police_certificate'
+    || /politiattest|police\s*certificate/i.test(`${label(item.name)} ${item.fileName ?? ''}`)
+  const candidates = (employee?.documents ?? []).filter(isPoliceCertificate)
   if (!candidates.length) return null
   return [...candidates].sort((a, b) => String(b.documentDate ?? '').localeCompare(String(a.documentDate ?? '')) || String(b.id).localeCompare(String(a.id), undefined, { numeric: true }))[0]
 }
@@ -8335,7 +8341,7 @@ function renderEmployeeDetail() {
     // Kun faktisk lagrede dokumenter. Vanlige opplastinger har INGEN kunstig
     // «Til vurdering»-chip - de vises som lastet opp; compliance-review lever
     // i documentationStatus-feltet, ikke per fil.
-    [t('employees.documentsCompliance'), `${(employee.documents ?? []).map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.fileName ? ` · ${escapeHtml(item.fileName)}` : ''}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="edit-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="delete-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.delete')}</button></div></div>`).join('') || `<p class="muted">${t('docs.none')}</p>`}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="upload-employee-document" data-id="${employee.id}">${icon('plus')}${t('docs.upload')}</button></div>`],
+    [t('employees.files'), `${(employee.documents ?? []).map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${[item.documentDate ? formatDate(item.documentDate) : '', item.fileName ? escapeHtml(item.fileName) : ''].filter(Boolean).join(' · ')}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="edit-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="delete-employee-document" data-employee-id="${employee.id}" data-id="${item.id}">${t('common.delete')}</button></div></div>`).join('') || `<p class="muted">${t('docs.none')}</p>`}<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="upload-employee-document" data-id="${employee.id}">${icon('plus')}${t('docs.upload')}</button></div>`],
     [t('employees.educationCompetence'), `<dl class="detail-list"><div><dt>${t('employees.educationType')}</dt><dd>${escapeHtml(educationTypeLabel(employee.education))}</dd></div><div><dt>${t('employees.educationName')}</dt><dd>${String(employee.educationName ?? '').trim() ? escapeHtml(employee.educationName) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.position')}</dt><dd>${lab(employee.profession)}</dd></div><div><dt>${t('employees.competence')}</dt><dd>${(employee.competenceTags ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.approvedPaySeniority')}</dt><dd>${seniorityYears === null ? statusTag('pending') : t('demo.years', { count: seniorityYears })}</dd></div><div><dt>${t('employees.seniorityDate')}</dt><dd>${employee.seniorityBasisDate ? formatDate(employee.seniorityBasisDate) : '—'}</dd></div></dl>${!employee.seniorityApproved ? `<button class="button secondary small" data-action="approve-seniority" data-id="${employee.id}">${t('employees.approveSeniority')}</button>` : ''}${employeeFactsComplete(employee) ? '' : `<p class="field-help">${t('employees.payFactsMissing')}</p>`}<p class="field-help">${t('employees.payInfoHelp')}</p>`],
     // Interne notater er ADMIN-ONLY: de er utelatt fra den ansatt-synlige
     // projeksjonen (employeeVisibleProfile) og hører aldri hjemme i felter den
@@ -8344,7 +8350,7 @@ function renderEmployeeDetail() {
     [t('employees.licences'), `<dl class="detail-list"><div><dt>${t('employees.authorization')}</dt><dd>${employee.authorization ? `${t('common.yes')} ${licenceStatus(employee.authorizationExpiry) ?? `<span class="tag success">${t('employees.licenceValid')}</span>`}` : t('common.no')}</dd></div><div><dt>${t('employees.tradeCertificate')}</dt><dd>${employee.tradeCertificate ? t('common.yes') : t('common.no')}</dd></div><div><dt>${t('employees.certifications')}</dt><dd>${(employee.certifications ?? []).map(taxonomy).map(escapeHtml).join(', ') || t('common.none')}</dd></div><div><dt>${t('employees.policeCertificate')}</dt><dd>${(() => {
       const summary = policeCertificateSummary(employee)
       return summary.date ? formatDate(summary.date) : `<span class="tag ${summary.tone}">${t(summary.key)}</span>`
-    })()}</dd></div><div><dt>${t('employees.documentationStatus')}</dt><dd>${employee.documentationStatus === 'verified' ? statusTag('active', 'employees.verified') : statusTag('pending')}</dd></div></dl>`],
+    })()}</dd></div></dl>`],
     [t('employees.history'), `${(() => {
       const worked = employeeWorkHistory(employee.id)
       const rows = worked.map(entry => `<tr><td>${relationLink('client-detail', entry.client?.id, entry.client?.name ?? '')}</td><td>${entry.department ? lab(entry.department.name) : `<span class="muted">${t('common.none')}</span>`}</td><td>${relationLink('job-detail', entry.assignment.id, String(entry.assignment.id))}</td><td>${entry.lastWorked ? formatDate(entry.lastWorked) : ''}</td><td>${entry.shifts}</td></tr>`)
@@ -12916,7 +12922,12 @@ function commit(name, prefix, nameField, mapper) {
 }
 
 function formError() {
-  return state.formError ? `<div class="banner"><span>${t(state.formError)}</span></div>` : ''
+  if (!state.formError) return ''
+  // Feilen kan være en ren nøkkel eller { key, values } for interpolerte
+  // meldinger («{field} er obligatorisk.»).
+  const error = state.formError
+  const text = typeof error === 'object' ? t(error.key, error.values ?? {}) : t(error)
+  return `<div class="banner"><span>${text}</span></div>`
 }
 
 function employeeDialog() {
@@ -12929,17 +12940,20 @@ function employeeDialog() {
   const educationChoices = EMPLOYEE_EDUCATION_TYPES.map(value => ({ value, text: t(`employees.eduType.${value}`) }))
   const employmentTypeChoices = [{ value: 'permanent', text: t('employees.permanent') }, { value: 'temporary', text: t('employees.temporary') }]
   const countryChoices = ['NO', 'SE', 'DK', 'other'].map(value => ({ value, text: t(`country.${value}`) }))
-  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'))}${bound('email', t('common.email'), { type: 'email' })}${bound('phone', t('common.phone'))}${bound('birthDate', t('employees.birthDate'), { type: 'date' })}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('common.address')}</h3><div class="grid cols-2">${bound('addressStreet', t('employees.addressStreet'))}${bound('addressPostalCode', t('departments.postalCode'))}${bound('addressCity', t('departments.city'))}${boundSelect('addressCountry', t('employees.country'), countryChoices, { placeholder: t('common.select') })}</div></div><div class="form-section"><h3>${t('employees.bank')}</h3><div class="grid cols-2">${boundSelect('bankCountry', t('employees.bankCountry'), countryChoices, { placeholder: t('common.select') })}${bound('bankAccount', t('employees.bankAccount'))}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'))}${bound('kinRelation', t('employees.relationship'))}${bound('kinPhone', t('common.phone'))}</div></div>`
-  if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', t('employees.educationType'), educationChoices, { placeholder: t('common.select') })}${bound('educationName', t('employees.educationName'))}${boundCheckbox('authorization', t('employees.authorization'))}</div></div><div class="form-section"><h3>${t('employees.documentsCompliance')}</h3><div class="grid cols-2">${boundSelect('documentationStatus', t('employees.documentationStatus'), [{ value: 'verified', text: t('employees.verified') }, { value: 'pending', text: t('common.pending') }])}</div></div>`
-  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'))}${boundSelect('profession', t('employees.position'), professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date' })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%' })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date' })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
+  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'), { required: true })}${bound('email', t('common.email'), { type: 'email', required: true })}${bound('phone', t('common.phone'), { required: true })}${bound('birthDate', t('employees.birthDate'), { type: 'date', required: true })}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('common.address')}</h3><div class="grid cols-2">${bound('addressStreet', t('employees.addressStreet'), { required: true })}${bound('addressPostalCode', t('departments.postalCode'), { required: true })}${bound('addressCity', t('departments.city'), { required: true })}${boundSelect('addressCountry', `${t('employees.country')} *`, countryChoices, { placeholder: t('common.select') })}</div></div><div class="form-section"><h3>${t('employees.bank')}</h3><div class="grid cols-2">${boundSelect('bankCountry', `${t('employees.bankCountry')} *`, countryChoices, { placeholder: t('common.select') })}${bound('bankAccount', t('employees.bankAccount'), { required: true })}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'), { required: true })}${bound('kinRelation', t('employees.relationship'), { required: true })}${bound('kinPhone', t('common.phone'), { required: true })}</div></div>`
+  // Utdanning inneholder KUN utdanningsopplysningene - dokumentkobling og
+  // samsvars-/verifiseringsvalg er fjernet fra seksjonen (dokumenter bor i
+  // eget steg, opplastet = akseptert).
+  if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', `${t('employees.educationType')} *`, educationChoices, { placeholder: t('common.select') })}${bound('educationName', t('employees.educationName'), { required: true })}${boundCheckbox('authorization', t('employees.authorization'))}</div></div>`
+  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'), { required: true })}${boundSelect('profession', `${t('employees.position')} *`, professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date', required: true })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%', required: true })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date', required: true })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${state.draft.seniorityApproved ? `${bound('seniorityApprovedBy', t('employees.approvedBy'), { required: true })}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date', required: true })}` : `${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}`}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
   if (state.dialogStep === 3) {
     // Dokumenter kan lastes opp FØR den ansatte er lagret: kladdene ligger i
     // draft.employeeDocuments og kobles til den kanoniske posten ved lagring.
     // Ingen forhåndsutfylte demonavn; ingen verifiseringsflyt.
     const saved = state.editingId ? (record('employees', state.editingId)?.documents ?? []) : []
-    const savedRows = saved.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}${item.fileName ? ` · ${escapeHtml(item.fileName)}` : ''}</span></div></div>`).join('')
+    const savedRows = saved.map(item => `<div class="file-row"><div class="file-name"><strong>${label(item.name)}</strong><span>${[item.documentDate ? formatDate(item.documentDate) : '', item.fileName ? escapeHtml(item.fileName) : ''].filter(Boolean).join(' · ')}</span></div></div>`).join('')
     const drafts = state.draft.employeeDocuments ?? []
-    const draftRows = drafts.map((item, index) => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${item.category ? t(`docs.category.${item.category}`) : ''}${item.documentDate ? ` · ${formatDate(item.documentDate)}` : ''}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="employee-draft-document-edit" data-index="${index}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="employee-draft-document-remove" data-index="${index}">${t('common.delete')}</button></div></div>`).join('')
+    const draftRows = drafts.map((item, index) => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.name)}</strong><span>${item.documentDate ? formatDate(item.documentDate) : ''}</span></div><div class="modal-actions"><button type="button" class="button ghost small" data-action="employee-draft-document-edit" data-index="${index}">${t('common.edit')}</button><button type="button" class="button ghost small danger" data-action="employee-draft-document-remove" data-index="${index}">${t('common.delete')}</button></div></div>`).join('')
     const editingDoc = Number.isInteger(Number(state.draft.editingDocumentIndex)) && drafts[Number(state.draft.editingDocumentIndex)]
     body = `${formError()}<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div>${savedRows}${draftRows}${!saved.length && !drafts.length ? `<p class="muted">${t('docs.none')}</p>` : ''}<div class="form-section"><h3>${t(editingDoc ? 'docs.editTitle' : 'docs.upload')}</h3><div class="grid cols-2">${employeeDocumentFieldset('employee-draft-doc-file')}</div><div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary" data-action="employee-draft-document-add">${icon('plus')}${t(editingDoc ? 'common.save' : 'docs.upload')}</button></div></div></div>${storageNote()}`
   }
@@ -13068,9 +13082,11 @@ function clientDocumentDialog() {
 // Delte dokumentfelter for opplasting og kladd: fil, visningsnavn, kategori
 // og dokumentdato (politiattestens dato når kategorien er politiattest).
 function employeeDocumentFieldset(fileInputId) {
-  const categories = ['police_certificate', 'diploma', 'agreement', 'other'].map(key => ({ value: key, text: t(`docs.category.${key}`) }))
+  // Kun Fil + Navn (+ dokumentdato, som bl.a. bærer politiattestens dato).
+  // Kategori og verifisering er fjernet fra den aktive flyten - historiske
+  // dokumenter beholder sine lagrede felter urørt.
   const fileField = fileInputId ? `<div class="field"><label>${t('docs.file')}</label><input type="file" id="${fileInputId}" aria-label="${t('docs.file')}"></div>` : ''
-  return `${fileField}${bound('docName', t('docs.name'), { help: t('employees.sensitive') })}${boundSelect('docCategory', t('docs.category'), categories, { placeholder: t('common.select') })}${bound('docDate', t('docs.date'), { type: 'date' })}`
+  return `${fileField}${bound('docName', t('docs.name'), { help: t('employees.sensitive') })}${bound('docDate', t('docs.date'), { type: 'date' })}`
 }
 
 function employeeDocumentDialog() {
@@ -14063,14 +14079,14 @@ function actionHandlers(target = null) {
     // redigering; originalfilnavnet overskrives aldri av visningsnavnet.
     'upload-employee-document': () => {
       state.selected.documentEmployee = target?.dataset?.id ?? state.selected.employee
-      openDialog('employee-document', 'create', { docName: '', docCategory: '', docDate: '' })
+      openDialog('employee-document', 'create', { docName: '', docDate: '' })
     },
     'edit-employee-document': () => {
       const employee = record('employees', target?.dataset?.employeeId ?? state.selected.employee)
       const doc = (employee?.documents ?? []).find(item => String(item.id) === String(target?.dataset?.id))
       if (!doc) return
       state.selected.documentEmployee = employee.id
-      openDialog('employee-document', 'edit', { docName: label(doc.name), docCategory: doc.category ?? '', docDate: doc.documentDate ?? '' }, doc.id)
+      openDialog('employee-document', 'edit', { docName: label(doc.name), docDate: doc.documentDate ?? '' }, doc.id)
     },
     'save-employee-document': () => {
       const employee = record('employees', state.selected.documentEmployee ?? state.selected.employee)
@@ -14081,9 +14097,9 @@ function actionHandlers(target = null) {
       state.formError = null
       if (state.editingId) {
         const doc = (employee.documents ?? []).find(item => String(item.id) === String(state.editingId))
-        if (doc) Object.assign(doc, { name, category: state.draft.docCategory || doc.category || 'other', documentDate: state.draft.docDate || '' })
+        if (doc) Object.assign(doc, { name, documentDate: state.draft.docDate || '' })
       } else {
-        employee.documents = [...(employee.documents ?? []), { id: nextNumericSlotId(), name, category: state.draft.docCategory || 'other', fileName, documentDate: state.draft.docDate || '' }]
+        employee.documents = [...(employee.documents ?? []), { id: nextNumericSlotId(), name, fileName, documentDate: state.draft.docDate || '' }]
       }
       persist(); closeDialog(); showToast('docs.saved')
     },
@@ -14100,7 +14116,7 @@ function actionHandlers(target = null) {
       const name = String(state.draft.docName ?? '').trim() || fileName
       if (!name) { state.formError = 'docs.nameRequired'; render(); return }
       state.formError = null
-      const doc = { name, category: state.draft.docCategory || 'other', fileName, documentDate: state.draft.docDate || '' }
+      const doc = { name, fileName, documentDate: state.draft.docDate || '' }
       const list = [...(state.draft.employeeDocuments ?? [])]
       const index = Number(state.draft.editingDocumentIndex)
       if (Number.isInteger(index) && list[index]) list[index] = { ...list[index], ...doc, fileName: list[index].fileName || fileName }
@@ -14108,7 +14124,6 @@ function actionHandlers(target = null) {
       state.draft.employeeDocuments = list
       delete state.draft.editingDocumentIndex
       delete state.draft.docName
-      delete state.draft.docCategory
       delete state.draft.docDate
       render()
     },
@@ -14118,7 +14133,6 @@ function actionHandlers(target = null) {
       if (!doc) return
       state.draft.editingDocumentIndex = index
       state.draft.docName = doc.name
-      state.draft.docCategory = doc.category
       state.draft.docDate = doc.documentDate
       render()
     },
@@ -15526,6 +15540,33 @@ function crudHandlers(target) {
       const spec = entities.employee
       const converting = state.dialogMode === 'convert'
       const sourceId = state.draft.convertedFrom
+      // Ved OPPRETTELSE er alle ordinære felter obligatoriske - kun Interne
+      // notater er valgfrie. Betingede felter (godkjent av/dato) kreves bare
+      // når ansienniteten faktisk er markert godkjent. Feilmeldingen navngir
+      // feltet, og dialogen hopper til steget der det mangler. Redigering av
+      // eldre poster blokkeres ikke av historiske hull (backward safety).
+      if (!state.editingId && !converting) {
+        const requiredEmployeeFields = [
+          [0, 'firstName', 'employees.firstName'], [0, 'lastName', 'employees.lastName'],
+          [0, 'email', 'common.email'], [0, 'phone', 'common.phone'], [0, 'birthDate', 'employees.birthDate'],
+          [0, 'addressStreet', 'employees.addressStreet'], [0, 'addressPostalCode', 'departments.postalCode'],
+          [0, 'addressCity', 'departments.city'], [0, 'addressCountry', 'employees.country'],
+          [0, 'bankCountry', 'employees.bankCountry'], [0, 'bankAccount', 'employees.bankAccount'],
+          [0, 'kinName', 'employees.kinName'], [0, 'kinRelation', 'employees.relationship'], [0, 'kinPhone', 'common.phone'],
+          [1, 'education', 'employees.educationType'], [1, 'educationName', 'employees.educationName'],
+          [2, 'employeeNumber', 'employees.employeeNumber'], [2, 'profession', 'employees.position'],
+          [2, 'start', 'employees.employmentDate'], [2, 'employmentPercentage', 'employees.employmentPercentage'],
+          [2, 'seniorityBasisDate', 'employees.seniorityBasisDate'],
+          ...(state.draft.seniorityApproved ? [[2, 'seniorityApprovedBy', 'employees.approvedBy'], [2, 'seniorityApprovalDate', 'employees.approvalDate']] : [])
+        ]
+        for (const [step, field, labelKey] of requiredEmployeeFields) {
+          if (!String(state.draft[field] ?? '').trim()) {
+            state.dialogStep = step
+            state.formError = { key: 'employees.fieldRequired', values: { field: t(labelKey) } }
+            render(); return
+          }
+        }
+      }
       // Landstyrt kontovalidering: Norge krever 11 siffer + gyldig mod11-
       // kontrollsiffer (mellomrom normaliseres). Andre land valideres ikke her.
       const bankError = bankAccountError(state.draft.bankCountry, state.draft.bankAccount)
