@@ -4040,6 +4040,7 @@ const copy = {
     'financial.basisType.night': 'Natt',
     'financial.basisType.live_in': 'Medlever',
     'shiftTemplates.annualBasisType': 'Årsverkstype',
+    'shiftTemplates.nameRequired': 'Malnavn er obligatorisk.',
     'resolution.missingAnnualBasis': 'Årsverksgrunnlag mangler for denne arbeidstypen.',
     'financial.autoActive': 'Versjonen blir aktiv automatisk når versjonsnavn, dato og årsverksgrunnlag er fylt inn.',
     'financial.basisMissing': 'Årsverksgrunnlag mangler',
@@ -5120,6 +5121,7 @@ copy.en = {
   'financial.basisType.night': 'Night',
   'financial.basisType.live_in': 'Live-in',
   'shiftTemplates.annualBasisType': 'Annual basis type',
+  'shiftTemplates.nameRequired': 'Template name is required.',
   'resolution.missingAnnualBasis': 'Annual hours basis is missing for this work type.',
   'financial.autoActive': 'The version becomes active automatically once version name, date and annual hours basis are filled in.',
   'financial.basisMissing': 'Annual hours basis is missing',
@@ -16251,17 +16253,25 @@ function crudHandlers(target) {
       showToast('crud.updated', { name: assignment.assignmentNumber ?? '' })
     },
     'save-shift-template': () => {
-      // Medlevermal valideres på sine egne felter: start, antall døgn og profil.
+      // ROTÅRSAK-FIKS: Malnavn valideres FØRST, eksplisitt og med sin egen
+      // melding. Øvrige felter valideres mot de EFFEKTIVE verdiene - altså
+      // samme defaults som fromDraft faktisk lagrer (starttid 10:00/07:00,
+      // slutt 15:00, 3 døgn). En urørt visnings-default i skjemaet skal
+      // aldri utløse en feil - og aldri en som later som navnet mangler.
+      const name = String(state.draft.name ?? '').trim()
+      if (!name) { state.formError = 'shiftTemplates.nameRequired'; render(); return }
       if (state.draft.type === 'live_in') {
         const days = Number(state.draft.liveInDays ?? 3)
-        if (!state.draft.clientId || !state.draft.startTime || !Number.isInteger(days) || days < 1 || days > 14) {
+        const profile = liveInProfileById(state.draft.liveInProfileId) ?? liveInProfilesCollection()[0]
+        if (!state.draft.clientId || !profile || !Number.isInteger(days) || days < 1 || days > 14) {
           state.formError = 'common.required'; render(); return
         }
         commit(entities['shift-template'].collection, entities['shift-template'].prefix, entities['shift-template'].nameField, entities['shift-template'].fromDraft)
         return
       }
-      const hours = shiftTemplateHours(state.draft)
-      if (!state.draft.clientId || !state.draft.startTime || !state.draft.endTime || Number(state.draft.breakMinutes) < 0 || hours.workingHours <= 0) {
+      const effective = { ...state.draft, startTime: state.draft.startTime || '07:00', endTime: state.draft.endTime || '15:00', breakMinutes: state.draft.breakMinutes ?? 30 }
+      const hours = shiftTemplateHours(effective)
+      if (!state.draft.clientId || Number(effective.breakMinutes) < 0 || hours.workingHours <= 0) {
         state.formError = 'common.required'; render(); return
       }
       commit(entities['shift-template'].collection, entities['shift-template'].prefix, entities['shift-template'].nameField, entities['shift-template'].fromDraft)
