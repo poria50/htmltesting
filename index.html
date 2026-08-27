@@ -5512,6 +5512,18 @@ const compCopy = {
     "comp.invoicing.hoursWorked": "Arbeidede timer",
     "comp.invoicing.overtime": "Overtid",
     "comp.invoicing.premiums": "Tillegg",
+    "premiumDisplay.fallback": "Tillegg",
+    "premiumDisplay.total": "Tillegg totalt",
+    "premiumDisplay.family.time": "Tidsbasert tillegg",
+    "premiumDisplay.family.date": "Dato-/helligdagstillegg",
+    "premiumDisplay.family.medlever": "Medlevertillegg",
+    "premiumDisplay.family.function": "Funksjonstillegg",
+    "premiumDisplay.perShift": "vakt",
+    "premiumDisplay.perDay": "døgn",
+    "premiumDisplay.fixed": "Fast beløp",
+    "premiumDisplay.oneShift": "1 vakt",
+    "premiumDisplay.days": "{count} døgn",
+    "premiumDisplay.count": "{count} tillegg",
     "comp.invoicing.people": "Personer",
     "comp.invoicing.netAmount": "Netto beløp",
     "comp.invoicing.workAndPremiums": "Arbeid og tillegg",
@@ -5931,6 +5943,18 @@ const compCopy = {
     "comp.invoicing.hoursWorked": "Hours worked",
     "comp.invoicing.overtime": "Overtime",
     "comp.invoicing.premiums": "Premiums",
+    "premiumDisplay.fallback": "Premium",
+    "premiumDisplay.total": "Premiums total",
+    "premiumDisplay.family.time": "Time-based premium",
+    "premiumDisplay.family.date": "Date/holiday premium",
+    "premiumDisplay.family.medlever": "Live-in premium",
+    "premiumDisplay.family.function": "Function premium",
+    "premiumDisplay.perShift": "shift",
+    "premiumDisplay.perDay": "day",
+    "premiumDisplay.fixed": "Fixed amount",
+    "premiumDisplay.oneShift": "1 shift",
+    "premiumDisplay.days": "{count} days",
+    "premiumDisplay.count": "{count} premiums",
     "comp.invoicing.people": "People",
     "comp.invoicing.netAmount": "Net amount",
     "comp.invoicing.workAndPremiums": "Work and premiums",
@@ -9370,7 +9394,7 @@ function shiftEconomyCard(assignment, employee) {
   // Godkjent arbeid leser sitt eget snapshot; ellers er tallene et estimat.
   const stamp = economy.historical ? t('staffing.actualPay') : t('staffing.estimatedPay')
   const line = (labelText, value, extra = '') => `<div class="summary-line"><span>${labelText}${extra ? ` <span class="muted">${extra}</span>` : ''}</span><strong>${value}</strong></div>`
-  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${line(t('comp.invoicing.premiums'), formatMoney(economy.premiumAmount))}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
+  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
   if (asEmployee) {
     // Ingen kundedata: ingen påslag, ingen MVA, ingen totalpris.
     return `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${heading}</h3>${toggle}</div><p class="field-help">${escapeHtml(employee.name)} · ${stamp}</p>${pay}</article>`
@@ -10764,6 +10788,11 @@ function slotTimesheetTable() {
   const filterBanner = statusFilter
     ? `<div class="banner info">${icon('bell')}<span>${t('timesheets.filterActive')}: <strong>${t(`timesheets.status.${statusFilter}`)}</strong></span><button type="button" class="button ghost small" data-action="clear-slot-timesheet-filter">${t('staffing.clearFilter')}</button></div>`
     : ''
+  // Tilleggene identifiseres med navn og beløp direkte i tabellen: godkjente
+  // rader slår opp sin allerede beregnede lønnslinje (samme kilde som
+  // lønnsgrunnlaget - aldri en ny beregning) og viser kompakt
+  // «N tillegg · X NOK» med regelnavnene under.
+  const payrollLinesByTimesheet = new Map(timesheetPayrollBasis().lines.filter(line => line.timesheetId).map(line => [line.timesheetId, line]))
   const rows = visibleSlotTimesheets().map(item => {
     const assignment = record('assignments', item.assignmentId)
     const employee = record('employees', item.employeeId)
@@ -10776,7 +10805,14 @@ function slotTimesheetTable() {
       : assignment?.departmentId
         ? `<button class="row-link" data-route="department-detail" data-id="${assignment.departmentId}"><span class="tag warning">${t('timesheets.noApprover')}</span></button>`
         : `<span class="tag warning">${t('timesheets.noApprover')}</span>`
-    return `<tr><td>${relationLink('job-detail', assignment?.id, String(assignment?.id ?? item.assignmentId))}</td><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${timeRangeLabel(item.plannedStart, item.plannedEnd, item.endNextDay)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}</td><td>${approverCell}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
+    return `<tr><td>${relationLink('job-detail', assignment?.id, String(assignment?.id ?? item.assignmentId))}</td><td>${item.plannedDate ? formatDate(item.plannedDate) : '—'}</td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${relationLink('client-detail', assignment?.clientId, record('clients', assignment?.clientId)?.name ?? '')}</td><td>${lab(record('departments', assignment?.departmentId)?.name ?? '')}</td><td>${timeRangeLabel(item.plannedStart, item.plannedEnd, item.endNextDay)}</td><td>${actualText}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : '—'}</td><td>${t(`timesheets.status.${item.status}`)}${(() => {
+      const payLine = payrollLinesByTimesheet.get(item.id)
+      const premiums = payLine?.premiumLines ?? []
+      if (!premiums.length) return ''
+      const names = premiums.map(entry => premiumDisplayModel(entry).name)
+      const total = premiums.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
+      return `<div class="muted" style="font-size:11px" title="${escapeHtml(names.join(' · '))}">${t('premiumDisplay.count', { count: premiums.length })} · ${formatMoney(total)}<br>${escapeHtml(names.slice(0, 2).join(' · '))}${names.length > 2 ? ` +${names.length - 2}` : ''}</div>`
+    })()}</td><td>${approverCell}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button></td></tr>`
   })
   // Kortet vises alltid når et filter er aktivt (status ELLER klient/avdeling),
   // slik at et tomt utvalg forklares i stedet for at tabellen bare forsvinner.
@@ -11454,6 +11490,68 @@ function economyLines(form) {
 // også returnerer det historiske snapshotet for godkjent arbeid. Kundesiden bruker
 // nøyaktig samme provisjons- og MVA-formel som economyReport, slik at Bemanning,
 // fakturagrunnlaget og lønnsgrunnlaget aldri viser ulike tall.
+// === Presentasjon av beregnede tillegg (KUN visning - aldri rematch) ===
+// Én gjenbrukbar view-modell over en allerede beregnet tilleggslinje: enten en
+// live applied-match ({ rule, hours, amount }) eller en frossen lønnslinje
+// ({ name, family, method, value, unit, hours, amount }). Rekkefølgen i
+// presentasjonen er alltid: NAVN -> type -> sats + grunnlag -> beløp.
+// Legacy-linjer uten regelnavn får trygg fallback («Tillegg») - aldri en
+// rekonstruksjon fra dagens regelkonfigurasjon.
+function premiumDisplayModel(entry) {
+  const rule = entry.rule ?? { name: entry.name, family: entry.family, method: entry.method, amount: entry.value, unit: entry.unit ?? null }
+  const name = String(rule?.name ?? '').trim() || t('premiumDisplay.fallback')
+  const familyLabels = { time: 'premiumDisplay.family.time', date: 'premiumDisplay.family.date', medlever: 'premiumDisplay.family.medlever', function: 'premiumDisplay.family.function' }
+  const family = rule?.family ?? null
+  const typeLabel = familyLabels[family] ? t(familyLabels[family]) : ''
+  const value = Number(rule?.amount) || 0
+  const hours = Number(entry.hours) || 0
+  const method = rule?.method ?? ''
+  const unit = family === 'medlever' ? (rule?.unit || 'hour') : null
+  let rateLabel = ''
+  let basisLabel = ''
+  if (method === 'percentage') {
+    rateLabel = formatPercent(value, Number.isInteger(value) ? 0 : 1)
+    basisLabel = `${formatHours(hours)}`
+  } else if (unit === 'day') {
+    rateLabel = `${formatMoney(value)}/${t('premiumDisplay.perDay')}`
+    basisLabel = t('premiumDisplay.days', { count: formatNumber(hours, 0) })
+  } else if (unit === 'shift' || method === 'fixed_shift') {
+    rateLabel = `${formatMoney(value)}/${t('premiumDisplay.perShift')}`
+    basisLabel = t('premiumDisplay.oneShift')
+  } else if (method === 'hourly' || unit === 'hour' || ((family === 'time' || family === 'date') && hours > 0)) {
+    // Tids-/datoregler med fastbeløp beregnes av motoren per time i
+    // tidsvinduet (grunnlaget ligger i den beregnede linjens hours) - vis
+    // det motoren faktisk gjorde.
+    rateLabel = `${formatMoney(value)}/${t('comp.ui.hoursShort')}`
+    basisLabel = `${formatHours(hours)}`
+  } else {
+    // Fast beløp (time-/datoregler med method 'fixed') og ukjente legacy-måter.
+    rateLabel = formatMoney(value)
+    basisLabel = t('premiumDisplay.fixed')
+  }
+  return { name, typeLabel, rateLabel, basisLabel, amountLabel: formatMoney(entry.amount), amount: Number(entry.amount) || 0 }
+}
+
+// Delt markup for én tilleggslinje: navn først, deretter type, sats · grunnlag
+// og beregnet beløp tydelig til høyre.
+function premiumDisplayLine(entry) {
+  const model = premiumDisplayModel(entry)
+  return `<div class="summary-line premium-line"><span><strong>${escapeHtml(model.name)}</strong>${model.typeLabel ? `<span class="muted"> · ${model.typeLabel}</span>` : ''}<br><span class="muted">${model.rateLabel} · ${model.basisLabel}</span></span><strong>${model.amountLabel}</strong></div>`
+}
+
+// Tilleggsseksjonen for et beregningskort: separate linjer + «Tillegg totalt».
+// Legacy-snapshotter uten navngitte linjer vises som én fallback-linje med det
+// frosne beløpet - aldri en gjetning om natt/medlever/helligdag.
+function premiumDisplaySection(premiumLines, premiumAmount) {
+  const lines = Array.isArray(premiumLines) ? premiumLines : []
+  if (!lines.length && !(Number(premiumAmount) > 0)) return ''
+  const rows = lines.length
+    ? lines.map(entry => premiumDisplayLine(entry)).join('')
+    : premiumDisplayLine({ name: '', amount: premiumAmount, hours: 0 })
+  const total = lines.length ? lines.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0) : Number(premiumAmount) || 0
+  return `<div class="premium-section"><div class="summary-line"><span><strong>${t('comp.invoicing.premiums')}</strong></span></div>${rows}<div class="summary-line"><span class="muted">${t('premiumDisplay.total')}</span><strong>${formatMoney(total)}</strong></div></div>`
+}
+
 function shiftEconomy(shiftInput, assignmentInput = null) {
   const pay = shiftCompensation(shiftInput)
   const shift = typeof shiftInput === 'string' ? record('shifts', shiftInput) : shiftInput
@@ -11477,6 +11575,7 @@ function shiftEconomy(shiftInput, assignmentInput = null) {
     baseRate: pay.baseRate,
     ordinaryAmount: pay.ordinaryAmount,
     premiumAmount: pay.premiumAmount,
+    premiumLines: pay.premiumLines ?? [],
     overtimeAmount: pay.overtimeAmount,
     payBasis,
     client,
@@ -11824,7 +11923,7 @@ function timesheetPayrollBasis(period = null) {
       functionId: snapshot.functionId ?? null,
       functionName: snapshot.functionName ?? null,
       liveIn: liveIn ? { profileName: liveIn.profileName, totalPaidHours: liveIn.override ? liveIn.override.paidHours : liveIn.totalPaidHours, segments: liveIn.segments, override: liveIn.override ?? null } : null,
-      premiumLines: premium.applied.map(match => ({ ruleId: match.rule.id, name: match.rule.name, family: match.rule.family ?? 'time', method: match.rule.method, value: Number(match.rule.amount) || 0, hours: match.hours, amount: match.amount, functionId: match.rule.functionId ?? null })),
+      premiumLines: premium.applied.map(match => ({ ruleId: match.rule.id, name: match.rule.name, family: match.rule.family ?? 'time', method: match.rule.method, value: Number(match.rule.amount) || 0, unit: match.rule.unit ?? null, hours: match.hours, amount: match.amount, functionId: match.rule.functionId ?? null })),
       overtimeHours,
       overtimeRule,
       overtimeAmount,
@@ -12226,7 +12325,7 @@ function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
           return `<article class="card"><h3>${t('trace.title')}</h3><h4>${t('trace.applied')}</h4>${appliedRows || `<p class="muted">${t('common.none')}</p>`}<h4>${t('trace.notApplied')}</h4>${blockedRows}${consideredRows}${!blockedRows && !consideredRows ? `<p class="muted">${t('common.none')}</p>` : ''}</article>`
         })()
       : ''
-  const shiftLines = shiftId && shiftResult?.ok ? `<article class="card"><h3>${t('shifts.estimatedPayForShift')}</h3><div class="summary-line"><span>${t('shifts.basePay')}</span><strong>${formatMoney(shiftResult.ordinaryAmount)}</strong></div>${shiftResult.premiumLines.map(line => `<div class="summary-line"><span>${escapeHtml(line.rule.name)}</span><strong>${formatMoney(line.amount)}</strong></div>`).join('')}<div class="summary-line"><span>${t('shifts.overtimePay')}</span><strong>${formatMoney(shiftResult.overtimeAmount)}</strong></div><div class="summary-line total"><span>${t('shifts.estimatedTotal')}</span><strong>${formatMoney(shiftResult.total)}</strong></div></article>` : ''
+  const shiftLines = shiftId && shiftResult?.ok ? `<article class="card"><h3>${t('shifts.estimatedPayForShift')}</h3><div class="summary-line"><span>${t('shifts.basePay')}</span><strong>${formatMoney(shiftResult.ordinaryAmount)}</strong></div>${(shiftResult.premiumLines ?? []).map(line => premiumDisplayLine(line)).join('')}<div class="summary-line"><span>${t('shifts.overtimePay')}</span><strong>${formatMoney(shiftResult.overtimeAmount)}</strong></div><div class="summary-line total"><span>${t('shifts.estimatedTotal')}</span><strong>${formatMoney(shiftResult.total)}</strong></div></article>` : ''
   const body = `<div class="relationship-trace">${t('shifts.relationshipTrace')}</div><article class="card"><dl class="detail-list">${rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl></article>${shiftLines}${traceCard}${ruleCards}`
   return drawerShell(t('shifts.rateOrigin', { rate: `${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}` }), t('staffing.compensationBasis'), body)
 }
@@ -16983,6 +17082,7 @@ window.__workmaticPreview = {
   setDepartmentOverride: (departmentId, values) => { Object.assign(record('departments', departmentId), values); persist(); render() },
   completedYears,
   shiftCompensation,
+  premiumDisplay: entry => ({ ...premiumDisplayModel(entry) }),
   paySystemRules: (assignmentId, date) => {
     const context = payContextFor(record('assignments', assignmentId), date)
     return {
