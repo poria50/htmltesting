@@ -3692,6 +3692,7 @@ const copy = {
     'employees.policeCertificate': 'Politiattest',
     'employees.policeCertificateDate': 'Dato for politiattest',
     'employees.policeCertificateMissing': 'Mangler',
+    'employees.policeCertificateDate': 'Dato for politiattest',
     'docs.dateMissing': 'Dato mangler',
     // Vaktplan: månedsplan per avdeling - ren visning over kanoniske vakter.
     'shiftPlan.title': 'Vaktplan',
@@ -4813,6 +4814,7 @@ copy.en = {
   'employees.policeCertificate': 'Police certificate',
   'employees.policeCertificateDate': 'Police certificate date',
   'employees.policeCertificateMissing': 'Missing',
+  'employees.policeCertificateDate': 'Police certificate date',
   'docs.dateMissing': 'Date missing', 'docs.editTitle': 'Edit document',
   'shiftPlan.title': 'Shift plan', 'page.shiftPlan.desc': 'Who works when - monthly plan per department',
   'shiftPlan.today': 'Today', 'shiftPlan.openShifts': 'Open shifts', 'shiftPlan.openCount': '{count} open',
@@ -6675,6 +6677,7 @@ function demoEmployee({ id, number, firstName, lastName, gender, education, educ
     address: 'Demoveien 1, 0180 Oslo',
     bankCountry: 'NO',
     bankAccount: '1234 56 78903',
+    policeCertificateDate: '',
     kinName: 'Nær Kontakt',
     kinRelation: 'demo.relationship.spouse',
     kinPhone: '+47 900 00 099',
@@ -6854,8 +6857,8 @@ function legacyTestData() {
     // NB: employees[].departmentId er et legacy-felt. Ingen aktiv logikk leser
     // det: arbeidskonteksten utledes av oppdrag -> bemanningsplasser.
     employees: [
-      { id: 'e1', employeeNumber: 'A-1042', documents: [{ id: 93, name: 'demo.doc.contract', category: 'agreement', fileName: 'arbeidsavtale_maja.pdf' }, { id: 94, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_2026.pdf', documentDate: '2026-03-12', verificationStatus: 'verified', verifiedAt: '2026-03-15', verifiedBy: 'Kari Nilsen' }], name: 'Maja Nilsen', firstName: 'Maja', lastName: 'Nilsen', profession: 'demo.profession.healthWorker', departmentId: 'd1', start: '2022-03-01', employmentStatus: 'active', employmentPercentage: 100, employmentType: 'permanent', birthDate: '1991-04-14', email: 'maja.nilsen@demo.no', phone: '+47 900 12 345', address: 'Parkveien 18, 0350 Oslo', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: true, certifications: ['medication', 'first_aid'], competenceTags: ['environmental_work', 'documentation'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2018-08-01', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', seniorityNotes: 'Relevant praksis er kontrollert.', field: 'demo.field.nursing', kinName: 'Lars Nilsen', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 333', availability: ['day', 'evening', 'weekend'], status: 'active', salaryHistory: [{ annualSalary: 620000, annualHoursBasis: 1860, tariffId: 't1', tariffVersionId: 'v1', salaryCellRef: 'historical-bachelor-8', effectiveDate: '2026-06-05', payrollRunDate: '2026-06-05', archived: true }] },
-      { id: 'e2', employeeNumber: 'A-1088', documents: [{ id: 95, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_jonas.pdf', documentDate: '2026-05-20', verificationStatus: 'not_verified' }], name: 'Jonas Berg', firstName: 'Jonas', lastName: 'Berg', profession: 'demo.profession.healthWorker', departmentId: 'd2', start: '2025-06-15', employmentStatus: 'active', employmentPercentage: 80, employmentType: 'temporary', birthDate: '1988-11-02', email: 'jonas.berg@demo.no', phone: '+47 900 12 346', address: 'Fjordgata 4, 1337 Bærum', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: false, certifications: ['first_aid'], competenceTags: ['environmental_work'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '', seniorityApproved: false, seniorityApprovedBy: '', seniorityApprovalDate: '', field: 'demo.field.nursing', kinName: 'Siri Berg', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 444', availability: ['day', 'evening'], status: 'active', salaryHistory: [] },
+      { id: 'e1', employeeNumber: 'A-1042', policeCertificateDate: '2026-03-12', documents: [{ id: 93, name: 'demo.doc.contract', category: 'agreement', fileName: 'arbeidsavtale_maja.pdf' }, { id: 94, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_2026.pdf', documentDate: '2026-03-12', verificationStatus: 'verified', verifiedAt: '2026-03-15', verifiedBy: 'Kari Nilsen' }], name: 'Maja Nilsen', firstName: 'Maja', lastName: 'Nilsen', profession: 'demo.profession.healthWorker', departmentId: 'd1', start: '2022-03-01', employmentStatus: 'active', employmentPercentage: 100, employmentType: 'permanent', birthDate: '1991-04-14', email: 'maja.nilsen@demo.no', phone: '+47 900 12 345', address: 'Parkveien 18, 0350 Oslo', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: true, certifications: ['medication', 'first_aid'], competenceTags: ['environmental_work', 'documentation'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2018-08-01', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', seniorityNotes: 'Relevant praksis er kontrollert.', field: 'demo.field.nursing', kinName: 'Lars Nilsen', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 333', availability: ['day', 'evening', 'weekend'], status: 'active', salaryHistory: [{ annualSalary: 620000, annualHoursBasis: 1860, tariffId: 't1', tariffVersionId: 'v1', salaryCellRef: 'historical-bachelor-8', effectiveDate: '2026-06-05', payrollRunDate: '2026-06-05', archived: true }] },
+      { id: 'e2', employeeNumber: 'A-1088', policeCertificateDate: '2026-05-20', documents: [{ id: 95, name: 'demo.doc.policeCertificate', category: 'police_certificate', fileName: 'politiattest_jonas.pdf', documentDate: '2026-05-20', verificationStatus: 'not_verified' }], name: 'Jonas Berg', firstName: 'Jonas', lastName: 'Berg', profession: 'demo.profession.healthWorker', departmentId: 'd2', start: '2025-06-15', employmentStatus: 'active', employmentPercentage: 80, employmentType: 'temporary', birthDate: '1988-11-02', email: 'jonas.berg@demo.no', phone: '+47 900 12 346', address: 'Fjordgata 4, 1337 Bærum', education: 'healthcare_worker', qualification: 'trade_certificate', tradeCertificate: true, authorization: false, certifications: ['first_aid'], competenceTags: ['environmental_work'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '', seniorityApproved: false, seniorityApprovedBy: '', seniorityApprovalDate: '', field: 'demo.field.nursing', kinName: 'Siri Berg', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 444', availability: ['day', 'evening'], status: 'active', salaryHistory: [] },
       { id: 'e3', employeeNumber: 'A-1091', name: 'Lea Solheim', firstName: 'Lea', lastName: 'Solheim', profession: 'demo.profession.assistant', departmentId: 'd1', start: '2024-02-03', employmentStatus: 'active', employmentPercentage: 60, employmentType: 'temporary', birthDate: '1995-06-21', email: 'lea.solheim@demo.no', phone: '+47 900 12 347', address: 'Helsegata 9, 0560 Oslo', education: 'no_formal_qualification', qualification: 'none', tradeCertificate: false, authorization: false, certifications: ['first_aid'], competenceTags: ['care'], qualificationStatus: 'approved', documentationStatus: 'verified', seniorityBasisDate: '2020-02-03', seniorityApproved: true, seniorityApprovedBy: 'Kari Nilsen', seniorityApprovalDate: '2026-06-05', field: 'demo.field.nursing', kinName: 'Ola Solheim', kinRelation: 'demo.relationship.spouse', kinPhone: '+47 900 22 555', availability: ['day', 'night'], status: 'active', salaryHistory: [] }
     ],
     assignments: [
@@ -8608,27 +8611,15 @@ function formatBankAccount(country, value) {
 // poster kan fortsatt bære legacy-feltene (verificationStatus/verifiedAt/
 // verifiedBy/events), men de rendres aldri og styrer ingenting.
 
-// Én sentral resolver for gjeldende politiattest: nyeste dokumentdato vinner;
-// dokumenter uten dato faller deterministisk bakerst (høyest id sist av dem).
-// Slettede dokumenter er fjernet fra arrayet og finnes dermed ikke her.
-function latestRelevantPoliceCertificate(employee) {
-  // Kategori er fjernet fra den aktive opplastingsflyten: nye politiattester
-  // gjenkjennes på navnet/filnavnet, historiske på den lagrede kategorien.
-  const isPoliceCertificate = item => item.category === 'police_certificate'
-    || /politiattest|police\s*certificate/i.test(`${label(item.name)} ${item.fileName ?? ''}`)
-  const candidates = (employee?.documents ?? []).filter(isPoliceCertificate)
-  if (!candidates.length) return null
-  return [...candidates].sort((a, b) => String(b.documentDate ?? '').localeCompare(String(a.documentDate ?? '')) || String(b.id).localeCompare(String(a.id), undefined, { numeric: true }))[0]
-}
-
-// Kompakt dato for ansattkort og vaktflater: «Politiattest · 12.03.2026»,
-// «Politiattest · Dato mangler» eller «Politiattest · Mangler». Vakten leser
-// alltid live employee-dokumentstate - ingen kopier på vakt/plass.
+// Politiattest er en egenskap ved ARBEIDSFORHOLDET: den kanoniske kilden er
+// employee.policeCertificateDate (ISO-dato) - aldri ansattdokumentene.
+// Historiske politiattest-filer kan fortsatt ligge i documents, men de styrer
+// ikke status. Alle flater (ansattkort, vakter, bemanning, matching) leser
+// LIVE herfra - datoen kopieres aldri inn på vakt/plass.
 function policeCertificateSummary(employee) {
-  const certificate = latestRelevantPoliceCertificate(employee)
-  if (!certificate) return { key: 'employees.policeCertificateMissing', tone: 'danger', date: '' }
-  if (!certificate.documentDate) return { key: 'docs.dateMissing', tone: '', date: '' }
-  return { key: null, tone: '', date: certificate.documentDate }
+  const date = String(employee?.policeCertificateDate ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { key: 'employees.policeCertificateMissing', tone: 'danger', date: '' }
+  return { key: null, tone: 'success', date }
 }
 
 function policeCertificateMarkup(employee) {
@@ -8711,7 +8702,7 @@ function renderEmployeeDetail() {
   const seniorityYears = employee.seniorityApproved ? completedYears(employee.seniorityBasisDate, '2026-08-20') : null
   const sections = [
     [t('employees.personal'), `<dl class="detail-list"><div><dt>${t('employees.birthDate')}</dt><dd>${employee.birthDate ? formatDate(employee.birthDate) : ''}</dd></div><div><dt>${t('common.address')}</dt><dd>${escapeHtml(employee.addressStreet ? [employee.addressStreet, [employee.addressPostalCode, employee.addressCity].filter(Boolean).join(' ')].filter(Boolean).join(', ') : (employee.address ?? ''))}${employee.addressCountry ? ` · ${t(`country.${employee.addressCountry}`)}` : ''}</dd></div><div><dt>${t('employees.bank')}</dt><dd>${employee.bankAccount ? `${employee.bankCountry ? `${t(`country.${employee.bankCountry}`)} · ` : ''}${escapeHtml(formatBankAccount(employee.bankCountry, employee.bankAccount))}` : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('common.phone')}</dt><dd>${escapeHtml(employee.phone)}</dd></div><div><dt>${t('employees.emergencyContact')}</dt><dd>${escapeHtml(employee.kinName)} · ${escapeHtml(employee.kinPhone)} · ${lab(employee.kinRelation)}</dd></div></dl>`],
-    [t('employees.employmentFacts'), `<dl class="detail-list"><div><dt>${t('employees.employeeNumber')}</dt><dd>${escapeHtml(employee.employeeNumber ?? '')}</dd></div><div><dt>${t('employees.employmentDate')}</dt><dd>${employee.start ? formatDate(employee.start) : ''}</dd></div><div><dt>${t('employees.employmentStatus')}</dt><dd>${statusTag(employee.employmentStatus ?? employee.status)}</dd></div><div><dt>${t('employees.employmentPercentage')}</dt><dd>${formatPercent(Number(employee.employmentPercentage) || 0, 0)}</dd></div><div><dt>${t('employees.employmentType')}</dt><dd>${t(`employees.${employee.employmentType ?? 'permanent'}`)}</dd></div><div><dt>${t('employees.currentWorkplace')}</dt><dd>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.availability')}</dt><dd>${availability || `<span class="muted">${t('common.none')}</span>`}</dd></div></dl>`],
+    [t('employees.employmentFacts'), `<dl class="detail-list"><div><dt>${t('employees.employeeNumber')}</dt><dd>${escapeHtml(employee.employeeNumber ?? '')}</dd></div><div><dt>${t('employees.employmentDate')}</dt><dd>${employee.start ? formatDate(employee.start) : ''}</dd></div><div><dt>${t('employees.employmentStatus')}</dt><dd>${statusTag(employee.employmentStatus ?? employee.status)}</dd></div><div><dt>${t('employees.employmentPercentage')}</dt><dd>${formatPercent(Number(employee.employmentPercentage) || 0, 0)}</dd></div><div><dt>${t('employees.employmentType')}</dt><dd>${t(`employees.${employee.employmentType ?? 'permanent'}`)}</dd></div><div><dt>${t('employees.policeCertificateDate')}</dt><dd>${String(employee.policeCertificateDate ?? '').trim() ? formatDate(employee.policeCertificateDate) : `<span class="tag danger">${t('employees.policeCertificateMissing')}</span>`}</dd></div><div><dt>${t('employees.currentWorkplace')}</dt><dd>${department ? lab(department.name) : `<span class="muted">${t('common.none')}</span>`}</dd></div><div><dt>${t('employees.availability')}</dt><dd>${availability || `<span class="muted">${t('common.none')}</span>`}</dd></div></dl>`],
     // Kun faktisk lagrede dokumenter. Vanlige opplastinger har INGEN kunstig
     // «Til vurdering»-chip - de vises som lastet opp; compliance-review lever
     // i documentationStatus-feltet, ikke per fil.
@@ -13357,7 +13348,7 @@ function employeeDialog() {
   // samsvars-/verifiseringsvalg er fjernet fra seksjonen (dokumenter bor i
   // eget steg, opplastet = akseptert).
   if (state.dialogStep === 1) body = `${formError()}<div class="form-section"><h3>${t('employees.educationQualifications')}</h3><div class="grid cols-2">${boundSelect('education', `${t('employees.educationType')} *`, educationChoices, { placeholder: t('common.select') })}${bound('educationName', t('employees.educationName'), { required: true })}${boundCheckbox('authorization', t('employees.authorization'))}</div></div>`
-  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'), { required: true })}${boundSelect('profession', `${t('employees.position')} *`, professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date', required: true })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%', required: true })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date', required: true })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${state.draft.seniorityApproved ? `${bound('seniorityApprovedBy', t('employees.approvedBy'), { required: true })}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date', required: true })}` : `${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}`}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
+  if (state.dialogStep === 2) body = `${formError()}<div class="form-section"><h3>${t('employees.employmentFacts')}</h3><div class="grid cols-2">${bound('employeeNumber', t('employees.employeeNumber'), { required: true })}${boundSelect('profession', `${t('employees.position')} *`, professionOptions(), { placeholder: t('common.select') })}${bound('start', t('employees.employmentDate'), { type: 'date', required: true })}${boundSelect('employmentStatus', t('employees.employmentStatus'), statusOptions())}${bound('employmentPercentage', t('employees.employmentPercentage'), { type: 'number', help: '%', required: true })}${boundSelect('employmentType', t('employees.employmentType'), employmentTypeChoices)}${bound('policeCertificateDate', t('employees.policeCertificateDate'), { type: 'date' })}</div></div><div class="form-section"><h3>${t('employees.seniority')}</h3><div class="grid cols-2">${bound('seniorityBasisDate', t('employees.seniorityBasisDate'), { type: 'date', required: true })}${boundCheckbox('seniorityApproved', t('employees.seniorityApproved'))}${state.draft.seniorityApproved ? `${bound('seniorityApprovedBy', t('employees.approvedBy'), { required: true })}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date', required: true })}` : `${bound('seniorityApprovedBy', t('employees.approvedBy'))}${bound('seniorityApprovalDate', t('employees.approvalDate'), { type: 'date' })}`}</div></div><div class="form-section"><h3>${t('employees.adminNotes')}</h3>${boundTextarea('adminNotes', t('employees.adminNotes'))}<p class="field-help">${t('employees.adminNotesHelp')}</p></div>`
   if (state.dialogStep === 3) {
     // Dokumenter kan lastes opp FØR den ansatte er lagret: kladdene ligger i
     // draft.employeeDocuments og kobles til den kanoniske posten ved lagring.
@@ -15685,6 +15676,8 @@ const entities = {
       employmentStatus: draft.employmentStatus ?? 'active',
       employmentPercentage: Number(draft.employmentPercentage) || 0,
       employmentType: draft.employmentType ?? 'permanent',
+      // Politiattest: eksplisitt arbeidsforholdsfelt - settes, endres og tømmes.
+      policeCertificateDate: String(draft.policeCertificateDate ?? '').trim(),
       seniorityBasisDate: draft.seniorityBasisDate ?? '',
       seniorityApproved: Boolean(draft.seniorityApproved),
       seniorityApprovedBy: draft.seniorityApprovedBy ?? '',
@@ -15997,6 +15990,7 @@ function crudHandlers(target) {
         email: candidate.email,
         phone: candidate.phone,
         birthDate: candidate.birthDate ?? '',
+        policeCertificateDate: candidate.policeCertificateDate ?? '',
         address: candidate.address ?? '',
         profession: candidate.profession,
         education: candidate.educationType ?? '',
@@ -17037,8 +17031,8 @@ window.__workmaticPreview = {
     return JSON.parse(JSON.stringify(visible))
   },
   policeCertificate: employeeId => {
-    const certificate = latestRelevantPoliceCertificate(record('employees', employeeId))
-    return certificate ? JSON.parse(JSON.stringify(certificate)) : null
+    const date = String(record('employees', employeeId)?.policeCertificateDate ?? '').trim()
+    return date ? { date } : null
   },
   calendarView: () => { const { range, days } = calendarDays(filteredAssignments()); return JSON.parse(JSON.stringify({ range, days: days.map(day => ({ iso: day.iso, ids: day.entries.map(item => item.id) })) })) },
   setCalendarAnchor: iso => { state.calendarAnchor = iso; render() },
