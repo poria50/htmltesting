@@ -3763,6 +3763,7 @@ const copy = {
     'trace.reason.inactive': 'Regelen er inaktiv',
     'trace.reason.outsidePeriod': 'Utenfor gyldighetsperioden',
     'trace.reason.notLiveIn': 'Gjelder ikke medleverdøgn',
+    'trace.reason.notLiveInShift': 'Vakten er ikke en medlevervakt',
     'trace.reason.noFunction': 'Ingen funksjon på plassen',
     'trace.reason.otherFunction': 'Gjelder en annen funksjon',
     'trace.reason.zeroAmount': 'Gir ikke noe beløp',
@@ -4869,7 +4870,7 @@ copy.en = {
   'trace.blocked.lowerPriority': 'Another premium is set to take precedence over this one.', 'trace.blocked.lowerAmount': 'Lower calculated premium',
   'trace.reason.otherPaySystem': 'The rule belongs to another pay system',
   'trace.reason.inactive': 'The rule is inactive', 'trace.reason.outsidePeriod': 'Outside the effective period',
-  'trace.reason.notLiveIn': 'Does not apply to live-in days', 'trace.reason.noFunction': 'No function on the slot',
+  'trace.reason.notLiveIn': 'Does not apply to live-in days', 'trace.reason.notLiveInShift': 'The shift is not a live-in shift', 'trace.reason.noFunction': 'No function on the slot',
   'trace.reason.otherFunction': 'Applies to another function', 'trace.reason.zeroAmount': 'Yields no amount',
   'trace.reason.dateMismatch': 'Date does not match', 'trace.reason.outsideWindow': 'Outside the time window',
   'staffing.new': 'New shift', 'staffing.client': 'Business', 'staffing.period': 'Period',
@@ -11275,6 +11276,12 @@ function premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn
     return { rule, hours: rule.method === 'fixed_shift' ? 0 : shiftHours, amount, replacesBase: 0, intervals: [[0, shiftHours * 60]], linear: false }
   }
   if (family === 'medlever') {
+    // HARD DOMENEREGEL (retning A): en medleverregel kan KUN matche en
+    // eksplisitt medlevervakt - det autoritative signalet er liveIn-konteksten
+    // (assignment.liveInSnapshot / frosset snapshot). At vakten krysser
+    // midnatt, varer lenge eller berører to datoer gjør den ALDRI til
+    // medlever. dayCount er beregningsgrunnlag ETTER match - aldri bevis.
+    if (!liveIn) return { rule, reasonKey: 'trace.reason.notLiveInShift' }
     const { units, amount } = medleverMatch(rule, start, shiftHours, rate, liveInDays)
     if (amount <= 0) return { rule, reasonKey: 'trace.reason.zeroAmount' }
     const replacesBase = rule.payMode === 'replace' ? shiftHours * rate : 0
