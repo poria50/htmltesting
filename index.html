@@ -6543,10 +6543,211 @@ const menu = [
 // Demo-data holdes språknøytralt: felt som skal oversettes lagres som
 // katalognøkler, datoer som ISO og tall som tall. Poster teamet oppretter selv
 // lagrer fritekst, som label() sender uendret gjennom.
-const SEED_VERSION = 14
+const SEED_VERSION = 15
 const STORAGE_KEY = 'workmatic-preview-demo'
 
+// === Aktivt demo-datasett vs. isolert test-fixture ===
+// Den aktive demoen bruker det kontrollerte datasettet i demoSeedData():
+// 1 virksomhet, 5 avdelinger, 4 lønnssystemer og 8 ansatte. Testsuiten
+// setter globalThis.__WORKMATIC_TEST_SEED__ og får det historiske
+// fixture-datasettet (legacyTestData), som bærer de låste økonomitallene
+// (sh1 = 2348, Payroll 121 069, Economy 92 727 osv.). Fixturen er dermed
+// isolert testinfrastruktur - aldri en del av den aktive demoen.
 function seedData() {
+  return globalThis.__WORKMATIC_TEST_SEED__ ? legacyTestData() : demoSeedData()
+}
+
+// Seed-hjelper (kun mock-infrastruktur, aldri produksjonsberegning):
+// genererer en ansiennitetsstige 0-20 år med compound vekst per år, for de
+// utdanningsnivåene demo-ansatte faktisk har. Beløp rundes til hele kroner;
+// timesatsen avledes av versjonens standard årsverksgrunnlag.
+function demoSalaryLadder({ baseSalary, annualGrowth, seniorityStart, seniorityEnd, hours, cellPrefix }) {
+  const cells = []
+  for (let year = seniorityStart; year <= seniorityEnd; year += 1) {
+    const annualSalary = Math.round(baseSalary * Math.pow(1 + annualGrowth, year))
+    for (const education of ['no_formal_qualification', 'trade_certificate']) {
+      cells.push({
+        id: `${cellPrefix}-${year}-${education === 'trade_certificate' ? 'tc' : 'none'}`,
+        role: '',
+        education,
+        seniorityMin: year,
+        seniorityMax: year,
+        annualSalary,
+        rate: annualSalary / hours,
+        unit: 'hourly'
+      })
+    }
+  }
+  return cells
+}
+
+// De fire demo-lønnssystemene: System 2/3/4 kjedes fra forrige systems
+// faktiske trinnbeløp (x 1,10), slik at relasjonen er eksakt på alle 21 trinn.
+function demoPaySystems() {
+  const hours = 1950
+  const basisRules = { day: 1950, evening: 1846, night: 1695, live_in: 1667 }
+  const systems = []
+  let base = 500000
+  for (let index = 1; index <= 4; index += 1) {
+    systems.push({
+      id: `t${index}`,
+      name: `Lønnssystem ${index}`,
+      paySystemType: 'custom',
+      area: 'demo.area.health',
+      reference: 'Demoavtale 2026',
+      status: 'published',
+      premiumSchemeIds: [],
+      overtimeSchemeId: null,
+      versions: [{
+        id: `v${index}`,
+        name: '2026.1',
+        effective: '2026-01-01',
+        effectiveTo: '',
+        status: 'published',
+        annualHoursBasis: hours,
+        annualBasisRules: { ...basisRules },
+        salaryCells: demoSalaryLadder({ baseSalary: base, annualGrowth: 0.05, seniorityStart: 0, seniorityEnd: 20, hours, cellPrefix: `cell-t${index}` })
+      }]
+    })
+    base = Math.round(base * 1.10)
+  }
+  return systems
+}
+
+// Én komplett demo-ansatt: alle obligatoriske felter er gyldige etter dagens
+// regler (kun interne notater står tomt), inkl. mod11-gyldig norsk konto.
+function demoEmployee({ id, number, firstName, lastName, gender, education, educationName, seniorityBasisDate, departmentId, profession, birthDate, phone }) {
+  return {
+    id,
+    employeeNumber: number,
+    name: `${firstName} ${lastName}`,
+    firstName,
+    lastName,
+    gender,
+    email: `${firstName.toLocaleLowerCase()}.${lastName.toLocaleLowerCase()}@workmatic.demo.no`,
+    phone,
+    birthDate,
+    addressStreet: 'Demoveien 1',
+    addressPostalCode: '0180',
+    addressCity: 'Oslo',
+    addressCountry: 'NO',
+    address: 'Demoveien 1, 0180 Oslo',
+    bankCountry: 'NO',
+    bankAccount: '1234 56 78903',
+    kinName: 'Nær Kontakt',
+    kinRelation: 'demo.relationship.spouse',
+    kinPhone: '+47 900 00 099',
+    education,
+    educationName,
+    qualification: education === 'trade_certificate' ? 'trade_certificate' : 'none',
+    authorization: education === 'trade_certificate',
+    certifications: [],
+    competenceTags: [],
+    profession,
+    departmentId,
+    start: seniorityBasisDate,
+    employmentStatus: 'active',
+    employmentPercentage: 100,
+    employmentType: 'permanent',
+    seniorityBasisDate,
+    seniorityApproved: true,
+    seniorityApprovedBy: 'Demo Admin',
+    seniorityApprovalDate: '2026-08-01',
+    adminNotes: '',
+    availability: ['day', 'evening'],
+    status: 'active',
+    documents: [],
+    salaryHistory: []
+  }
+}
+
+// Det kontrollerte demo-datasettet: 1 virksomhet, 5 avdelinger (alle med
+// lønnssystem - hardregelen), 4 lønnssystemer med 0-20-årsstiger, og 8
+// komplette ansatte (2 kvinner med utdanning, 2 uten; 2 menn med, 2 uten)
+// fordelt på avdelingene og på ansiennitetstrinnene 0/2/5/7/10/12/15/20.
+function demoSeedData() {
+  const department = (id, name, paySystemId, departmentNumber) => ({
+    id,
+    name,
+    departmentNumber,
+    description: '',
+    manager: 'Kari Demo',
+    managerPhone: '+47 900 00 010',
+    departmentPhone: '+47 22 00 00 10',
+    clientId: 'c1',
+    paySystemId,
+    street: 'Demoveien',
+    houseNumber: '1',
+    postalCode: '0180',
+    city: 'Oslo',
+    county: 'demo.county.oslo',
+    status: 'active'
+  })
+  return {
+    meta: { version: SEED_VERSION, nextId: 100 },
+    clients: [{
+      id: 'c1',
+      name: 'Workmatic Omsorg AS',
+      org: '923 456 789',
+      tariffId: null,
+      paySystemIds: ['t1', 't2', 't3', 't4'],
+      provision: 10,
+      vat: 25,
+      email: 'post@workmatic.demo.no',
+      invoiceEmail: 'faktura@workmatic.demo.no',
+      phone: '+47 22 00 00 00',
+      address: 'Demoveien 1, 0180 Oslo',
+      county: 'demo.county.oslo',
+      created: '2026-08-01',
+      status: 'active',
+      documents: []
+    }],
+    departments: [
+      department('d1', 'Sentrum', 't1', '100'),
+      department('d2', 'Nord', 't2', '200'),
+      department('d3', 'Sør', 't3', '300'),
+      department('d4', 'Øst', 't4', '400'),
+      department('d5', 'Vest', 't1', '500')
+    ],
+    shiftTemplates: [
+      { id: 'st1', name: 'Dagvakt', clientId: 'c1', type: 'regular', startTime: '07:00', endTime: '15:00', breakMinutes: 30, endNextDay: false, annualBasisType: 'day', status: 'active' },
+      { id: 'st2', name: 'Kveldsvakt', clientId: 'c1', type: 'regular', startTime: '15:00', endTime: '22:00', breakMinutes: 30, endNextDay: false, annualBasisType: 'evening', status: 'active' },
+      { id: 'st3', name: 'Nattevakt', clientId: 'c1', type: 'regular', startTime: '22:00', endTime: '07:00', breakMinutes: 30, endNextDay: true, annualBasisType: 'night', status: 'active' }
+    ],
+    contacts: [],
+    candidates: [],
+    employees: [
+      demoEmployee({ id: 'e1', number: 'A-1001', firstName: 'Maja', lastName: 'Nilsen', gender: 'form.genderFemale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2026-06-01', departmentId: 'd1', profession: 'demo.profession.healthWorker', birthDate: '1994-04-14', phone: '+47 900 00 001' }),
+      demoEmployee({ id: 'e2', number: 'A-1002', firstName: 'Ingrid', lastName: 'Berg', gender: 'form.genderFemale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2024-06-01', departmentId: 'd1', profession: 'demo.profession.healthWorker', birthDate: '1991-02-20', phone: '+47 900 00 002' }),
+      demoEmployee({ id: 'e3', number: 'A-1003', firstName: 'Sofie', lastName: 'Dahl', gender: 'form.genderFemale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2021-06-01', departmentId: 'd2', profession: 'demo.profession.assistant', birthDate: '1996-07-08', phone: '+47 900 00 003' }),
+      demoEmployee({ id: 'e4', number: 'A-1004', firstName: 'Amina', lastName: 'Ali', gender: 'form.genderFemale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2019-06-01', departmentId: 'd2', profession: 'demo.profession.assistant', birthDate: '1998-11-02', phone: '+47 900 00 004' }),
+      demoEmployee({ id: 'e5', number: 'A-1005', firstName: 'Jonas', lastName: 'Solheim', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2016-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1989-01-30', phone: '+47 900 00 005' }),
+      demoEmployee({ id: 'e6', number: 'A-1006', firstName: 'Emil', lastName: 'Haugen', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2014-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1987-05-17', phone: '+47 900 00 006' }),
+      demoEmployee({ id: 'e7', number: 'A-1007', firstName: 'Sander', lastName: 'Lie', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2011-06-01', departmentId: 'd4', profession: 'demo.profession.assistant', birthDate: '1985-09-25', phone: '+47 900 00 007' }),
+      demoEmployee({ id: 'e8', number: 'A-1008', firstName: 'Olav', lastName: 'Strand', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2006-06-01', departmentId: 'd5', profession: 'demo.profession.assistant', birthDate: '1980-12-12', phone: '+47 900 00 008' })
+    ],
+    assignments: [],
+    jobs: [],
+    shifts: [],
+    timesheets: [],
+    workSessions: [],
+    positions: [],
+    tariffs: demoPaySystems(),
+    schemes: [],
+    holidays: [],
+    schemeVersions: [],
+    premiumRules: [],
+    overtimeRules: [],
+    messages: [],
+    slotTimesheets: [],
+    notifications: [],
+    shiftSeries: [],
+    sickLeaves: []
+  }
+}
+
+// === Isolert test-fixture (historisk datasett med de låste økonomitallene) ===
+function legacyTestData() {
   return {
     // Telleren starter over seed-id-ene (c1–c3, d1–d3, v1–v5 …), ellers vil en ny
     // post kunne få samme id som en eksisterende og sletting ramme begge.
