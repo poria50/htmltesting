@@ -3286,6 +3286,10 @@ const copy = {
     'docs.saved': 'Dokumentet er lagret',
     'clients.organization': 'Organisasjonsnummer',
     'clients.orgRequired': 'Organisasjonsnummer er obligatorisk.',
+    'departments.number': 'Avdelingsnummer',
+    'departments.numberShort': 'Avd.nr.',
+    'departments.pickContact': 'Hent kontakt fra virksomheten',
+    'departments.noClientContacts': 'Ingen kontakter registrert på virksomheten.',
     'clients.contact': 'Kontaktperson',
     // Feltet er det økonomiske PÅSLAGET på fakturagrunnlaget - user-facing
     // heter det Påslag; det interne feltet provision og beregningen er urørt.
@@ -4406,6 +4410,10 @@ copy.en = {
   'dashboard.dev.invoiceBlocked': 'Approved work missing customer price',
   'clients.new': 'New business', 'clients.organization': 'Organization number',
   'clients.orgRequired': 'Organization number is required.',
+  'departments.number': 'Department number',
+  'departments.numberShort': 'Dept. no.',
+  'departments.pickContact': 'Fetch contact from the business',
+  'departments.noClientContacts': 'No contacts registered on the business.',
   'clients.filter.active': 'Active', 'clients.filter.inactive': 'Inactive',
   'clients.tabs.users': 'Users and access',
   'clients.addContact': 'Add contact',
@@ -8024,7 +8032,18 @@ function departmentPhoneLink(value) {
 // De tre feltene i opprett/rediger-modalen. Telefon er tel-input, som godtar
 // både +47 912 34 567, 91234567 og 22 33 44 55 uten egen validering.
 function departmentContactFields() {
-  return `${bound('manager', t('departments.manager'))}${bound('managerPhone', t('departments.managerPhone'), { type: 'tel' })}${bound('departmentPhone', t('departments.departmentPhone'), { type: 'tel' })}`
+  // Hent kontakt fra virksomheten: valget viser og kopierer KUN navn og
+  // telefonnummer inn i avdelingens egne felter - aldri e-post, rolle,
+  // adresse eller andre kontaktfelter. Ingen duplisering utover det.
+  const clientId = draftValue('clientId', '')
+  const contacts = clientId ? collection('contacts').filter(item => item.clientId === clientId) : []
+  const choices = contacts.map(item => `<option value="${item.id}">${escapeHtml(item.name)}${item.phone ? ` · ${escapeHtml(item.phone)}` : ''}</option>`).join('')
+  const picker = !clientId
+    ? ''
+    : contacts.length
+      ? `<div class="field"><label for="f-departmentContactPick">${t('departments.pickContact')}</label><select id="f-departmentContactPick" data-department-contact-pick><option value="" selected>${t('common.select')}</option>${choices}</select></div>`
+      : `<div class="field"><label>${t('departments.pickContact')}</label><p class="muted">${t('departments.noClientContacts')}</p></div>`
+  return `${picker}${bound('manager', t('departments.manager'))}${bound('managerPhone', t('departments.managerPhone'), { type: 'tel' })}${bound('departmentPhone', t('departments.departmentPhone'), { type: 'tel' })}${bound('departmentNumber', t('departments.number'))}`
 }
 
 // Hvem som faktisk har jobbet på avdelingen, utledet av vaktene til oppdragene
@@ -11131,7 +11150,7 @@ function timesheetInvoiceSection() {
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.priceBlocked.length + basis.payBlocked.length}</strong></article>
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong></article>
   </div>`
-  const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}</td><td>${timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${t('payrollBasis.source')}</span></td></tr>`)
+  const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}${line.department?.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(line.department.departmentNumber))}</span>` : ''}</td><td>${timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${t('payrollBasis.source')}</span></td></tr>`)
   // To adskilte blokkeringer, hver med lenken dit den rettes (§12):
   // kundepris -> klienten, lønnsoppslag -> avdelingen.
   const blockedBanners = [
@@ -11151,7 +11170,7 @@ function economyReport(form) {
   const groups = new Map()
   lines.forEach(line => {
     const key = line.department?.id ?? 'none'
-    if (!groups.has(key)) groups.set(key, { id: key, name: line.department ? label(line.department.name) : t('common.none'), people: new Map(), shifts: 0, hours: 0, overtimeHours: 0, ordinaryAmount: 0, overtimeAmount: 0, premiumAmount: 0 })
+    if (!groups.has(key)) groups.set(key, { id: key, name: line.department ? label(line.department.name) : t('common.none'), departmentNumber: line.department?.departmentNumber ?? '', people: new Map(), shifts: 0, hours: 0, overtimeHours: 0, ordinaryAmount: 0, overtimeAmount: 0, premiumAmount: 0 })
     const group = groups.get(key)
     group.shifts += 1
     group.hours += line.hours
@@ -11240,7 +11259,7 @@ function departmentReportTable(report) {
   const rows = report.byDepartment.flatMap(row => {
     const d = display(row)
     return [
-    `<tr class="row-group"><td><strong>${escapeHtml(row.name)}</strong></td><td>${row.employees}</td><td>${row.shifts}</td><td><strong>${formatHours(row.hours)}</strong></td><td>${formatHours(row.overtimeHours)}</td><td>${formatMoney(row.ordinaryAmount)}</td><td>${formatMoney(row.overtimeAmount)}</td><td>${formatMoney(row.premiumAmount)}</td><td>${formatMoney(d.net)}</td><td>${formatMoney(d.commission)}</td><td>${formatMoney(d.vat)}</td><td><strong>${formatMoney(d.gross)}</strong></td></tr>`,
+    `<tr class="row-group"><td><strong>${escapeHtml(row.name)}</strong>${row.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(row.departmentNumber))}</span>` : ''}</td><td>${row.employees}</td><td>${row.shifts}</td><td><strong>${formatHours(row.hours)}</strong></td><td>${formatHours(row.overtimeHours)}</td><td>${formatMoney(row.ordinaryAmount)}</td><td>${formatMoney(row.overtimeAmount)}</td><td>${formatMoney(row.premiumAmount)}</td><td>${formatMoney(d.net)}</td><td>${formatMoney(d.commission)}</td><td>${formatMoney(d.vat)}</td><td><strong>${formatMoney(d.gross)}</strong></td></tr>`,
     ...row.people.map(person => { const dp = display(person); return `<tr class="row-child"><td>${escapeHtml(person.employee.name)} <span class="muted">${escapeHtml(person.employee.id.toUpperCase())} · ${lab(person.employee.profession)}</span></td><td></td><td>${person.shifts}</td><td>${formatHours(person.hours)}</td><td>${formatHours(person.overtimeHours)}</td><td>${formatMoney(person.ordinaryAmount)}</td><td>${formatMoney(person.overtimeAmount)}</td><td>${formatMoney(person.premiumAmount)}</td><td>${formatMoney(dp.net)}</td><td>${formatMoney(dp.commission)}</td><td>${formatMoney(dp.vat)}</td><td>${formatMoney(dp.gross)}</td></tr>` })
   ]})
   const groupTotals = report.byDepartment.map(display).reduce((sum, d) => ({ net: sum.net + d.net, commission: sum.commission + d.commission, vat: sum.vat + d.vat, gross: sum.gross + d.gross }), { net: 0, commission: 0, vat: 0, gross: 0 })
@@ -15048,6 +15067,8 @@ const entities = {
       name: String(draft.name ?? '').trim(),
       // Avdelingens egen kontaktinformasjon. Alle tre er valgfrie og skrives inn
       // som fritekst, uten kobling til kontaktpersoner.
+      // Valgfritt avdelingsnummer - blokkerer aldri lagring.
+      departmentNumber: String(draft.departmentNumber ?? '').trim(),
       manager: String(draft.manager ?? '').trim(),
       managerPhone: String(draft.managerPhone ?? '').trim(),
       // Avdelingen velger ett av klientens lønnssystemer. Dette er den effektive
@@ -16189,6 +16210,17 @@ document.addEventListener('change', event => {
   if (event.target.dataset?.actionToggle === 'shift-plan-toggle-open') {
     state.shiftPlanDisplay.showOpen = event.target.checked
     render()
+    return
+  }
+  // Avdelingsdialogen: hent kontakt fra virksomheten - kopierer KUN navn og
+  // telefonnummer inn i avdelingsfeltene (§: aldri e-post/rolle/adresse).
+  if (event.target.dataset?.departmentContactPick !== undefined) {
+    const contact = record('contacts', event.target.value)
+    if (contact) {
+      state.draft.manager = contact.name ?? ''
+      state.draft.managerPhone = contact.phone ?? ''
+      render()
+    }
     return
   }
   if (event.target.dataset?.staffingFilter) {
