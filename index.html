@@ -4019,6 +4019,15 @@ const copy = {
     'financial.create': 'Nytt lønnssystem',
     'financial.agreementDetails': 'Avtaledetaljer',
     'financial.annualHoursBasis': 'Årsverksgrunnlag',
+    'financial.standardAnnualHoursBasis': 'Standard årsverksgrunnlag',
+    'financial.annualBasisRules': 'Årsverksgrunnlag per arbeidstype',
+    'financial.annualBasisFallback': 'Tom verdi bruker standard årsverksgrunnlag.',
+    'financial.basisType.day': 'Dag',
+    'financial.basisType.day_evening': 'Dag og kveld',
+    'financial.basisType.night': 'Natt',
+    'financial.basisType.live_in': 'Medlever',
+    'shiftTemplates.annualBasisType': 'Årsverkstype',
+    'resolution.missingAnnualBasis': 'Årsverksgrunnlag mangler for denne arbeidstypen.',
     'financial.autoActive': 'Versjonen blir aktiv automatisk når versjonsnavn, dato og årsverksgrunnlag er fylt inn.',
     'financial.basisMissing': 'Årsverksgrunnlag mangler',
     'financial.versionCount': 'Versjoner',
@@ -5077,6 +5086,15 @@ copy.en = {
   'financial.total': 'Total agreements', 'financial.create': 'New pay system',
   'financial.agreementDetails': 'Agreement details',
   'financial.annualHoursBasis': 'Annual hours basis',
+  'financial.standardAnnualHoursBasis': 'Standard annual hours basis',
+  'financial.annualBasisRules': 'Annual hours basis per work type',
+  'financial.annualBasisFallback': 'An empty value uses the standard annual hours basis.',
+  'financial.basisType.day': 'Day',
+  'financial.basisType.day_evening': 'Day and evening',
+  'financial.basisType.night': 'Night',
+  'financial.basisType.live_in': 'Live-in',
+  'shiftTemplates.annualBasisType': 'Annual basis type',
+  'resolution.missingAnnualBasis': 'Annual hours basis is missing for this work type.',
   'financial.autoActive': 'The version becomes active automatically once version name, date and annual hours basis are filled in.',
   'financial.basisMissing': 'Annual hours basis is missing',
   'financial.versionCount': 'Versions',
@@ -7377,6 +7395,32 @@ function educationMeetsRequirement(employee, required) {
   return (EDUCATION_RANK[employeePayCategory(employee)] ?? 0) >= (EDUCATION_RANK[required] ?? 0)
 }
 
+// Årsverkstyper: eksplisitt intern klassifisering - aldri navnematching.
+const ANNUAL_BASIS_TYPES = ['day', 'day_evening', 'night', 'live_in']
+
+// Vaktens arbeidstype for årsverksoppslaget: medlever normaliseres inn i samme
+// oppslag via kanonisk shiftType/liveInSnapshot; ellers gjelder den eksplisitt
+// lagrede typen fra vaktmalens fryste snapshot (fallback: malen selv, for
+// vakter opprettet før feltet fantes). Ingen type -> standardgrunnlaget.
+function assignmentAnnualBasisType(assignment) {
+  if (!assignment) return ''
+  if (assignment.shiftType === 'live_in' || assignment.liveInSnapshot) return 'live_in'
+  const snapshotType = assignment.shiftTemplateSnapshot?.annualBasisType
+  if (ANNUAL_BASIS_TYPES.includes(snapshotType)) return snapshotType
+  const templateType = record('shiftTemplates', assignment.shiftTemplateId)?.annualBasisType
+  return ANNUAL_BASIS_TYPES.includes(templateType) ? templateType : ''
+}
+
+// Årsverksgrunnlaget for en versjon + arbeidstype: egen regel vinner, ellers
+// standardgrunnlaget (versjonens annualHoursBasis). Aldri 0, aldri gjetting.
+function resolveAnnualBasis(version, basisType) {
+  const standard = Number(version?.annualHoursBasis) > 0 ? Number(version.annualHoursBasis) : null
+  const specific = basisType ? Number(version?.annualBasisRules?.[basisType]) : NaN
+  if (Number.isFinite(specific) && specific > 0) return { hours: specific, source: basisType }
+  if (standard) return { hours: standard, source: 'standard' }
+  return null
+}
+
 function deriveHourlyRate(annualSalary, annualHoursBasis) {
   const salary = Number(annualSalary)
   const hours = Number(annualHoursBasis)
@@ -7479,6 +7523,7 @@ function payContextFor(assignment, shiftDate) {
 // årsak. Ingen fallback til en fast ansattsats noe sted.
 function blockingMessageKey(reason) {
   if (reason === 'missing_department_pay_system') return 'resolution.noDepartmentPaySystem'
+  if (reason === 'missing_annual_basis') return 'resolution.missingAnnualBasis'
   if (['missing_tariff', 'missing_published_version'].includes(reason)) return 'resolution.blockedTariff'
   if (reason === 'no_salary_cells') return 'resolution.noSalaryCells'
   if (reason === 'missing_assignment_role') return 'resolution.missingAssignmentRole'
@@ -7562,7 +7607,31 @@ function resolveCompensation(employeeInput, assignmentInput, shiftDate) {
 
   const cell = matches[0]
   trace.push({ step: 'salary_cell', id: cell.id, value: `${cell.role || '—'}/${cell.education || cell.qualification}/${cell.seniorityMin}-${cell.seniorityMax}` })
-  trace.push({ step: 'base_rate', id: cell.id, value: cell.rate, unit: cell.unit })
+
+  // Årsverksgrunnlaget løses FØR grunn-timesatsen (og dermed før tillegg og
+  // overtid): egen regel for vaktens arbeidstype vinner, ellers standard.
+  // Finnes ingen av delene for en klassifisert vakt, blokkeres beregningen -
+  // aldri 0, aldri en gjettet eller «tilfeldig annen» arbeidstype.
+  const annualBasisType = assignmentAnnualBasisType(assignment)
+  const annualBasis = resolveAnnualBasis(version, annualBasisType)
+  if (annualBasisType && !annualBasis) {
+    return blockingResolution('missing_annual_basis', { ...versionContext, annualBasisType }, trace)
+  }
+  let baseRate = Number(cell.rate)
+  if (annualBasis && annualBasis.source !== 'standard') {
+    // Samme årslønn - annet grunnlag: satsen reberegnes fra cellens årslønn
+    // (eldre celler uten årslønn: ekvivalent årslønn = sats x standardgrunnlag).
+    const standard = Number(version.annualHoursBasis) > 0 ? Number(version.annualHoursBasis) : null
+    const annualSalary = Number(cell.annualSalary) > 0
+      ? Number(cell.annualSalary)
+      : standard ? Number(cell.rate) * standard : null
+    if (annualSalary === null) {
+      return blockingResolution('missing_annual_basis', { ...versionContext, annualBasisType }, trace)
+    }
+    baseRate = deriveHourlyRate(annualSalary, annualBasis.hours)
+  }
+  trace.push({ step: 'annual_basis', id: annualBasis?.source ?? 'standard', value: annualBasis?.hours ?? version.annualHoursBasis ?? null })
+  trace.push({ step: 'base_rate', id: cell.id, value: baseRate, unit: cell.unit })
   return {
     ok: true,
     ...versionContext,
@@ -7571,9 +7640,10 @@ function resolveCompensation(employeeInput, assignmentInput, shiftDate) {
     salaryCellId: cell.id,
     role,
     qualification: payCategory,
-    baseRate: Number(cell.rate),
+    baseRate,
     rateUnit: cell.unit,
-    annualHoursBasis: version.annualHoursBasis ?? null,
+    annualHoursBasis: annualBasis?.hours ?? version.annualHoursBasis ?? null,
+    annualBasisType: annualBasis?.source ?? 'standard',
     trace
   }
 }
@@ -11388,7 +11458,10 @@ function timesheetPayrollBasis(period = null) {
     const hours = liveIn
       ? (liveIn.override ? liveIn.override.paidHours : liveIn.totalPaidHours)
       : Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(snapshot.actualBreakMinutes) || 0)) / 60
-    const rate = resolution.baseRate
+    // Grunn-timesatsen kommer fra godkjenningssnapshotet når den ble frosset
+    // der (nye godkjenninger); eldre snapshotter uten frosset sats leser som
+    // før den løpende resolusjonen (backward compatibility).
+    const rate = Number.isFinite(Number(snapshot.resolvedBaseRate)) && snapshot.resolvedBaseRate !== null ? Number(snapshot.resolvedBaseRate) : resolution.baseRate
     // Tillegg og helligdager vurderes mot det faktiske, godkjente intervallet.
     // Funksjonen kommer fra godkjenningssnapshotet - aldri fra plassens
     // nåværende verdi - så senere endringer ikke rører godkjent grunnlag (§29).
@@ -13540,7 +13613,7 @@ function shiftTemplateDialog() {
   const nextDay = draftValue('startTime') && draftValue('endTime') && String(draftValue('endTime')) <= String(draftValue('startTime')) ? `<span class="tag info">${t('shiftTemplates.nextDay')}</span>` : ''
   const hours = shiftTemplateHours({ startTime: draftValue('startTime'), endTime: draftValue('endTime'), breakMinutes: draftValue('breakMinutes') })
   const summary = draftValue('startTime') && draftValue('endTime') ? `<article class="card"><div class="summary-line"><span>${t('shiftTemplates.grossDuration')}</span><strong>${formatNumber(hours.grossHours, 1)} ${t('comp.ui.hoursShort')}</strong></div><div class="summary-line total"><span>${t('shiftTemplates.workingTime')}</span><strong>${formatNumber(hours.workingHours, 1)} ${t('comp.ui.hoursShort')}</strong></div></article>` : ''
-  const body = `${formError()}<div class="grid cols-2">${bound('name', t('shiftTemplates.name'), { required: true })}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('type', t('common.type'), typeChoices)}${bound('startTime', t('shifts.start'), { type: 'time', value: '07:00', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', value: '15:00', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number', value: 30 })}${boundSelect('status', t('common.status'), statusOptions())}</div>${nextDay}${summary}${storageNote()}`
+  const body = `${formError()}<div class="grid cols-2">${bound('name', t('shiftTemplates.name'), { required: true })}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('type', t('common.type'), typeChoices)}${bound('startTime', t('shifts.start'), { type: 'time', value: '07:00', required: true })}${bound('endTime', t('shifts.end'), { type: 'time', value: '15:00', required: true })}${bound('breakMinutes', t('shiftTemplates.breakTime'), { type: 'number', value: 30 })}${boundSelect('annualBasisType', t('shiftTemplates.annualBasisType'), ANNUAL_BASIS_TYPES.filter(type => type !== 'live_in').map(type => ({ value: type, text: t(`financial.basisType.${type}`) })), { placeholder: t('financial.standardAnnualHoursBasis') })}${boundSelect('status', t('common.status'), statusOptions())}</div>${nextDay}${summary}${storageNote()}`
   return modalShell(t(editing ? 'shiftTemplates.edit' : 'shiftTemplates.new'), t('page.shifts.desc'), 'calendar', body, formFooter('save-shift-template'), 'medium')
 }
 
@@ -13575,7 +13648,10 @@ function tariffDialog() {
 }
 
 function versionDialog() {
-  const body = `${formError()}<div class="grid cols-2">${bound('versionName', t('financial.versionName'), { required: true, value: 'v1.0' })}${bound('versionEffective', t('financial.effective'), { type: 'date' })}${bound('annualHoursBasis', t('financial.annualHoursBasis'), { type: 'number', required: true, help: t('financial.hoursUnit') })}</div><p class="field-help">${t('financial.autoActive')}</p>${storageNote()}`
+  // Standardgrunnlaget er fallback; egne regler per arbeidstype er valgfrie -
+  // tom verdi betyr at standarden brukes for den typen.
+  const basisFields = ANNUAL_BASIS_TYPES.map(type => bound(`basis-${type}`, t(`financial.basisType.${type}`), { type: 'number', help: t('financial.hoursUnit') })).join('')
+  const body = `${formError()}<div class="grid cols-2">${bound('versionName', t('financial.versionName'), { required: true, value: 'v1.0' })}${bound('versionEffective', t('financial.effective'), { type: 'date' })}${bound('annualHoursBasis', t('financial.standardAnnualHoursBasis'), { type: 'number', required: true, help: t('financial.hoursUnit') })}</div><div class="form-section"><h3>${t('financial.annualBasisRules')}</h3><p class="field-help">${t('financial.annualBasisFallback')}</p><div class="grid cols-2">${basisFields}</div></div><p class="field-help">${t('financial.autoActive')}</p>${storageNote()}`
   return modalShell(t('financial.versionAdd'), t('financial.wizard.subtitle'), 'wallet', body, formFooter('save-version'), 'small')
 }
 
@@ -14897,6 +14973,17 @@ function actionHandlers(target = null) {
             override
           }
         })(),
+        // Årsverksgrunnlaget fryses i godkjenningsøyeblikket: arbeidstype,
+        // løst grunnlag OG grunn-timesats - senere endringer i versjonens
+        // årsverksregler eller malens årsverkstype rører aldri godkjent
+        // historikk (samme immutability-mønster som funksjonen over).
+        ...(() => {
+          const employee = record('employees', timesheet.employeeId)
+          const resolution = assignment && employee ? resolveCompensation(employee, assignment, timesheet.plannedDate) : null
+          return resolution?.ok
+            ? { resolvedAnnualBasisType: resolution.annualBasisType ?? 'standard', resolvedAnnualHoursBasis: resolution.annualHoursBasis ?? null, resolvedBaseRate: resolution.baseRate }
+            : {}
+        })(),
         approvedAt: timesheet.approvedAt,
         approvedBy: timesheet.approvedBy
       }
@@ -15275,7 +15362,7 @@ const entities = {
       shiftTemplateId: draft.shiftTemplateId || null,
       shiftTemplateSnapshot: draft.shiftTemplateId ? (() => {
         const template = record('shiftTemplates', draft.shiftTemplateId)
-        return template ? { name: template.name, startTime: String(draft.startTime || template.startTime), endTime: String(draft.endTime || template.endTime), breakMinutes: Math.max(0, Number(draft.breakMinutes ?? template.breakMinutes) || 0) } : null
+        return template ? { name: template.name, startTime: String(draft.startTime || template.startTime), endTime: String(draft.endTime || template.endTime), breakMinutes: Math.max(0, Number(draft.breakMinutes ?? template.breakMinutes) || 0), annualBasisType: ANNUAL_BASIS_TYPES.includes(template.annualBasisType) ? template.annualBasisType : '' } : null
       })() : null,
       // Medlever: hele betalingsplanen FRYSES på den konkrete vakten. Senere
       // mal-/profilendringer rører aldri eksisterende vakter (§21-§22).
@@ -15373,6 +15460,8 @@ const entities = {
           endTime: segments[segments.length - 1].endTime,
           endNextDay: false,
           breakMinutes: 0,
+          // Medlever normaliseres alltid inn i samme årsverksoppslag.
+          annualBasisType: 'live_in',
           status: draft.status ?? 'active'
         }
       }
@@ -15385,6 +15474,8 @@ const entities = {
         endTime: draft.endTime || '15:00',
         endNextDay: String(draft.endTime || '') <= String(draft.startTime || ''),
         breakMinutes: Math.max(0, Number(draft.breakMinutes) || 0),
+        // Eksplisitt lagret årsverkstype - aldri navnematching. Tom = standard.
+        annualBasisType: ANNUAL_BASIS_TYPES.includes(draft.annualBasisType) ? draft.annualBasisType : '',
         status: draft.status ?? 'active'
       }
     }
@@ -15899,7 +15990,7 @@ function crudHandlers(target) {
       if (!tariff) return
       const version = versionFromDraft(state.draft)
       if (!version.name) { state.formError = 'common.required'; render(); return }
-      tariff.versions = [{ id: nextId('v'), name: version.name, effective: version.effective, annualHoursBasis: version.annualHoursBasis, status: version.status }, ...(tariff.versions ?? [])]
+      tariff.versions = [{ id: nextId('v'), name: version.name, effective: version.effective, annualHoursBasis: version.annualHoursBasis, annualBasisRules: version.annualBasisRules, status: version.status }, ...(tariff.versions ?? [])]
       tariff.status = 'published'
       persist()
       closeDialog()
@@ -15976,10 +16067,15 @@ function versionFromDraft(draft) {
   const name = String(draft.versionName ?? '').trim()
   const effective = String(draft.versionEffective ?? '').trim()
   const annualHoursBasis = Number(draft.annualHoursBasis) || null
+  // Årsverksregler per arbeidstype: kun satte, positive verdier lagres -
+  // tom verdi betyr at standardgrunnlaget gjelder for typen.
+  const annualBasisRules = Object.fromEntries(ANNUAL_BASIS_TYPES
+    .map(type => [type, Number(draft[`basis-${type}`])])
+    .filter(([, value]) => Number.isFinite(value) && value > 0))
   // Lagret er gjeldende. Statusfeltet finnes fortsatt internt fordi resolveren
   // leser det, men brukeren ser og velger det aldri. Mangler årsverksgrunnlaget,
   // er det datavalidering - ikke en livssyklustilstand.
-  return { name, effective, annualHoursBasis, status: 'published' }
+  return { name, effective, annualHoursBasis, annualBasisRules, status: 'published' }
 }
 
 function handleAction(action, target = null) {
