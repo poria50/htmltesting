@@ -6543,7 +6543,7 @@ const menu = [
 // Demo-data holdes språknøytralt: felt som skal oversettes lagres som
 // katalognøkler, datoer som ISO og tall som tall. Poster teamet oppretter selv
 // lagrer fritekst, som label() sender uendret gjennom.
-const SEED_VERSION = 15
+const SEED_VERSION = 16
 const STORAGE_KEY = 'workmatic-preview-demo'
 
 // === Aktivt demo-datasett vs. isolert test-fixture ===
@@ -6558,16 +6558,27 @@ function seedData() {
 }
 
 // Seed-hjelper (kun mock-infrastruktur, aldri produksjonsberegning):
-// genererer en ansiennitetsstige 0-20 år med compound vekst per år, for de
-// utdanningsnivåene demo-ansatte faktisk har. Beløp rundes til hele kroner;
-// timesatsen avledes av versjonens standard årsverksgrunnlag.
+// genererer en ansiennitetsstige 0-20 år med compound 5 % vekst per år, for
+// alle fem utdanningsnivåene med compound x1,15 mellom nivåene. Én
+// deterministisk rundingsregel: beløpet rundes til hele kroner ETTER at både
+// ansiennitetsvekst og utdanningsmultiplikator er anvendt (aldri runding
+// mellom stegene). Timesatsen avledes av versjonens standard årsverksgrunnlag.
+// Kanoniske utdanningsnøkler gjenbrukes - ingen parallelle typer.
+const DEMO_EDUCATION_MULTIPLIERS = {
+  no_formal_qualification: 1,
+  trade_certificate: Math.pow(1.15, 1),
+  bachelor: Math.pow(1.15, 2),
+  bachelor_further: Math.pow(1.15, 3),
+  master: Math.pow(1.15, 4)
+}
+
 function demoSalaryLadder({ baseSalary, annualGrowth, seniorityStart, seniorityEnd, hours, cellPrefix }) {
   const cells = []
   for (let year = seniorityStart; year <= seniorityEnd; year += 1) {
-    const annualSalary = Math.round(baseSalary * Math.pow(1 + annualGrowth, year))
-    for (const education of ['no_formal_qualification', 'trade_certificate']) {
+    for (const [education, multiplier] of Object.entries(DEMO_EDUCATION_MULTIPLIERS)) {
+      const annualSalary = Math.round(baseSalary * Math.pow(1 + annualGrowth, year) * multiplier)
       cells.push({
-        id: `${cellPrefix}-${year}-${education === 'trade_certificate' ? 'tc' : 'none'}`,
+        id: `${cellPrefix}-${year}-${education}`,
         role: '',
         education,
         seniorityMin: year,
@@ -6639,7 +6650,7 @@ function demoEmployee({ id, number, firstName, lastName, gender, education, educ
     kinPhone: '+47 900 00 099',
     education,
     educationName,
-    qualification: education === 'trade_certificate' ? 'trade_certificate' : 'none',
+    qualification: { no_formal_qualification: 'none', trade_certificate: 'trade_certificate', bachelor: 'bachelor', bachelor_further: 'bachelor_further', master: 'master' }[education] ?? 'none',
     authorization: education === 'trade_certificate',
     certifications: [],
     competenceTags: [],
@@ -6724,7 +6735,29 @@ function demoSeedData() {
       demoEmployee({ id: 'e5', number: 'A-1005', firstName: 'Jonas', lastName: 'Solheim', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2016-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1989-01-30', phone: '+47 900 00 005' }),
       demoEmployee({ id: 'e6', number: 'A-1006', firstName: 'Emil', lastName: 'Haugen', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2014-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1987-05-17', phone: '+47 900 00 006' }),
       demoEmployee({ id: 'e7', number: 'A-1007', firstName: 'Sander', lastName: 'Lie', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2011-06-01', departmentId: 'd4', profession: 'demo.profession.assistant', birthDate: '1985-09-25', phone: '+47 900 00 007' }),
-      demoEmployee({ id: 'e8', number: 'A-1008', firstName: 'Olav', lastName: 'Strand', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2006-06-01', departmentId: 'd5', profession: 'demo.profession.assistant', birthDate: '1980-12-12', phone: '+47 900 00 008' })
+      demoEmployee({ id: 'e8', number: 'A-1008', firstName: 'Olav', lastName: 'Strand', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2006-06-01', departmentId: 'd5', profession: 'demo.profession.assistant', birthDate: '1980-12-12', phone: '+47 900 00 008' }),
+      // Bachelor: 3 kvinner + 3 menn, spredt på avdelinger og ansiennitet.
+      demoEmployee({ id: 'e9', number: 'A-1009', firstName: 'Nora', lastName: 'Bakken', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i sykepleie', seniorityBasisDate: '2026-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1999-03-05', phone: '+47 900 00 009' }),
+      demoEmployee({ id: 'e10', number: 'A-1010', firstName: 'Thea', lastName: 'Moen', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i vernepleie', seniorityBasisDate: '2023-06-01', departmentId: 'd2', profession: 'demo.profession.socialEducator', birthDate: '1995-08-19', phone: '+47 900 00 010' }),
+      demoEmployee({ id: 'e11', number: 'A-1011', firstName: 'Ida', lastName: 'Foss', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i sosialt arbeid', seniorityBasisDate: '2019-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1992-01-27', phone: '+47 900 00 011' }),
+      demoEmployee({ id: 'e12', number: 'A-1012', firstName: 'Marius', lastName: 'Eide', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i sykepleie', seniorityBasisDate: '2025-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1997-06-14', phone: '+47 900 00 012' }),
+      demoEmployee({ id: 'e13', number: 'A-1013', firstName: 'Henrik', lastName: 'Aas', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i vernepleie', seniorityBasisDate: '2021-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1993-10-02', phone: '+47 900 00 013' }),
+      demoEmployee({ id: 'e14', number: 'A-1014', firstName: 'Adrian', lastName: 'Vik', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i sosialt arbeid', seniorityBasisDate: '2014-06-01', departmentId: 'd1', profession: 'demo.profession.socialEducator', birthDate: '1988-04-23', phone: '+47 900 00 014' }),
+      // Bachelor med videreutdanning: bachelor + relevant videreutdanning i
+      // eksisterende modell (nivået bærer det; navnet beskriver begge).
+      demoEmployee({ id: 'e15', number: 'A-1015', firstName: 'Julie', lastName: 'Holm', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i psykisk helse', seniorityBasisDate: '2024-06-01', departmentId: 'd2', profession: 'demo.profession.nurse', birthDate: '1994-12-09', phone: '+47 900 00 015' }),
+      demoEmployee({ id: 'e16', number: 'A-1016', firstName: 'Camilla', lastName: 'Rønning', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i vernepleie med videreutdanning i rus og avhengighet', seniorityBasisDate: '2016-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1990-02-16', phone: '+47 900 00 016' }),
+      demoEmployee({ id: 'e17', number: 'A-1017', firstName: 'Silje', lastName: 'Nygård', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i geriatri', seniorityBasisDate: '2008-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1984-07-30', phone: '+47 900 00 017' }),
+      demoEmployee({ id: 'e18', number: 'A-1018', firstName: 'Kristoffer', lastName: 'Lund', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i sosialt arbeid med videreutdanning i miljøterapi', seniorityBasisDate: '2026-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1998-09-11', phone: '+47 900 00 018' }),
+      demoEmployee({ id: 'e19', number: 'A-1019', firstName: 'Andreas', lastName: 'Sæther', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i akuttmedisin', seniorityBasisDate: '2019-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1991-05-06', phone: '+47 900 00 019' }),
+      demoEmployee({ id: 'e20', number: 'A-1020', firstName: 'Mats', lastName: 'Ødegård', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i vernepleie med videreutdanning i psykisk helse', seniorityBasisDate: '2011-06-01', departmentId: 'd2', profession: 'demo.profession.socialEducator', birthDate: '1986-11-21', phone: '+47 900 00 020' }),
+      // Master: 3 kvinner + 3 menn.
+      demoEmployee({ id: 'e21', number: 'A-1021', firstName: 'Hanna', lastName: 'Bjerke', gender: 'form.genderFemale', education: 'master', educationName: 'Master i helsevitenskap', seniorityBasisDate: '2025-06-01', departmentId: 'd3', profession: 'demo.profession.nurse', birthDate: '1996-01-13', phone: '+47 900 00 021' }),
+      demoEmployee({ id: 'e22', number: 'A-1022', firstName: 'Maren', lastName: 'Skogen', gender: 'form.genderFemale', education: 'master', educationName: 'Master i avansert klinisk sykepleie', seniorityBasisDate: '2021-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1992-06-28', phone: '+47 900 00 022' }),
+      demoEmployee({ id: 'e23', number: 'A-1023', firstName: 'Emilie', lastName: 'Kleppe', gender: 'form.genderFemale', education: 'master', educationName: 'Master i psykisk helsearbeid', seniorityBasisDate: '2014-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1988-08-08', phone: '+47 900 00 023' }),
+      demoEmployee({ id: 'e24', number: 'A-1024', firstName: 'Oskar', lastName: 'Tangen', gender: 'form.genderMale', education: 'master', educationName: 'Master i helsevitenskap', seniorityBasisDate: '2023-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1994-04-04', phone: '+47 900 00 024' }),
+      demoEmployee({ id: 'e25', number: 'A-1025', firstName: 'Johan', lastName: 'Wold', gender: 'form.genderMale', education: 'master', educationName: 'Master i avansert klinisk sykepleie', seniorityBasisDate: '2016-06-01', departmentId: 'd2', profession: 'demo.profession.nurse', birthDate: '1989-12-01', phone: '+47 900 00 025' }),
+      demoEmployee({ id: 'e26', number: 'A-1026', firstName: 'Espen', lastName: 'Grimstad', gender: 'form.genderMale', education: 'master', educationName: 'Master i psykisk helsearbeid', seniorityBasisDate: '2006-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1982-03-18', phone: '+47 900 00 026' })
     ],
     assignments: [],
     jobs: [],
