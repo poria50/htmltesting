@@ -3075,6 +3075,12 @@ const copy = {
     'sick.from': 'Fra',
     'sick.to': 'Til',
     'sick.degree': 'Fraværsgrad',
+    'sick.degreePercent': 'Fraværsgrad (%)',
+    'sick.invalidPercent': 'Fraværsgrad må være over 0 og høyst 100.',
+    'sick.costSection': 'Kostnadsdekning',
+    'sick.invoiceTag': 'Sykefravær',
+    'sick.invoiceNote': 'Kostnadsfordeling i henhold til registrert sykefraværsdekning.',
+    'sick.clientShareAmount': 'Virksomhetens kostnadsandel',
     'sick.period': 'Periode',
     'sick.none': 'Ingen sykefravær registrert',
     'sick.affectedShifts': 'Berørte vakter',
@@ -3099,13 +3105,13 @@ const copy = {
     'sick.costLabel': 'Kostnadsansvar',
     'sick.costQuestion': 'Hvem dekker sykefraværet?',
     'sick.cost.pending': 'Avventer avklaring',
-    'sick.cost.contractor': 'Oppdragstaker',
-    'sick.cost.client': 'Oppdragsgiver',
-    'sick.cost.shared': 'Delt ansvar',
+    'sick.cost.contractor': 'Bemanningsbyrået',
+    'sick.cost.client': 'Virksomheten',
+    'sick.cost.shared': 'Delt mellom virksomheten og bemanningsbyrået',
     'sick.cost.other': 'Annen part',
-    'sick.shareContractor': 'Andel oppdragstaker',
-    'sick.shareClient': 'Andel oppdragsgiver',
-    'sick.sharesMustBe100': 'Andelene må til sammen være nøyaktig 100 %',
+    'sick.shareContractor': 'Bemanningsbyrået dekker (%)',
+    'sick.shareClient': 'Virksomheten dekker (%)',
+    'sick.sharesMustBe100': 'Dekningsgraden må til sammen være 100 %.',
     'sick.reason': 'Begrunnelse',
     'sick.reasonRequired': 'Begrunnelse er obligatorisk',
     'sick.replacementNeeded': 'Erstatter må finnes',
@@ -4331,6 +4337,12 @@ copy.en = {
   'sick.from': 'From',
   'sick.to': 'To',
   'sick.degree': 'Absence degree',
+  'sick.degreePercent': 'Absence degree (%)',
+  'sick.invalidPercent': 'The absence degree must be above 0 and at most 100.',
+  'sick.costSection': 'Cost coverage',
+  'sick.invoiceTag': 'Sick leave',
+  'sick.invoiceNote': 'Cost split according to the registered sick-leave coverage.',
+  'sick.clientShareAmount': 'The business’ cost share',
   'sick.period': 'Period',
   'sick.none': 'No sick leave registered',
   'sick.affectedShifts': 'Affected shifts',
@@ -4355,13 +4367,13 @@ copy.en = {
   'sick.costLabel': 'Cost responsibility',
   'sick.costQuestion': 'Who covers the sick leave?',
   'sick.cost.pending': 'Pending decision',
-  'sick.cost.contractor': 'Contractor',
-  'sick.cost.client': 'Business',
-  'sick.cost.shared': 'Shared responsibility',
+  'sick.cost.contractor': 'Staffing agency',
+  'sick.cost.client': 'The business',
+  'sick.cost.shared': 'Shared between the business and the staffing agency',
   'sick.cost.other': 'Other party',
-  'sick.shareContractor': 'Contractor share',
-  'sick.shareClient': 'Business share',
-  'sick.sharesMustBe100': 'The shares must total exactly 100%',
+  'sick.shareContractor': 'Staffing agency covers (%)',
+  'sick.shareClient': 'The business covers (%)',
+  'sick.sharesMustBe100': 'The coverage shares must total exactly 100%.',
   'sick.reason': 'Reason',
   'sick.reasonRequired': 'A reason is required',
   'sick.replacementNeeded': 'Replacement needed',
@@ -9766,6 +9778,17 @@ function sickEligibleBasis(sickLeave, assignment) {
   return { ok: true, rate: resolution.baseRate, plannedHours, resolution }
 }
 
+// Dekningsfordelingen som eksplisitte prosenter: ensidig ansvar er alltid
+// 100/0; delt leser de registrerte andelene. Pending/other gir null - da
+// finnes ingen fakturerbar virksomhetsandel (fraværsgrad og dekningsgrad er
+// to FORSKJELLIGE størrelser og blandes aldri).
+function sickCoverageShares(record) {
+  if (record?.costResponsibility === 'client') return { client: 100, contractor: 0 }
+  if (record?.costResponsibility === 'contractor') return { client: 0, contractor: 100 }
+  if (record?.costResponsibility === 'shared') return { client: Number(record.clientSharePercent) || 0, contractor: Number(record.contractorSharePercent) || 0 }
+  return null
+}
+
 // Lønnslinjene fra sykefravær: en EGEN kilde (sick_leave_compensation) - aldri
 // forkledd som arbeidede timer (§26, §36). Avventende gyldighet/kompensasjon
 // blokkerer synlig (§38); arbeidet del trekkes fra så det aldri dobbeltelles
@@ -9856,7 +9879,19 @@ function sickLine(record, employee, assignment, hours, rate, amount, workedHours
       plannedHours,
       costResponsibility: record.costResponsibility,
       contractorSharePercent: record.contractorSharePercent ?? null,
-      clientSharePercent: record.clientSharePercent ?? null
+      clientSharePercent: record.clientSharePercent ?? null,
+      // Frosne dekningsandeler: prosent og beregnet beløp per part følger
+      // linjen (og dermed finaliserings-snapshotet) - senere redigering av
+      // sykefraværet endrer aldri et allerede fryst grunnlag.
+      ...(() => {
+        const shares = sickCoverageShares(record)
+        return {
+          clientCoveragePercent: shares ? shares.client : null,
+          agencyCoveragePercent: shares ? shares.contractor : null,
+          clientShareAmount: shares ? round2(amount * shares.client / 100) : null,
+          agencyShareAmount: shares ? round2(amount * shares.contractor / 100) : null
+        }
+      })()
     }
   }
 }
@@ -11471,9 +11506,12 @@ function timesheetInvoiceBasis(period = null) {
   const lines = []
   const priceBlocked = []
   for (const line of work.lines) {
-    // Kostnadsansvar er ikke fakturering (§34-§35): sykekompensasjon gir ALDRI
-    // en automatisk fakturalinje - ansvaret vises som beslutning og spor.
-    if (line.sourceType === 'sick_leave_compensation') continue
+    // Kostnadsansvar styrer faktureringen deterministisk (§34-§35 utvidet):
+    // sykekompensasjon inngår KUN når registrert dekning sier at virksomheten
+    // dekker > 0 % - og da bare med virksomhetens beregnede andel, tydelig
+    // merket som sykefravær. 0 % (eller uavklart) gir aldri en fakturalinje.
+    const sickCoverage = line.sourceType === 'sick_leave_compensation' ? Number(line.sickTrace?.clientCoveragePercent) : null
+    if (line.sourceType === 'sick_leave_compensation' && !(sickCoverage > 0)) continue
     const client = line.client
     const missing = []
     if (client?.provision === undefined || client?.provision === null || client?.provision === '') missing.push('invoicing.missingMarkup')
@@ -11485,7 +11523,7 @@ function timesheetInvoiceBasis(period = null) {
     }
     const commissionRate = (Number(client.provision) || 0) / 100
     const vatRate = (Number(client.vat) || 0) / 100
-    const payBasis = line.total
+    const payBasis = line.sourceType === 'sick_leave_compensation' ? Number(line.sickTrace?.clientShareAmount) || 0 : line.total
     const commission = payBasis * commissionRate
     const net = payBasis + commission
     const vat = net * vatRate
@@ -11527,7 +11565,7 @@ function timesheetInvoiceSection() {
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.priceBlocked.length + basis.payBlocked.length}</strong></article>
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong></article>
   </div>`
-  const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}${line.department?.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(line.department.departmentNumber))}</span>` : ''}</td><td>${timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${t('payrollBasis.source')}</span></td></tr>`)
+  const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}${line.department?.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(line.department.departmentNumber))}</span>` : ''}</td><td>${line.sourceType === 'sick_leave_compensation' ? `<span class="tag warning">${t('sick.invoiceTag')}</span> <span class="muted">${formatPercent(line.sickTrace?.absencePercent ?? 0, 0)} · ${t('sick.cost.client').split(' ')[0]} ${formatPercent(line.sickTrace?.clientCoveragePercent ?? 0, 0)} / ${t('sick.cost.contractor')} ${formatPercent(line.sickTrace?.agencyCoveragePercent ?? 0, 0)}</span>` : timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${line.sourceType === 'sick_leave_compensation' ? t('sick.invoiceNote') : t('payrollBasis.source')}</span></td></tr>`)
   // To adskilte blokkeringer, hver med lenken dit den rettes (§12):
   // kundepris -> klienten, lønnsoppslag -> avdelingen.
   const blockedBanners = [
@@ -13595,7 +13633,10 @@ function matchEmployeesDialog() {
 function sickLeaveDialog() {
   const employee = record('employees', state.slotAction?.employeeId)
   if (!employee) return ''
-  const percentChoices = [20, 40, 50, 60, 80, 100].map(value => ({ value: String(value), text: formatPercent(value, 0) }))
+  // Fraværsgrad skrives manuelt som prosent (> 0, <= 100, desimal støttes) -
+  // ingen forhåndsdefinerte satser. Kostnadsdekningen registreres samtidig:
+  // hvem dekker kostnaden, og ved delt ansvar må andelene summere til 100 %.
+  const costChoice = String(draftValue('costResponsibility', ''))
   const startDate = String(draftValue('startDate', ''))
   const endDate = String(draftValue('endDate', ''))
   const affected = startDate && endDate ? sickLeaveAffectedShifts(employee.id, startDate, endDate) : []
@@ -13607,7 +13648,8 @@ function sickLeaveDialog() {
   const overlapWarning = overlaps.length
     ? `<div class="banner warning">${icon('bell')}<span><strong>${t('sick.overlapWarning')}</strong> (${overlaps.map(item => `${formatDate(item.startDate)}–${formatDate(item.endDate)}`).join(', ')})</span></div>${boundCheckbox('confirmOverlap', t('sick.confirmOverlap'))}`
     : ''
-  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p><div class="grid cols-2">${bound('startDate', t('sick.from'), { type: 'date', required: true })}${bound('endDate', t('sick.to'), { type: 'date', required: true })}${boundSelect('absencePercent', t('sick.degree'), percentChoices)}${bound('note', t('common.notes'))}</div>${overlapWarning}${preview}`
+  const costSection = `<div class="form-section"><h3>${t('sick.costSection')}</h3><div class="grid cols-2">${boundSelect('costResponsibility', `${t('sick.costLabel')} *`, [{ value: 'client', text: t('sick.cost.client') }, { value: 'contractor', text: t('sick.cost.contractor') }, { value: 'shared', text: t('sick.cost.shared') }], { placeholder: t('common.select') })}${costChoice === 'shared' ? `${bound('clientSharePercent', t('sick.shareClient'), { type: 'number', required: true, help: '%' })}${bound('contractorSharePercent', t('sick.shareContractor'), { type: 'number', required: true, help: '%' })}` : ''}</div></div>`
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p><div class="grid cols-2">${bound('startDate', t('sick.from'), { type: 'date', required: true })}${bound('endDate', t('sick.to'), { type: 'date', required: true })}${bound('absencePercent', t('sick.degreePercent'), { type: 'number', required: true, help: '%' })}${bound('note', t('common.notes'))}</div>${costSection}${overlapWarning}${preview}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-sick-leave">${t('sick.register')}</button></div>`
   return modalShell(t('sick.register'), escapeHtml(employee.name), 'bell', body, footer, 'medium')
 }
@@ -13628,7 +13670,9 @@ function sickLeaveDetailDialog() {
     ${statusRow('sick.period', `${formatDate(item.startDate)}–${formatDate(item.endDate)} · ${formatPercent(item.absencePercent, 0)}`)}
     ${statusRow('sick.validityLabel', `${validityTag}${item.validityReviewedBy ? ` <span class="muted">${escapeHtml(item.validityReviewedBy)}</span>` : ''}`)}
     ${statusRow('sick.compLabel', compTag)}
+    ${statusRow('sick.degree', formatPercent(item.absencePercent, Number.isInteger(Number(item.absencePercent)) ? 0 : 1))}
     ${statusRow('sick.costLabel', costTag)}
+    ${(() => { const shares = sickCoverageShares(item); return shares ? `${statusRow('sick.shareClient', formatPercent(shares.client, 0))}${statusRow('sick.shareContractor', formatPercent(shares.contractor, 0))}` : '' })()}
     ${item.finalized ? statusRow('sick.finalized', `<span class="tag">${t('sick.finalizedTag')}</span>`) : ''}
   </dl>`
   const frozen = Boolean(item.finalized)
@@ -14815,14 +14859,29 @@ function actionHandlers(target = null) {
       const employee = record('employees', target?.dataset?.employeeId ?? target?.dataset?.id)
       if (!employee) return
       state.slotAction = { employeeId: employee.id }
-      openDialog('sick-leave', 'create', { absencePercent: '100' })
+      openDialog('sick-leave', 'create', { absencePercent: '100', costResponsibility: '' })
     },
     'confirm-sick-leave': () => {
       const employee = record('employees', state.slotAction?.employeeId)
       const startDate = String(state.draft.startDate ?? '').trim()
       const endDate = String(state.draft.endDate ?? '').trim()
-      const percent = Number(state.draft.absencePercent) || 100
+      // Fraværsgrad er manuell prosent: > 0 og <= 100, desimal støttes.
+      // Ugyldig verdi blokkerer - aldri en stille default.
+      const percent = Number(String(state.draft.absencePercent ?? '').replace(',', '.'))
       if (!employee || !startDate || !endDate || endDate < startDate) { state.formError = 'common.required'; render(); return }
+      if (!Number.isFinite(percent) || percent <= 0 || percent > 100) { state.formError = 'sick.invalidPercent'; render(); return }
+      // Kostnadsdekning registreres samtidig: hvem dekker, og med hvor mange
+      // prosent. Ensidig ansvar autofylles 100/0; delt ansvar må summere til
+      // NØYAKTIG 100 % - systemet gjetter aldri en manglende andel.
+      const responsibility = String(state.draft.costResponsibility ?? '')
+      if (!['client', 'contractor', 'shared'].includes(responsibility)) { state.formError = 'common.required'; render(); return }
+      let clientShare = responsibility === 'client' ? 100 : responsibility === 'contractor' ? 0 : Number(String(state.draft.clientSharePercent ?? '').replace(',', '.'))
+      let contractorShare = responsibility === 'client' ? 0 : responsibility === 'contractor' ? 100 : Number(String(state.draft.contractorSharePercent ?? '').replace(',', '.'))
+      if (responsibility === 'shared') {
+        if (!Number.isFinite(clientShare) || !Number.isFinite(contractorShare) || clientShare < 0 || contractorShare < 0 || clientShare > 100 || contractorShare > 100 || clientShare + contractorShare !== 100) {
+          state.formError = 'sick.sharesMustBe100'; render(); return
+        }
+      }
       // Overlappende aktivt fravær krever eksplisitt bekreftelse (§55, §81).
       if (overlappingSickLeaves(employee.id, startDate, endDate).length && !state.draft.confirmOverlap) {
         state.formError = 'sick.overlapBlocked'; render(); return
@@ -14842,8 +14901,8 @@ function actionHandlers(target = null) {
         validityReason: null, validityReviewedAt: null, validityReviewedBy: null,
         compensationStatus: 'pending',
         compensationType: null, compensationPercent: null, compensationHours: null, compensationAmount: null, compensationReason: null,
-        costResponsibility: 'pending',
-        contractorSharePercent: null, clientSharePercent: null, otherResponsibleParty: null, costReason: null,
+        costResponsibility: responsibility,
+        contractorSharePercent: contractorShare, clientSharePercent: clientShare, otherResponsibleParty: null, costReason: null,
         replacementRequired: false,
         documentStatus: 'not_required',
         affected: [],
@@ -14876,6 +14935,7 @@ function actionHandlers(target = null) {
         }
       }
       logSickLeaveEvent(record_, { type: 'sick_leave_registered', absencePercent: percent })
+      logSickLeaveEvent(record_, { type: 'cost_responsibility_decided', decision: responsibility, clientSharePercent: clientShare, contractorSharePercent: contractorShare })
       sickLeavesCollection().push(record_)
       state.slotAction = null
       persist(); closeDialog(); showToast('sick.registered', { name: employee.name })
