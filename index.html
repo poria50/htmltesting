@@ -6564,19 +6564,24 @@ function seedData() {
 // ansiennitetsvekst og utdanningsmultiplikator er anvendt (aldri runding
 // mellom stegene). Timesatsen avledes av versjonens standard årsverksgrunnlag.
 // Kanoniske utdanningsnøkler gjenbrukes - ingen parallelle typer.
-const DEMO_EDUCATION_MULTIPLIERS = {
-  no_formal_qualification: 1,
-  trade_certificate: Math.pow(1.15, 1),
-  bachelor: Math.pow(1.15, 2),
-  bachelor_further: Math.pow(1.15, 3),
-  master: Math.pow(1.15, 4)
+const DEMO_EDUCATION_LEVELS = ['no_formal_qualification', 'trade_certificate', 'bachelor', 'bachelor_further', 'master']
+
+// Eksakt desimalaritmetikk med BigInt: base x 1,05^år x 1,15^nivå beregnes som
+// base x 105^år x 115^nivå / 100^(år+nivå) og rundes til nærmeste hele krone
+// med halve kroner OPP (ordinær kroneavrunding). Dermed er stigen aldri
+// avhengig av IEEE-754-artefakter (500 000 x 1,15³ = 760 437,50 -> 760 438).
+// Kun seed-/mock-infrastruktur - produksjonsmotoren bruker ikke helperen.
+function demoRoundedSalary(baseSalary, year, educationLevel) {
+  const numerator = BigInt(baseSalary) * (105n ** BigInt(year)) * (115n ** BigInt(educationLevel))
+  const denominator = 100n ** BigInt(year + educationLevel)
+  return Number((2n * numerator + denominator) / (2n * denominator))
 }
 
-function demoSalaryLadder({ baseSalary, annualGrowth, seniorityStart, seniorityEnd, hours, cellPrefix }) {
+function demoSalaryLadder({ baseSalary, seniorityStart, seniorityEnd, hours, cellPrefix }) {
   const cells = []
   for (let year = seniorityStart; year <= seniorityEnd; year += 1) {
-    for (const [education, multiplier] of Object.entries(DEMO_EDUCATION_MULTIPLIERS)) {
-      const annualSalary = Math.round(baseSalary * Math.pow(1 + annualGrowth, year) * multiplier)
+    for (const [levelIndex, education] of DEMO_EDUCATION_LEVELS.entries()) {
+      const annualSalary = demoRoundedSalary(baseSalary, year, levelIndex)
       cells.push({
         id: `${cellPrefix}-${year}-${education}`,
         role: '',
@@ -6617,10 +6622,11 @@ function demoPaySystems() {
         status: 'published',
         annualHoursBasis: hours,
         annualBasisRules: { ...basisRules },
-        salaryCells: demoSalaryLadder({ baseSalary: base, annualGrowth: 0.05, seniorityStart: 0, seniorityEnd: 20, hours, cellPrefix: `cell-t${index}` })
+        salaryCells: demoSalaryLadder({ baseSalary: base, seniorityStart: 0, seniorityEnd: 20, hours, cellPrefix: `cell-t${index}` })
       }]
     })
-    base = Math.round(base * 1.10)
+    // Systemkjeden x1,10 holdes også eksakt (basene er delelige på 10).
+    base = (base * 11) / 10
   }
   return systems
 }
@@ -7611,7 +7617,11 @@ const EDUCATION_CELL_KEYS = {
   healthcare_worker: 'trade_certificate',
   'demo.education.skilled': 'trade_certificate',
   'demo.education.bachelor': 'bachelor',
-  'demo.education.master': 'master'
+  'demo.education.master': 'master',
+  // PhD er et eget kanonisk nivå: uten phd-lønnsceller blokkeres beregningen
+  // med det eksisterende no_salary_match-mønsteret - aldri en stille mapping
+  // til master eller fagbrev, aldri en gjettet sats.
+  phd: 'phd'
 }
 
 // Nivåhierarkiet brukes KUN av vaktkrav («krever minst fagbrev») - aldri av
