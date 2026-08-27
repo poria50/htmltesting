@@ -3491,9 +3491,10 @@ const copy = {
     'financial.dateRules': 'Helligdager',
     'financial.medleverRules': 'Medlever',
     'financial.ruleUnit': 'Enhet',
-    'financial.unit.hour': 'Timesats',
-    'financial.unit.day': 'Dagsats',
-    'financial.unit.shift': 'Vaktsats',
+    'financial.perHour': 'Per time',
+    'financial.unit.hour': 'Per time',
+    'financial.unit.day': 'Per døgn',
+    'financial.unit.shift': 'Vaktsats (utgått)',
     'financial.payMode': 'Betalingsmåte',
     'financial.payMode.add': 'Tillegg til ordinær lønn',
     'financial.payMode.replace': 'Erstatter ordinær lønn',
@@ -4646,9 +4647,10 @@ copy.en = {
   'financial.dateRules': 'Holidays',
   'financial.medleverRules': 'Live-in (medlever)',
   'financial.ruleUnit': 'Unit',
-  'financial.unit.hour': 'Hourly rate',
-  'financial.unit.day': 'Daily rate',
-  'financial.unit.shift': 'Shift rate',
+  'financial.perHour': 'Per hour',
+  'financial.unit.hour': 'Per hour',
+  'financial.unit.day': 'Per day',
+  'financial.unit.shift': 'Per shift (legacy)',
   'financial.payMode': 'Pay mode',
   'financial.payMode.add': 'Add to base pay',
   'financial.payMode.replace': 'Replace base pay',
@@ -10242,7 +10244,7 @@ function shiftCompensation(shiftInput) {
   // Funksjonen leses fra bemanningsplassen (aldri fra den ansatte), slik at
   // også prognosen viser et eventuelt funksjonstillegg (§28, §39).
   const slotFunctionId = assignment ? (slotForEmployee(assignment, shift.employeeId)?.functionId ?? null) : null
-  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate, slotFunctionId, Boolean(liveIn))
+  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate, slotFunctionId, liveIn ? (Number(assignment.liveInSnapshot?.days) || true) : false)
   const overtimeRule = overtimeFor(resolution.tariffId, 'daily', shift.date)
   const overtimeHours = overtimeRule ? Math.max(0, hours - (Number(overtimeRule.threshold) || 0)) : 0
   const overtimeAmount = overtimeRule && overtimeHours
@@ -10988,8 +10990,10 @@ function premiumRuleCard(rule) {
       : t('financial.dateCount', { count: dates.length })
   }
   if (family === 'medlever') window = `${t(`financial.unit.${rule.unit || 'hour'}`)} · ${t(`financial.payMode.${rule.payMode || 'add'}`)}`
-  const perUnit = family === 'medlever' && rule.method !== 'percentage' && rule.unit !== 'hour' ? '' : '/t'
-  const value = rule.method === 'percentage' ? `+${rule.amount} %` : `+${rule.amount} kr${perUnit}`
+  const unitSuffix = family === 'medlever' && (rule.unit || 'hour') === 'day' ? `/${t('premiumDisplay.perDay')}`
+    : family === 'medlever' && rule.unit === 'shift' ? `/${t('premiumDisplay.perShift')}`
+    : `/${t('comp.ui.hoursShort')}`
+  const value = rule.method === 'percentage' ? `+${rule.amount} %` : `+${rule.amount} NOK${unitSuffix}`
   // Menneskelig korttekst - aldri gruppe-/modusnavn eller prioritetstall.
   const stacking = `${t(`stacking.combo.${ruleStackingMode(rule)}`)}${rule.appliesToLiveIn && rule.family !== 'medlever' ? ` · ${t('stacking.appliesToLiveIn')}` : ''}`
   return `<article class="card"><div class="card-header"><div><h3>${escapeHtml(rule.name)}</h3><p>${window} · ${value}</p></div>
@@ -11237,9 +11241,12 @@ function intervalMinutes(intervals) {
 // Medlever: enheten avgjør hva den faste satsen ganger med. En dag teller når
 // vakten har minst én betalt time på kalenderdatoen, så en vakt over midnatt er
 // to dager. Prosent regnes alltid av grunnlønnen for de matchede timene.
-function medleverMatch(rule, start, shiftHours, rate) {
+function medleverMatch(rule, start, shiftHours, rate, liveInDays = 0) {
   const crossesMidnight = minutes(start) + shiftHours * 60 > 1440
-  const dayCount = crossesMidnight ? 2 : 1
+  // Døgnbaserte tillegg beregnes mot vaktens FAKTISKE antall medleverdøgn når
+  // kalleren kjenner det (liveIn-snapshotets days); heuristikken over midnatt
+  // er kun legacy-fallback for kall uten døgnkontekst.
+  const dayCount = Number(liveInDays) > 0 ? Number(liveInDays) : crossesMidnight ? 2 : 1
   const unit = rule.unit || 'hour'
   const value = Number(rule.amount) || 0
   if (rule.method === 'percentage') {
@@ -11251,7 +11258,7 @@ function medleverMatch(rule, start, shiftHours, rate) {
 }
 
 // Én regel-kandidat: hvorfor matcher den ikke, eller hva dekker/koster den.
-function premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn) {
+function premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn, liveInDays = 0) {
   const family = rule.family || (rule.type === 'holiday' ? 'date' : 'time')
   if (!ruleEffectiveOn(rule, iso)) return { rule, reasonKey: rule.status && rule.status !== 'active' ? 'trace.reason.inactive' : 'trace.reason.outsidePeriod' }
   // Medlever er et vaktfaktum; om regelen gjelder medleverdøgn er Pay
@@ -11268,7 +11275,7 @@ function premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn
     return { rule, hours: rule.method === 'fixed_shift' ? 0 : shiftHours, amount, replacesBase: 0, intervals: [[0, shiftHours * 60]], linear: false }
   }
   if (family === 'medlever') {
-    const { units, amount } = medleverMatch(rule, start, shiftHours, rate)
+    const { units, amount } = medleverMatch(rule, start, shiftHours, rate, liveInDays)
     if (amount <= 0) return { rule, reasonKey: 'trace.reason.zeroAmount' }
     const replacesBase = rule.payMode === 'replace' ? shiftHours * rate : 0
     return { rule, hours: units, amount, replacesBase, intervals: [[0, shiftHours * 60]], linear: rule.method === 'percentage' || (rule.unit || 'hour') === 'hour' }
@@ -11324,13 +11331,16 @@ function resolvePriorityGroup(groupMatches) {
 }
 
 function premiumsFor(paySystemId, iso, start, shiftHours, rate, functionId = null, liveIn = false) {
+  // liveIn kan være boolsk (legacy) eller antall medleverdøgn - tallet gir
+  // døgnbaserte tillegg riktig grunnlag (3 døgn = 3 x sats, aldri «én vakt»).
+  const liveInDays = Number(liveIn) > 1 ? Number(liveIn) : 0
   const applied = []
   const blocked = []
   const considered = []
   const matches = []
   for (const rule of collection('premiumRules')) {
     if (rule.paySystemId !== paySystemId) { considered.push({ rule, reasonKey: 'trace.reason.otherPaySystem' }); continue }
-    const candidate = premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn)
+    const candidate = premiumCandidate(rule, iso, start, shiftHours, rate, functionId, liveIn, liveInDays)
     if (candidate.reasonKey) considered.push(candidate)
     else matches.push(candidate)
   }
@@ -11880,7 +11890,7 @@ function timesheetPayrollBasis(period = null) {
     // Funksjonen kommer fra godkjenningssnapshotet - aldri fra plassens
     // nåværende verdi - så senere endringer ikke rører godkjent grunnlag (§29).
     // Medlever: kun funksjonstillegg anvendes automatisk (§34-§35).
-    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate, snapshot.functionId ?? null, Boolean(liveIn))
+    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate, snapshot.functionId ?? null, liveIn ? ((liveIn.segments?.length ?? 0) || Number(assignment?.liveInSnapshot?.days) || true) : false)
 
     // Medlever-timene er en avtalt døgnkompensasjon (§33): de mates ALDRI inn i
     // daglige/ukentlige overtidsregler, og forurenser heller ikke ukesakkumulatoren
@@ -14137,13 +14147,23 @@ function confirmResetDialog() {
 // Beregningstypen styrer både hvordan motoren regner og hvilket suffiks feltet
 // viser. 'hourly' er den historiske skrivemåten for fast beløp per time.
 function calculationTypeField(current) {
-  const choices = [{ value: 'percentage', text: t('financial.percentage') }, { value: 'fixed', text: t('financial.fixedAmount') }]
-  return boundSelect('method', t('financial.calculationType'), choices, { value: current === 'percentage' ? 'percentage' : 'fixed' })
+  // NOK-baserte tillegg har kun Per time som beløpsmetode her (Per døgn er
+  // medlever-enheten); prosent er en egen mekanisme. «Fast beløp»/per vakt
+  // tilbys aldri for nye regler.
+  const choices = [{ value: 'hourly', text: t('financial.perHour') }, { value: 'percentage', text: t('financial.percentage') }]
+  return boundSelect('method', t('financial.calculationType'), choices, { value: current === 'percentage' ? 'percentage' : 'hourly' })
 }
 
 function ruleValueSuffix(name) {
-  const method = draftValue('method', 'fixed')
-  return bound(name, t('financial.ruleValue'), { type: 'number', help: method === 'percentage' ? '%' : 'kr/t' })
+  // Enheten under Verdi følger valgt beregningsmåte dynamisk:
+  // NOK/t, NOK/døgn eller % - aldri statisk «kr/t».
+  const method = draftValue('method', 'hourly')
+  const unit = draftValue('unit', 'hour')
+  const family = draftValue('family', '')
+  const suffix = method === 'percentage' ? '%'
+    : family === 'medlever' && unit === 'day' ? `NOK/${t('premiumDisplay.perDay')}`
+    : `NOK/${t('comp.ui.hoursShort')}`
+  return bound(name, t('financial.ruleValue'), { type: 'number', help: suffix })
 }
 
 // Én dialog for alle tilleggsregler. Admin velger regeltype først, og bare de
@@ -14180,7 +14200,9 @@ function premiumDialog() {
       <div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="add-holiday-date">${icon('plus')}${t(state.draft.holidayEditingId ? 'financial.editDate' : 'financial.addDate')}</button></div></div>`
   }
   if (family === 'medlever') {
-    const unitChoices = ['hour', 'day', 'shift'].map(key => ({ value: key, text: t(`financial.unit.${key}`) }))
+    // Kun to gyldige enheter for nye tillegg: Per time og Per døgn.
+    // Legacy «per vakt» tilbys aldri - verken ved opprettelse eller redigering.
+    const unitChoices = ['hour', 'day'].map(key => ({ value: key, text: t(`financial.unit.${key}`) }))
     const payModeChoices = ['add', 'replace'].map(key => ({ value: key, text: t(`financial.payMode.${key}`) }))
     familyFields = `${boundSelect('unit', t('financial.ruleUnit'), unitChoices)}${boundSelect('payMode', t('financial.payMode'), payModeChoices)}`
   }
@@ -15984,7 +16006,9 @@ const entities = {
         allDay: draft.allDay !== false && draft.allDay !== 'false',
         start: family === 'time' ? draft.start || '21:00' : '',
         end: family === 'time' ? draft.end || '06:00' : '',
-        unit: family === 'medlever' ? draft.unit || 'hour' : undefined,
+        // Nye/redigerte regler lagres KUN med hour eller day - legacy 'shift'
+        // normaliseres bort ved re-lagring (historiske snapshots er urørte).
+        unit: family === 'medlever' ? (draft.unit === 'day' ? 'day' : 'hour') : undefined,
         payMode: family === 'medlever' ? draft.payMode || 'add' : undefined,
         // Funksjonstillegget peker på én funksjon og har sin egen beregningstype:
         // fast per vakt, per time eller prosent (§17-§18).
