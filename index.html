@@ -4023,7 +4023,7 @@ const copy = {
     'financial.annualBasisRules': 'Årsverksgrunnlag per arbeidstype',
     'financial.annualBasisFallback': 'Tom verdi bruker standard årsverksgrunnlag.',
     'financial.basisType.day': 'Dag',
-    'financial.basisType.day_evening': 'Dag og kveld',
+    'financial.basisType.evening': 'Kveld',
     'financial.basisType.night': 'Natt',
     'financial.basisType.live_in': 'Medlever',
     'shiftTemplates.annualBasisType': 'Årsverkstype',
@@ -5090,7 +5090,7 @@ copy.en = {
   'financial.annualBasisRules': 'Annual hours basis per work type',
   'financial.annualBasisFallback': 'An empty value uses the standard annual hours basis.',
   'financial.basisType.day': 'Day',
-  'financial.basisType.day_evening': 'Day and evening',
+  'financial.basisType.evening': 'Evening',
   'financial.basisType.night': 'Night',
   'financial.basisType.live_in': 'Live-in',
   'shiftTemplates.annualBasisType': 'Annual basis type',
@@ -7396,7 +7396,14 @@ function educationMeetsRequirement(employee, required) {
 }
 
 // Årsverkstyper: eksplisitt intern klassifisering - aldri navnematching.
-const ANNUAL_BASIS_TYPES = ['day', 'day_evening', 'night', 'live_in']
+const ANNUAL_BASIS_TYPES = ['day', 'evening', 'night', 'live_in']
+
+// Legacy-normalisering: forrige implementasjon brukte 'day_evening' - den
+// leses som 'evening', men kanonisk verdi ved ny lagring er alltid 'evening'.
+function normalizeAnnualBasisType(value) {
+  if (value === 'day_evening') return 'evening'
+  return ANNUAL_BASIS_TYPES.includes(value) ? value : ''
+}
 
 // Vaktens arbeidstype for årsverksoppslaget: medlever normaliseres inn i samme
 // oppslag via kanonisk shiftType/liveInSnapshot; ellers gjelder den eksplisitt
@@ -7405,17 +7412,19 @@ const ANNUAL_BASIS_TYPES = ['day', 'day_evening', 'night', 'live_in']
 function assignmentAnnualBasisType(assignment) {
   if (!assignment) return ''
   if (assignment.shiftType === 'live_in' || assignment.liveInSnapshot) return 'live_in'
-  const snapshotType = assignment.shiftTemplateSnapshot?.annualBasisType
-  if (ANNUAL_BASIS_TYPES.includes(snapshotType)) return snapshotType
-  const templateType = record('shiftTemplates', assignment.shiftTemplateId)?.annualBasisType
-  return ANNUAL_BASIS_TYPES.includes(templateType) ? templateType : ''
+  const snapshotType = normalizeAnnualBasisType(assignment.shiftTemplateSnapshot?.annualBasisType)
+  if (snapshotType) return snapshotType
+  return normalizeAnnualBasisType(record('shiftTemplates', assignment.shiftTemplateId)?.annualBasisType)
 }
 
 // Årsverksgrunnlaget for en versjon + arbeidstype: egen regel vinner, ellers
 // standardgrunnlaget (versjonens annualHoursBasis). Aldri 0, aldri gjetting.
 function resolveAnnualBasis(version, basisType) {
   const standard = Number(version?.annualHoursBasis) > 0 ? Number(version.annualHoursBasis) : null
-  const specific = basisType ? Number(version?.annualBasisRules?.[basisType]) : NaN
+  // Legacy-regelen day_evening leses som evening-regel når ny verdi mangler.
+  const rules = version?.annualBasisRules ?? {}
+  const raw = basisType ? (rules[basisType] ?? (basisType === 'evening' ? rules.day_evening : undefined)) : undefined
+  const specific = Number(raw)
   if (Number.isFinite(specific) && specific > 0) return { hours: specific, source: basisType }
   if (standard) return { hours: standard, source: 'standard' }
   return null
@@ -15362,7 +15371,7 @@ const entities = {
       shiftTemplateId: draft.shiftTemplateId || null,
       shiftTemplateSnapshot: draft.shiftTemplateId ? (() => {
         const template = record('shiftTemplates', draft.shiftTemplateId)
-        return template ? { name: template.name, startTime: String(draft.startTime || template.startTime), endTime: String(draft.endTime || template.endTime), breakMinutes: Math.max(0, Number(draft.breakMinutes ?? template.breakMinutes) || 0), annualBasisType: ANNUAL_BASIS_TYPES.includes(template.annualBasisType) ? template.annualBasisType : '' } : null
+        return template ? { name: template.name, startTime: String(draft.startTime || template.startTime), endTime: String(draft.endTime || template.endTime), breakMinutes: Math.max(0, Number(draft.breakMinutes ?? template.breakMinutes) || 0), annualBasisType: normalizeAnnualBasisType(template.annualBasisType) } : null
       })() : null,
       // Medlever: hele betalingsplanen FRYSES på den konkrete vakten. Senere
       // mal-/profilendringer rører aldri eksisterende vakter (§21-§22).
@@ -15475,7 +15484,7 @@ const entities = {
         endNextDay: String(draft.endTime || '') <= String(draft.startTime || ''),
         breakMinutes: Math.max(0, Number(draft.breakMinutes) || 0),
         // Eksplisitt lagret årsverkstype - aldri navnematching. Tom = standard.
-        annualBasisType: ANNUAL_BASIS_TYPES.includes(draft.annualBasisType) ? draft.annualBasisType : '',
+        annualBasisType: normalizeAnnualBasisType(draft.annualBasisType),
         status: draft.status ?? 'active'
       }
     }
