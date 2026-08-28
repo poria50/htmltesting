@@ -3160,6 +3160,14 @@ const copy = {
     'sick.alreadyRegistered': 'Allerede registrert sykefravær',
     'sick.nextLiveInDay': 'Neste medleverdøgn',
     'sick.noNextLiveInDay': 'Ingen flere medleverdøgn i vakten',
+    'sick.deleteAction': 'Slett sykefravær',
+    'sick.deleteConfirmBody': 'Sykefraværet {period} slettes og påvirker ikke lenger bemanning, dekning, lønn eller faktura. Historikken beholdes.',
+    'sick.deleteReplacementWarning': 'En erstatter er allerede tildelt ({names}). Erstatteren beholdes - vurder bemanningen manuelt etter sletting.',
+    'sick.deleteLocked': 'Kan ikke slettes direkte etter godkjenning. Bruk korrigering.',
+    'sick.deleted': 'Sykefraværet er slettet',
+    'sick.deletedTag': 'Slettet',
+    'sick.extendReplacement': 'Forleng {name}',
+    'sick.event.sick_leave_deleted': 'Sykefravær slettet',
     'sick.markInvalid': 'Marker som ugyldig',
     'sick.legacyPending': 'Eldre registrering',
     'sick.event.sick_leave_validated': 'Gyldighet satt',
@@ -4466,7 +4474,7 @@ copy.en = {
   'sick.doc.rejectedHelp': 'Medical certificate rejected - coverage must be assessed. No automatic coverage or fallback.',
   'sick.coverageLabel': 'Coverage', 'sick.coveredDays': '{count} days', 'sick.coverageNotApproved': 'Not approved', 'sick.coverageRejected': 'Medical certificate rejected - coverage must be assessed',
   'sick.correction': 'Correction',
-  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
+  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.deleteAction': 'Delete sick leave', 'sick.deleteConfirmBody': 'The sick leave {period} is deleted and no longer affects staffing, coverage, payroll or invoicing. The history is kept.', 'sick.deleteReplacementWarning': 'A replacement is already assigned ({names}). The replacement is kept - review the staffing manually after deleting.', 'sick.deleteLocked': 'Cannot be deleted directly after approval. Use a correction.', 'sick.deleted': 'The sick leave was deleted', 'sick.deletedTag': 'Deleted', 'sick.extendReplacement': 'Extend {name}', 'sick.event.sick_leave_deleted': 'Sick leave deleted', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
   'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
   'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
   'sick.medleverReview': 'Live-in sick leave requires manual review of the basis',
@@ -9371,14 +9379,23 @@ function renderJobDetail() {
       // erstatterplassen viser sitt eksakte tidsvindu.
       if (slot.employeeId && !slot.coverageFrom) {
         const stamp = iso => escapeHtml(String(iso ?? '').replace('T', ' kl. '))
-        const segments = sickLeavesCollection().filter(item => item.employeeId === slot.employeeId && item.validityStatus !== 'invalid' && item.sickStartAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+        const segments = sickLeavesCollection().filter(item => item.employeeId === slot.employeeId && sickLeaveIsActive(item) && item.sickStartAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
         for (const segment of segments) {
           const replacementSlot = staffingSlotsFor(assignment).find(entry => String(entry.replacementForSickLeaveId) === String(segment.id))
           const replacementName = replacementSlot?.employeeId ? record('employees', replacementSlot.employeeId)?.name : null
-          detail += `<div class="muted" style="font-size:11px">${t('sick.sickTag')}: ${stamp(segment.sickStartAt)} → ${stamp(segment.sickEndAt)}${replacementName ? ` · ${t('staffing.replace')}: ${escapeHtml(replacementName)}` : ''}</div>`
+          // Slett direkte fra vaktkortet - ingen ny godkjenningsprosess.
+          detail += `<div class="muted" style="font-size:11px">${t('sick.sickTag')}: ${stamp(segment.sickStartAt)} → ${stamp(segment.sickEndAt)}${segment.documentationType ? ` · ${t(`sick.doc.${segment.documentationType}`)}` : ''}${replacementName ? ` · ${t('staffing.replace')}: ${escapeHtml(replacementName)}` : ''} <button type="button" class="button ghost small danger" data-action="open-delete-sick-leave" data-id="${segment.id}">${t('common.delete')}</button></div>`
         }
       }
-      if (slot.coverageFrom && slot.status === 'open') detail = `${detail ? `${detail} · ` : ''}${t('sick.replacementFrom')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))} → ${escapeHtml(String(slot.coverageTo ?? '').replace('T', ' kl. '))}`
+      if (slot.coverageFrom && slot.status === 'open') {
+        detail = `${detail ? `${detail} · ` : ''}${t('sick.replacementFrom')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))} → ${escapeHtml(String(slot.coverageTo ?? '').replace('T', ' kl. '))}`
+        // Kant-i-kant-forlengelse: forrige erstatter kan fortsette sømløst.
+        const previous = staffingSlotsFor(assignment).find(entry => entry.employeeId && entry.coverageTo && entry.coverageTo === slot.coverageFrom && String(entry.replacementForSlotId) === String(slot.replacementForSlotId))
+        if (previous) {
+          const candidate = record('employees', previous.employeeId)
+          if (candidate) slotActions = `<button type="button" class="button small" data-action="extend-replacement" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${candidate.id}">${t('sick.extendReplacement', { name: candidate.name })}</button>${slotActions}`
+        }
+      }
     }
     // Funksjonen hører til plassen: en åpen plass kan stå med funksjon uten
     // ansatt (§73), og en erstatter arver den til noen endrer den (§72).
@@ -9990,7 +10007,7 @@ function liveInSegmentLabel(segment, baseDate = null) {
 // fra det kanoniske fraværsgrunnlaget (egenmelding/sykemelding/avvist).
 function liveInSegmentSickTag(assignment, segment) {
   if (!assignment?.date) return ''
-  const sickRecord = sickLeavesCollection().find(item => item.validityStatus !== 'invalid' && item.sickStartAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id)))
+  const sickRecord = sickLeavesCollection().find(item => sickLeaveIsActive(item) && item.sickStartAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id)))
   if (!sickRecord) return ''
   const dayIso = isoAddDays(assignment.date, segment.dayOffsetStart)
   const dayStart = `${dayIso}T${segment.startTime}`
@@ -10037,6 +10054,12 @@ function sickLeavesCollection() {
   return db.sickLeaves
 }
 
+// Soft delete: et slettet sykefravær beholder full audit trail, men teller
+// ALDRI i matching, coverage, bemanning, lønn eller faktura.
+function sickLeaveIsActive(record) {
+  return record && record.validityStatus !== 'invalid' && !record.deletedAt
+}
+
 function sickLeaveById(id) {
   return sickLeavesCollection().find(item => String(item.id) === String(id)) ?? null
 }
@@ -10068,7 +10091,7 @@ function sickLeaveAffectedShifts(employeeId, startDate, endDate) {
 // Legacy-records uten timestamps beholder dato-fallbacken.
 function overlappingSickLeaves(employeeId, startDate, endDate, excludeId = null, startAt = null, endAt = null) {
   return sickLeavesCollection().filter(item => {
-    if (item.employeeId !== employeeId || String(item.id) === String(excludeId ?? '') || item.validityStatus === 'invalid') return false
+    if (item.employeeId !== employeeId || String(item.id) === String(excludeId ?? '') || !sickLeaveIsActive(item)) return false
     if (startAt && endAt && item.sickStartAt && item.sickEndAt) return item.sickStartAt < endAt && item.sickEndAt > startAt
     return item.startDate <= endDate && item.endDate >= startDate
   })
@@ -10077,7 +10100,7 @@ function overlappingSickLeaves(employeeId, startDate, endDate, excludeId = null,
 // Er den ansatte sykmeldt på en gitt dato? Brukes kun til visning (§48).
 function activeSickLeaveFor(employeeId, iso) {
   return sickLeavesCollection().find(item => item.employeeId === employeeId
-    && item.validityStatus !== 'invalid'
+    && sickLeaveIsActive(item)
     && item.startDate <= iso && item.endDate >= iso) ?? null
 }
 
@@ -10115,6 +10138,7 @@ function sickLeaveCompensationLines(period = null, workedLines = []) {
   const lines = []
   const blocked = []
   for (const sickRecord of sickLeavesCollection()) {
+    if (sickRecord.deletedAt) continue
     if (period && (sickRecord.endDate < (period.startDate ?? '') || sickRecord.startDate > (period.endDate ?? '9999'))) continue
     if (sickRecord.finalized) {
       for (const line of sickRecord.finalized.lines) lines.push(JSON.parse(JSON.stringify(line)))
@@ -10301,7 +10325,7 @@ function sickChainDayOffset(record) {
   while (cursor && guard < 50) {
     const previous = sickLeavesCollection().find(item => item.employeeId === record.employeeId
       && String(item.id) !== String(cursor.id)
-      && item.validityStatus !== 'invalid'
+      && sickLeaveIsActive(item)
       && item.sickEndAt && item.sickEndAt === cursor.sickStartAt)
     if (!previous) break
     offset += Math.max(1, Math.ceil((Date.parse(`${previous.sickEndAt}:00Z`) - Date.parse(`${previous.sickStartAt}:00Z`)) / 86400000))
@@ -10394,7 +10418,7 @@ function sickLeavesOverlappingShift(employeeId, assignment, slot = null) {
   const endIso = window ? window.to.slice(0, 10) : (shiftEndTimestamp(assignment) ?? `${assignment.date}T00:00`).slice(0, 10)
   if (!startIso) return []
   return sickLeavesCollection().filter(item => {
-    if (item.employeeId !== employeeId || item.validityStatus === 'invalid') return false
+    if (item.employeeId !== employeeId || !sickLeaveIsActive(item)) return false
     if (window && item.sickStartAt && item.sickEndAt) return item.sickStartAt < window.to && item.sickEndAt > window.from
     return item.startDate <= endIso && item.endDate >= startIso
   })
@@ -10565,9 +10589,14 @@ function employeeOverlappingAssignment(employeeId, assignment, slot = null) {
   if (!target) return null
   return collection('assignments').find(item => {
     if (item.id === assignment.id || item.status === 'cancelled' || !item.date) return false
-    if (!activeEmployeeIdsForAssignment(item).includes(employeeId)) return false
-    const window = assignmentTimeWindowIso(item)
-    return window && window.from < target.to && target.from < window.to
+    // Dekningintervallet gjelder BEGGE veier: en ansatt på en erstatterplass
+    // er kun opptatt i plassens eget vindu - aldri hele den lange vakten.
+    const employeeSlots = staffingSlotsFor(item).filter(entry => entry.employeeId === employeeId && entry.status !== 'cancelled')
+    if (!employeeSlots.length) return false
+    return employeeSlots.some(entry => {
+      const window = slotCoverageWindowIso(item, entry) ?? assignmentTimeWindowIso(item)
+      return window && window.from < target.to && target.from < window.to
+    })
   }) ?? null
 }
 
@@ -14322,11 +14351,13 @@ function sickLeaveDetailDialog() {
   // Registreringen ER aktiveringen: ingen godkjenningsseksjon i normalflyt.
   // Legacy pending-records beholder de gamle valgene; ellers vises kun
   // korrigeringen «Marker som ugyldig» (feilregistrering, krever årsak).
+  // REGISTRER = FERDIG: nye records har ingen godkjenningsseksjon - kun
+  // Slett (soft delete) som korrigering. Legacy pending beholder gammel flyt.
   const validitySection = frozen ? '' : item.validityStatus === 'pending'
     ? `<article class="card"><h3>${t('sick.validityLabel')} <span class="tag warning">${t('sick.legacyPending')}</span></h3><div class="grid cols-2">${bound('validityReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="sick-validity-valid">${t('sick.validity.valid')}</button><button type="button" class="button secondary small danger" data-action="sick-validity-invalid">${t('sick.validity.invalid')}</button></div></article>`
-    : item.validityStatus === 'valid'
-      ? `<article class="card"><h3>${t('sick.correction')}</h3><div class="grid cols-2">${bound('validityReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button secondary small danger" data-action="sick-validity-invalid">${t('sick.markInvalid')}</button></div></article>`
-      : ''
+    : !item.deletedAt
+      ? `<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small danger" data-action="open-delete-sick-leave" data-id="${item.id}">${t('sick.deleteAction')}</button></div>`
+      : `<div class="banner warning">${icon('bell')}<span>${t('sick.deletedTag')}${item.deleteReason ? ` · ${escapeHtml(item.deleteReason)}` : ''}</span></div>`
   const coverage = sickCoverageSummary(item)
   const detailDocSection = frozen ? '' : `<article class="card"><h3>${t('sick.documentation')}</h3><div class="grid cols-2">${(() => { const docChoice = String(draftValue('documentationType', item.documentationType ?? '')); return `${boundSelect('documentationType', `${t('sick.documentation')} *`, SICK_DOCUMENTATION_TYPES.map(value => ({ value, text: t(`sick.doc.${value}`) })), { placeholder: t('common.select') })}${docChoice === 'self_certified_then_medical' ? bound('medicalFromDate', `${t('sick.medicalFrom')} *`, { type: 'date' }) : ''}` })()}</div><p class="field-help">${item.documentationType === 'medical_certificate_rejected' ? t('sick.doc.rejectedHelp') : `${t('sick.coverageLabel')}: ${t(coverage.key, { count: coverage.count })}`}</p><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="save-sick-documentation">${t('common.save')}</button></div></article>`
   const compChoices = [
@@ -14353,9 +14384,12 @@ function sickLeaveDetailDialog() {
     : cost === 'other' ? bound('otherResponsibleParty', t('sick.cost.other'), { required: true })
     : ''
   const costSection = frozen ? '' : `<article class="card"><h3>${t('sick.costQuestion')}</h3><div class="grid cols-2">${boundSelect('costResponsibility', t('sick.costLabel'), costChoices, { placeholder: t('common.select') })}${costExtra}${bound('costReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="save-sick-cost">${t('common.save')}</button></div></article>`
+  // Frys/gjenåpne er IKKE normal workflow: reopen vises kun for allerede
+  // fryste records (korrigeringsvei for godkjent historikk); frys-knappen er
+  // fjernet fra dialogen (mekanismen består internt for historikk/økonomi).
   const finalizeSection = frozen
     ? `<div class="form-actions" style="margin-top:8px">${bound('reopenReason', t('sick.reason'))}<button type="button" class="button secondary small danger" data-action="reopen-sick-leave">${t('sick.reopen')}</button></div>`
-    : `<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="finalize-sick-leave">${t('sick.finalize')}</button></div>`
+    : ''
   const history = (item.events ?? []).slice().reverse().map(event => `<div class="file-row"><div class="file-name"><strong>${t(`sick.event.${event.type}`)}</strong><span>${escapeHtml([event.actor, event.reason].filter(Boolean).join(' · '))}</span></div></div>`).join('')
   const body = `${formError()}${summary}${detailDocSection}${validitySection}${compSection}${costSection}${finalizeSection}<article class="card" style="margin-top:12px"><h3>${t('timesheets.history')}</h3>${history}</article>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"></div>`
@@ -14863,6 +14897,23 @@ function contactImportDialog() {
   return modalShell(t('contacts.import.title'), t('contacts.import.help'), 'link', body, formFooter('confirm-contact-import', 'contacts.import.run'))
 }
 
+// Sletting av sykefravær: alltid en eksplisitt bekreftelse med valgfri årsak
+// - og en tydelig advarsel når en erstatter allerede er tildelt.
+function confirmSickDeleteDialog() {
+  const item = sickLeaveById(state.slotAction?.sickLeaveId)
+  if (!item) return ''
+  const assignedReplacements = (item.affected ?? []).flatMap(entry => {
+    const assignment = record('assignments', entry.assignmentId)
+    return assignment ? staffingSlotsFor(assignment).filter(slot => String(slot.replacementForSickLeaveId) === String(item.id) && slot.employeeId) : []
+  })
+  const warning = assignedReplacements.length
+    ? `<div class="banner warning">${icon('bell')}<span>${t('sick.deleteReplacementWarning', { names: assignedReplacements.map(slot => record('employees', slot.employeeId)?.name ?? '').join(', ') })}</span></div>`
+    : ''
+  const body = `${formError()}<p>${t('sick.deleteConfirmBody', { period: `${formatDate(item.startDate)}–${formatDate(item.endDate)}` })}</p>${warning}${bound('deleteReason', t('sick.reason'))}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-delete-sick-leave">${t('sick.deleteAction')}</button></div>`
+  return modalShell(t('sick.deleteAction'), escapeHtml(record('employees', item.employeeId)?.name ?? ''), 'trash', body, footer)
+}
+
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
@@ -14896,6 +14947,7 @@ const dialogs = {
   'function': functionDialog,
   'live-in-profile': liveInProfileDialog,
   'department-contacts': departmentContactsDialog,
+  'confirm-sick-delete': confirmSickDeleteDialog,
   'contact-import': contactImportDialog,
   'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
@@ -15821,6 +15873,79 @@ function actionHandlers(target = null) {
       state.draft.sickEndDate = to.slice(0, 10)
       state.draft.sickEndTime = to.slice(11, 16)
       render()
+    },
+    // === Slett sykefravær (soft delete med full bemanningsopprydding) ===
+    'open-delete-sick-leave': () => {
+      const item = sickLeaveById(target?.dataset?.id)
+      if (!item || item.deletedAt) return
+      // Godkjent/låst historikk omskrives ALDRI direkte - korrigering kreves.
+      const locked = item.finalized || (item.affected ?? []).some(entry => {
+        const assignment = record('assignments', entry.assignmentId)
+        const timesheet = assignment ? timesheetForSlot(assignment.id, entry.slotId) : null
+        return timesheet?.status === 'approved' || (assignment && shiftOperationalStatus(assignment) === 'completed')
+      })
+      if (locked) { showToast('sick.deleteLocked', {}); return }
+      state.slotAction = { sickLeaveId: item.id }
+      openDialog('confirm-sick-delete', 'create', {})
+    },
+    'confirm-delete-sick-leave': () => {
+      const item = sickLeaveById(state.slotAction?.sickLeaveId)
+      if (!item || item.deletedAt) return
+      // Bemanningsopprydding per berørt vakt: ubemannede erstatterplasser
+      // fjernes; originalansatt gjeninnsettes der plassen ble gjenåpnet og
+      // fortsatt står ledig. En TILDELT erstatter beholdes bevisst (bekreftet
+      // i dialogen) - aldri stille dobbeltbemanning uten confirm.
+      for (const entry of item.affected ?? []) {
+        const assignment = record('assignments', entry.assignmentId)
+        if (!assignment) continue
+        const slots = staffingSlotsFor(assignment)
+        const replacements = slots.filter(slot => String(slot.replacementForSickLeaveId) === String(item.id))
+        assignment.staffingSlots = slots.filter(slot => !(String(slot.replacementForSickLeaveId) === String(item.id) && !slot.employeeId))
+        for (const replacement of replacements.filter(slot => slot.employeeId)) {
+          logAssignmentEvent(assignment, { type: 'replacement_kept_after_delete', slotId: replacement.id, employeeId: replacement.employeeId, sickLeaveId: item.id })
+        }
+        const original = staffingSlotsFor(assignment).find(slot => String(slot.id) === String(entry.slotId))
+        if (original) {
+          if (entry.handling === 'reopened' && !original.employeeId && original.status === 'open') {
+            original.employeeId = item.employeeId
+            original.status = 'assigned'
+          }
+          if (original.workedUntil && !sickLeavesCollection().some(other => String(other.id) !== String(item.id) && sickLeaveIsActive(other) && other.sickStartAt && (other.affected ?? []).some(a => String(a.assignmentId) === String(assignment.id) && String(a.slotId) === String(original.id)))) {
+            delete original.workedUntil
+          }
+        }
+        assignment.slots = staffingSlotsFor(assignment).length
+        syncAssignmentStaffing(assignment)
+        logAssignmentEvent(assignment, { type: 'sick_leave_deleted', slotId: entry.slotId, employeeId: item.employeeId, sickLeaveId: item.id })
+      }
+      item.deletedAt = new Date().toISOString()
+      item.deletedBy = 'demo-admin'
+      item.deleteReason = String(state.draft.deleteReason ?? '').trim() || null
+      logSickLeaveEvent(item, { type: 'sick_leave_deleted', reason: item.deleteReason })
+      state.slotAction = null
+      persist(); closeDialog(); showToast('sick.deleted', {})
+    },
+    // === Forleng erstatter kant-i-kant over nytt sykefraværssegment ===
+    'extend-replacement': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const employee = record('employees', target?.dataset?.employeeId)
+      if (!assignment || !slot || !employee || slot.employeeId) return
+      // Full kanonisk revalidering mot NØYAKTIG dette dekningintervallet -
+      // kant-i-kant med egen forrige replacement er aldri overlapp.
+      const blocker = finalAssignmentBlocker(employee, assignment, slot)
+      if (blocker) {
+        const overlap = employeeOverlapInfo(employee.id, assignment)
+        if (overlap) showToast('staffing.overlapBlocked', { name: employee.name, period: overlap.period })
+        else showToast(blocker, {})
+        return
+      }
+      slot.employeeId = employee.id
+      slot.status = 'assigned'
+      syncAssignmentStaffing(assignment)
+      ensureTimesheetForSlot(assignment, slot)
+      logAssignmentEvent(assignment, { type: 'replacement_extended', slotId: slot.id, employeeId: employee.id, coverageFrom: slot.coverageFrom, coverageTo: slot.coverageTo, sickLeaveId: slot.replacementForSickLeaveId ?? null })
+      persist(); render(); showToast('crud.updated', { name: employee.name })
     },
     'open-sick-leave-detail': () => {
       const item = sickLeaveById(target?.dataset?.id)
