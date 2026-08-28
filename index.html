@@ -2773,6 +2773,9 @@ const state = {
   // Avdeling er en vanlig avhengig rullegardin: tom streng betyr Alle
   // avdelinger. departmentId er den ENE sannheten - ingen parallell liste.
   reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '' },
+  // Fakturagrunnlag V2: presentasjonsfilter over samme kanoniske invoice basis.
+  invoiceReportForm: { clientId: 'c1', departmentId: '', fromDate: '2026-08-01', toDate: '2026-08-31' },
+  invoiceReportView: null,
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -3167,7 +3170,42 @@ const copy = {
     'sick.deleted': 'Sykefraværet er slettet',
     'sick.deletedTag': 'Slettet',
     'sick.extendReplacement': 'Forleng {name}',
+    'sick.extendBlocked': '{name} kan ikke forlenges fordi hun/han har en annen vakt i perioden.',
+    'staffing.replacementFor': 'Erstatter for {name}',
+    'staffing.replacementSlot': 'Erstatterbehov',
+    'staffing.previousReplacement': 'Forrige erstatter',
     'sick.event.sick_leave_deleted': 'Sykefravær slettet',
+    'invoiceReport.title': 'Fakturagrunnlag',
+    'invoiceReport.draft': 'Utkast',
+    'invoiceReport.final': 'Ferdigstilt',
+    'invoiceReport.draftId': 'UTKAST',
+    'invoiceReport.allDepartments': 'Alle avdelinger',
+    'invoiceReport.quantity': 'Antall',
+    'invoiceReport.payrollCost': 'Lønnskostnad',
+    'invoiceReport.invoicePrice': 'Fakturapris',
+    'invoiceReport.startAt': 'Startdato-tid',
+    'invoiceReport.endAt': 'Sluttdato-tid',
+    'invoiceReport.remark': 'Merknad',
+    'invoiceReport.ordinary': 'Ordinær',
+    'invoiceReport.clientShare': 'Kundeandel',
+    'invoiceReport.notBilled': 'Ikke fakturert',
+    'invoiceReport.replacementFor': 'Erstatter for {name}',
+    'invoiceReport.replacementForLabel': 'Erstatter for',
+    'invoiceReport.approvedShifts': 'Godkjente vakter',
+    'invoiceReport.workedHours': 'Arbeidstimer',
+    'invoiceReport.exportCsv': 'Eksporter CSV',
+    'invoiceReport.exportPdf': 'Eksporter PDF',
+    'invoiceReport.finalize': 'Ferdigstill fakturagrunnlag',
+    'invoiceReport.finalized': 'Ferdigstilte fakturagrunnlag',
+    'invoiceReport.finalizedToast': 'Fakturagrunnlaget {id} er ferdigstilt',
+    'invoiceReport.blockedToast': '{count} avvik må løses før ferdigstilling',
+    'invoiceReport.emptyToast': 'Ingen fakturalinjer i valgt periode',
+    'invoiceReport.csvReady': 'CSV-eksporten er klar',
+    'invoiceReport.net': 'Netto fakturapris',
+    'invoiceReport.reportId': 'Rapport-ID',
+    'invoiceReport.backToDraft': 'Tilbake til utkast',
+    'invoiceReport.sickSection': 'Sykefravær / erstatter',
+    'invoiceReport.lineDetail': 'Fakturalinje',
     'sick.markInvalid': 'Marker som ugyldig',
     'sick.legacyPending': 'Eldre registrering',
     'sick.event.sick_leave_validated': 'Gyldighet satt',
@@ -4474,7 +4512,8 @@ copy.en = {
   'sick.doc.rejectedHelp': 'Medical certificate rejected - coverage must be assessed. No automatic coverage or fallback.',
   'sick.coverageLabel': 'Coverage', 'sick.coveredDays': '{count} days', 'sick.coverageNotApproved': 'Not approved', 'sick.coverageRejected': 'Medical certificate rejected - coverage must be assessed',
   'sick.correction': 'Correction',
-  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.deleteAction': 'Delete sick leave', 'sick.deleteConfirmBody': 'The sick leave {period} is deleted and no longer affects staffing, coverage, payroll or invoicing. The history is kept.', 'sick.deleteReplacementWarning': 'A replacement is already assigned ({names}). The replacement is kept - review the staffing manually after deleting.', 'sick.deleteLocked': 'Cannot be deleted directly after approval. Use a correction.', 'sick.deleted': 'The sick leave was deleted', 'sick.deletedTag': 'Deleted', 'sick.extendReplacement': 'Extend {name}', 'sick.event.sick_leave_deleted': 'Sick leave deleted', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
+  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.deleteAction': 'Delete sick leave', 'sick.deleteConfirmBody': 'The sick leave {period} is deleted and no longer affects staffing, coverage, payroll or invoicing. The history is kept.', 'sick.deleteReplacementWarning': 'A replacement is already assigned ({names}). The replacement is kept - review the staffing manually after deleting.', 'sick.deleteLocked': 'Cannot be deleted directly after approval. Use a correction.', 'sick.deleted': 'The sick leave was deleted', 'sick.deletedTag': 'Deleted', 'sick.extendReplacement': 'Extend {name}', 'sick.extendBlocked': '{name} cannot be extended because of another shift in this period.', 'staffing.replacementFor': 'Replacement for {name}', 'staffing.replacementSlot': 'Replacement need', 'staffing.previousReplacement': 'Previous replacement', 'sick.event.sick_leave_deleted': 'Sick leave deleted',
+  'invoiceReport.title': 'Invoice basis', 'invoiceReport.draft': 'Draft', 'invoiceReport.final': 'Finalized', 'invoiceReport.draftId': 'DRAFT', 'invoiceReport.allDepartments': 'All departments', 'invoiceReport.quantity': 'Quantity', 'invoiceReport.payrollCost': 'Payroll cost', 'invoiceReport.invoicePrice': 'Invoice price', 'invoiceReport.startAt': 'Start date-time', 'invoiceReport.endAt': 'End date-time', 'invoiceReport.remark': 'Remark', 'invoiceReport.ordinary': 'Ordinary', 'invoiceReport.clientShare': 'Client share', 'invoiceReport.notBilled': 'Not billed', 'invoiceReport.replacementFor': 'Replacement for {name}', 'invoiceReport.replacementForLabel': 'Replacement for', 'invoiceReport.approvedShifts': 'Approved shifts', 'invoiceReport.workedHours': 'Worked hours', 'invoiceReport.exportCsv': 'Export CSV', 'invoiceReport.exportPdf': 'Export PDF', 'invoiceReport.finalize': 'Finalize invoice basis', 'invoiceReport.finalized': 'Finalized invoice bases', 'invoiceReport.finalizedToast': 'Invoice basis {id} was finalized', 'invoiceReport.blockedToast': '{count} deviations must be resolved before finalizing', 'invoiceReport.emptyToast': 'No invoice lines in the selected period', 'invoiceReport.csvReady': 'The CSV export is ready', 'invoiceReport.net': 'Net invoice amount', 'invoiceReport.reportId': 'Report ID', 'invoiceReport.backToDraft': 'Back to draft', 'invoiceReport.sickSection': 'Sick leave / replacement', 'invoiceReport.lineDetail': 'Invoice line', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
   'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
   'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
   'sick.medleverReview': 'Live-in sick leave requires manual review of the basis',
@@ -9372,7 +9411,9 @@ function renderJobDetail() {
         slotActions = `<button type="button" class="button small" data-action="confirm-slot-assignment" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.confirmAssignment')}</button><button type="button" class="button ghost small danger" data-action="withdraw-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.withdraw')}</button>`
       }
       if (slot.status === 'assigned' && employee) {
-        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button><button type="button" class="button ghost small" data-action="open-sick-leave" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}">${t('sick.register')}</button>`
+        // «Fjern fra vakt» er en synlig førstehåndshandling på plassen -
+        // aldri gjemt bak forespørselsflyten.
+        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button><button type="button" class="button ghost small" data-action="open-sick-leave" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}">${t('sick.register')}</button><button type="button" class="button ghost small danger" data-action="remove-worker" data-id="${assignment.id}" data-employee-id="${employee.id}" data-slot-id="${slot.id}">${t('staffing.removeFromAssignment')}</button>`
       }
       // Delvis sykefravær: originalplassen er fortsatt PLANLAGT utenfor
       // segmentene - den lister segmentene med eventuell erstatter, og
@@ -9390,10 +9431,16 @@ function renderJobDetail() {
       if (slot.coverageFrom && slot.status === 'open') {
         detail = `${detail ? `${detail} · ` : ''}${t('sick.replacementFrom')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))} → ${escapeHtml(String(slot.coverageTo ?? '').replace('T', ' kl. '))}`
         // Kant-i-kant-forlengelse: forrige erstatter kan fortsette sømløst.
-        const previous = staffingSlotsFor(assignment).find(entry => entry.employeeId && entry.coverageTo && entry.coverageTo === slot.coverageFrom && String(entry.replacementForSlotId) === String(slot.replacementForSlotId))
+        // Kanonisk «forrige erstatter»: samme originalplass + kant-i-kant i
+        // tid. SickLeave-id-ene kan være FORSKJELLIGE - neste døgn er gjerne
+        // et nytt fraværsrecord.
+        const previous = staffingSlotsFor(assignment).find(entry => entry.employeeId && entry.status !== 'cancelled' && entry.coverageTo && entry.coverageTo === slot.coverageFrom && String(entry.replacementForSlotId) === String(slot.replacementForSlotId))
         if (previous) {
           const candidate = record('employees', previous.employeeId)
-          if (candidate) slotActions = `<button type="button" class="button small" data-action="extend-replacement" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${candidate.id}">${t('sick.extendReplacement', { name: candidate.name })}</button>${slotActions}`
+          if (candidate) {
+            detail += `<div class="muted" style="font-size:11px">${t('staffing.previousReplacement')}: ${escapeHtml(candidate.name)}</div>`
+            slotActions = `<button type="button" class="button small" data-action="extend-replacement" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${candidate.id}">${t('sick.extendReplacement', { name: candidate.name })}</button>${slotActions}`
+          }
         }
       }
     }
@@ -9408,7 +9455,15 @@ function renderJobDetail() {
       ? `<button type="button" class="button ghost small" data-action="open-slot-function" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('functions.changeAction')}</button>`
       : ''
     const certificateTag = employee ? policeCertificateMarkup(employee) : ''
-    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}</strong><span>${detail}</span>${certificateTag ? `<span>${certificateTag}</span>` : ''}</div><div class="modal-actions">${sickTag}${functionTag}<span class="tag ${tone}">${t(statusKey)}</span>${slotActions}${functionAction}</div></div>`
+    // Erstatterplasser presenteres med full kontekst - aldri bare «Plass N».
+    const replacementContext = (() => {
+      if (!slot.coverageFrom) return ''
+      const originalSlot = staffingSlotsFor(assignment).find(entry => String(entry.id) === String(slot.replacementForSlotId))
+      const sickRecord = slot.replacementForSickLeaveId ? sickLeaveById(slot.replacementForSickLeaveId) : null
+      const originalName = record('employees', originalSlot?.employeeId ?? sickRecord?.employeeId)?.name ?? ''
+      return originalName ? ` · ${t('staffing.replacementFor', { name: originalName })}` : ` · ${t('staffing.replacementSlot')}`
+    })()
+    return `<div class="file-row"><div class="file-name"><strong>${t('staffing.slotLabel', { number: index + 1 })}${replacementContext}</strong><span>${detail}</span>${certificateTag ? `<span>${certificateTag}</span>` : ''}</div><div class="modal-actions">${sickTag}${functionTag}<span class="tag ${tone}">${t(statusKey)}</span>${slotActions}${functionAction}</div></div>`
   }).join('')
   const counter = `<article class="card"><h2>${t('staffing.slots')}</h2><dl class="detail-list"><div><dt>${t('staffing.assigned')}</dt><dd>${t('staffing.assignedOf', { assigned, total: assignment.slots })}</dd></div><div><dt>${t('staffing.open')}</dt><dd>${openPositions}</dd></div></dl>${assigned ? '' : `<p class="field-help">${t('staffing.payAfterAssignment')}</p>`}${slotRows}</article>`
   return `<section class="page">${assignment.status === 'cancelled' ? `<div class="banner warning">${icon('bell')}<span><strong>${t('staffing.cancelled')}</strong> · ${t(`staffing.cancelReason.${assignment.cancelReason}`)}${assignment.cancelComment ? ` · ${escapeHtml(assignment.cancelComment)}` : ''}</span></div>` : ''}${pageHeading('staffing.detail', 'page.staffing.desc', actions)}<div class="grid cols-3">${basicsCard}${requirementsCard}${counter}</div>${liveInPlanCard(assignment)}${assignedEmployeesCard(assignment)}${openPositions || !assigned ? availableEmployeesCard(assignment) : ''}${seriesCard(assignment)}${requestHistoryCard(assignment)}${assignmentHistoryCard(assignment)}</section>`
@@ -10435,8 +10490,15 @@ function employeeMatchForSlot(employee, assignment, slot, evidence) {
   const busy = employeeBusyDuring(employee.id, assignment)
   if (overlap || busy) blockers.push('match.overlap')
   else facts.push('match.noOverlap')
-  // Allerede aktiv på en annen plass på SAMME vakt (§9).
-  if (staffingSlotsFor(assignment).some(item => String(item.id) !== String(slot.id) && item.employeeId === employee.id && item.status !== 'cancelled')) {
+  // Allerede aktiv på en annen plass på SAMME vakt (§9) - men KUN når
+  // plassenes tidsvinduer faktisk overlapper: en erstatter på 14->15 er
+  // fullt gyldig kandidat for kant-i-kant-behovet 15->16 på samme vakt.
+  const targetWindow = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
+  if (staffingSlotsFor(assignment).some(item => {
+    if (String(item.id) === String(slot.id) || item.employeeId !== employee.id || item.status === 'cancelled') return false
+    const itemWindow = slotCoverageWindowIso(assignment, item) ?? assignmentTimeWindowIso(assignment)
+    return !targetWindow || !itemWindow || (itemWindow.from < targetWindow.to && targetWindow.from < itemWindow.to)
+  })) {
     blockers.push('match.sameShift')
   }
   const sickLeaves = sickLeavesOverlappingShift(employee.id, assignment, slot)
@@ -12147,6 +12209,206 @@ function timesheetInvoiceBasis(period = null) {
   return { lines, priceBlocked, payBlocked: work.blocked, pending: work.pending, totals }
 }
 
+
+// === Fakturagrunnlag V2: kontrollvisning + eksport ===
+// ALT her er PRESENTASJON av det kanoniske grunnlaget fra
+// timesheetInvoiceBasis()/timesheetPayrollBasis() - ingen egen økonomimotor.
+
+function invoiceReportsCollection() {
+  db.invoiceReports = db.invoiceReports ?? []
+  return db.invoiceReports
+}
+
+// Menneskevennlig antall + maskinvennlige råverdier (quantity/unit/paidMinutes).
+function invoiceLineQuantity(line) {
+  if (line.liveIn) {
+    const days = line.liveIn.segments?.length || 1
+    const paidMinutes = Number(line.liveIn.totalPaidMinutes) || Math.round((Number(line.hours) || 0) * 60)
+    return { quantity: days, unit: 'day', paidMinutes, label: `${days} ${t('medlever.daysShort')}` }
+  }
+  const paidMinutes = Math.round((Number(line.hours) || 0) * 60)
+  return { quantity: round2(line.hours), unit: 'hour', paidMinutes, label: formatHoursMinutes(paidMinutes) }
+}
+
+// Én presentasjonsrad per kanonisk fakturalinje. Sporbarheten består:
+// worked_time og sick_leave_compensation slås ALDRI sammen.
+function invoiceReportRow(line, billed) {
+  const assignment = line.assignment ?? null
+  const slot = assignment ? staffingSlotsFor(assignment).find(entry => String(entry.id) === String(line.slotId)) : null
+  // Erstatter: plassen dekker et sykefraværssegment - vis hvem den erstatter.
+  let replacementFor = null
+  if (slot?.coverageFrom) {
+    const originalSlot = staffingSlotsFor(assignment).find(entry => String(entry.id) === String(slot.replacementForSlotId))
+    const sickRecord = slot.replacementForSickLeaveId ? sickLeaveById(slot.replacementForSickLeaveId) : null
+    replacementFor = record('employees', originalSlot?.employeeId ?? sickRecord?.employeeId) ?? null
+  }
+  const sick = line.sourceType === 'sick_leave_compensation'
+  const quantity = sick
+    ? { quantity: round2(line.hours), unit: 'hour', paidMinutes: Math.round((Number(line.hours) || 0) * 60), label: formatHoursMinutes(Math.round((Number(line.hours) || 0) * 60)) }
+    : invoiceLineQuantity(line)
+  const startAt = sick ? `${line.sickTrace?.period?.split('–')[0] ?? line.date}T00:00` : `${line.date}T${line.actualStart ?? line.plannedStart ?? ''}`
+  const endAt = sick
+    ? `${line.sickTrace?.period?.split('–')[1] ?? line.date}T00:00`
+    : (assignment?.liveInSnapshot || line.endNextDay) && assignment
+      ? (shiftEndTimestamp(assignment) ?? `${line.date}T${line.actualEnd ?? ''}`)
+      : `${line.date}T${line.actualEnd ?? line.plannedEnd ?? ''}`
+  const clientShare = sick ? Number(line.sickTrace?.clientCoveragePercent) || 0 : null
+  return {
+    lineType: sick ? 'sick_leave_compensation' : 'worked_time',
+    billed,
+    reportRowId: `${line.sourceType}-${line.timesheetId ?? line.sickLeaveId ?? ''}-${line.slotId ?? ''}`,
+    clientId: line.client?.id ?? line.clientId ?? null,
+    clientName: line.client?.name ?? '',
+    departmentId: line.department?.id ?? null,
+    departmentNumber: line.department?.departmentNumber ?? '',
+    departmentName: line.department ? label(line.department.name) : '',
+    shiftId: assignment?.id ?? null,
+    shiftName: assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : t('shifts.unnamed'),
+    employeeId: line.employee?.id ?? line.employeeId ?? null,
+    employeeName: line.employee?.name ?? '',
+    replacementForEmployeeId: replacementFor?.id ?? null,
+    replacementForEmployeeName: replacementFor?.name ?? '',
+    startAt, endAt,
+    quantity: quantity.quantity, unit: quantity.unit, paidMinutes: quantity.paidMinutes, quantityLabel: quantity.label,
+    ordinaryAmount: round2(line.ordinaryAmount), premiumAmount: round2(line.premiumAmount), overtimeAmount: round2(line.overtimeAmount),
+    payrollCost: round2(line.total),
+    sickClientSharePercent: clientShare,
+    sickClientShareAmount: sick ? round2(line.sickTrace?.clientShareAmount ?? 0) : null,
+    markupPercent: billed ? round2((line.commissionRate ?? 0) * 100) : 0,
+    markupAmount: billed ? round2(line.commission) : 0,
+    netAmount: billed ? round2(line.net) : 0,
+    vatPercent: billed ? round2((line.vatRate ?? 0) * 100) : 0,
+    vatAmount: billed ? round2(line.vat) : 0,
+    totalAmount: billed ? round2(line.gross) : 0,
+    status: sick
+      ? (billed ? { key: 'invoiceReport.status.sick', share: clientShare } : { key: 'invoiceReport.status.notBilled', share: clientShare })
+      : replacementFor
+        ? { key: 'invoiceReport.status.replacement', name: replacementFor.name }
+        : { key: 'invoiceReport.status.ordinary' }
+  }
+}
+
+function invoiceReportStatusLabel(row) {
+  if (row.status.key === 'invoiceReport.status.sick') return `${t('sick.title')} · ${t('invoiceReport.clientShare')} ${formatPercent(row.status.share, 0)}`
+  if (row.status.key === 'invoiceReport.status.notBilled') return `${t('sick.title')} · ${t('invoiceReport.notBilled')}`
+  if (row.status.key === 'invoiceReport.status.replacement') return t('invoiceReport.replacementFor', { name: row.status.name })
+  return t('invoiceReport.ordinary')
+}
+
+// Live-grunnlaget for valgt virksomhet/avdeling/periode. Ikke-fakturert
+// sykefravær (kundeandel 0 %/uavklart) vises for INTERN sporbarhet, men
+// inngår aldri i fakturatotalen.
+function buildInvoiceReport(form = state.invoiceReportForm) {
+  const period = { startDate: form.fromDate, endDate: form.toDate }
+  const matches = line => (!form.clientId || String(line.client?.id ?? line.clientId) === String(form.clientId))
+    && (!form.departmentId || String(line.department?.id ?? '') === String(form.departmentId))
+  const basis = timesheetInvoiceBasis(period)
+  const rows = basis.lines.filter(matches).map(line => invoiceReportRow(line, true))
+  // Interne 0 %-sykelinjer: fra samme kanoniske lønnsgrunnlag - aldri ny beregning.
+  const unbilledSick = timesheetPayrollBasis(period).lines
+    .filter(line => line.sourceType === 'sick_leave_compensation' && !(Number(line.sickTrace?.clientCoveragePercent) > 0) && matches(line))
+    .map(line => invoiceReportRow(line, false))
+  const all = [...rows, ...unbilledSick].sort((a, b) => a.startAt.localeCompare(b.startAt))
+  const billedRows = all.filter(row => row.billed)
+  const totals = billedRows.reduce((sum, row) => ({
+    payrollCost: round2(sum.payrollCost + row.payrollCost),
+    premiumAmount: round2(sum.premiumAmount + row.premiumAmount),
+    markupAmount: round2(sum.markupAmount + row.markupAmount),
+    netAmount: round2(sum.netAmount + row.netAmount),
+    vatAmount: round2(sum.vatAmount + row.vatAmount),
+    totalAmount: round2(sum.totalAmount + row.totalAmount)
+  }), { payrollCost: 0, premiumAmount: 0, markupAmount: 0, netAmount: 0, vatAmount: 0, totalAmount: 0 })
+  const worked = billedRows.filter(row => row.lineType === 'worked_time')
+  const summary = {
+    approvedShifts: new Set(worked.map(row => String(row.shiftId))).size,
+    workedMinutes: worked.reduce((sum, row) => sum + row.paidMinutes, 0)
+  }
+  const client = record('clients', form.clientId)
+  const department = form.departmentId ? record('departments', form.departmentId) : null
+  // Avvik og ventende timelister teller KUN innenfor rapportens egen
+  // virksomhet og periode - urelaterte avvik blokkerer aldri ferdigstilling.
+  const inScope = item => {
+    const assignment = record('assignments', item.assignmentId) ?? item.assignment ?? null
+    const date = item.date ?? item.plannedDate ?? assignment?.date ?? ''
+    if (form.clientId && String(assignment?.clientId ?? item.client?.id ?? '') !== String(form.clientId)) return false
+    if (form.departmentId && String(assignment?.departmentId ?? '') !== String(form.departmentId)) return false
+    return date >= form.fromDate && date <= form.toDate
+  }
+  return {
+    status: 'draft',
+    reportId: t('invoiceReport.draftId'),
+    meta: { clientId: form.clientId, clientName: client?.name ?? '', departmentId: form.departmentId || null, departmentName: department ? label(department.name) : t('invoiceReport.allDepartments'), fromDate: form.fromDate, toDate: form.toDate },
+    rows: all, totals, summary,
+    blocked: basis.payBlocked.filter(inScope).length + basis.priceBlocked.filter(inScope).length,
+    pending: basis.pending.filter(inScope).length
+  }
+}
+
+// Ferdigstilt rapport leses ALLTID fra sitt fryste snapshot - senere
+// endringer i lønnssystem/ansatte/markup rører aldri historikken.
+function invoiceReportView(report) {
+  if (report.status === 'final') return { ...JSON.parse(JSON.stringify(report.snapshot)), status: 'final', reportId: report.reportId }
+  return report
+}
+
+// CSV: maskinvennlig, semikolon, én rad per kanonisk linje, råverdier.
+function invoiceReportCsv(view) {
+  const headers = ['ReportId', 'PeriodFrom', 'PeriodTo', 'ClientId', 'ClientName', 'DepartmentId', 'DepartmentNumber', 'DepartmentName', 'ShiftId', 'ShiftName', 'LineType', 'EmployeeId', 'EmployeeName', 'ReplacementForEmployeeId', 'ReplacementForEmployeeName', 'StartDateTime', 'EndDateTime', 'Quantity', 'Unit', 'PaidMinutes', 'OrdinaryAmount', 'PremiumAmount', 'OvertimeAmount', 'PayrollCost', 'SickLeaveType', 'SickClientSharePercent', 'SickClientShareAmount', 'MarkupPercent', 'MarkupAmount', 'NetAmount', 'VatPercent', 'VatAmount', 'TotalAmount', 'Status']
+  const cell = value => {
+    const text = value === null || value === undefined ? '' : String(value)
+    return /[;"\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+  const lines = view.rows.map(row => [
+    view.reportId, view.meta.fromDate, view.meta.toDate, view.meta.clientId, view.meta.clientName,
+    row.departmentId, row.departmentNumber, row.departmentName, row.shiftId, row.shiftName, row.lineType,
+    row.employeeId, row.employeeName, row.replacementForEmployeeId, row.replacementForEmployeeName,
+    row.startAt, row.endAt, row.quantity, row.unit, row.paidMinutes,
+    row.ordinaryAmount, row.premiumAmount, row.overtimeAmount, row.payrollCost,
+    row.lineType === 'sick_leave_compensation' ? 'sick_leave_compensation' : '',
+    row.sickClientSharePercent ?? '', row.sickClientShareAmount ?? '',
+    row.markupPercent, row.markupAmount, row.netAmount, row.vatPercent, row.vatAmount, row.totalAmount,
+    invoiceReportStatusLabel(row)
+  ].map(cell).join(';'))
+  return ['\ufeff' + headers.join(';'), ...lines].join('\n')
+}
+
+// PDF: enkel kunde-/økonomirapport etter mockup-stilen - aldri interne
+// resolver-/snapshot-detaljer. Genereres fra samme view (live eller snapshot).
+function invoiceReportPrintDocument(view) {
+  const stamp = iso => iso && iso.includes('T') ? `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}` : formatDate(iso)
+  const header = `<tr>${['jobs.employee', 'shifts.name', 'invoiceReport.quantity', 'invoiceReport.payrollCost', 'premiumDisplay.total', 'staffing.markup', 'invoiceReport.invoicePrice', 'invoiceReport.startAt', 'invoiceReport.endAt', 'invoiceReport.remark'].map(key => `<th>${escapeHtml(t(key))}</th>`).join('')}</tr>`
+  const rows = view.rows.map(row => `<tr><td>${escapeHtml(row.employeeName)}</td><td>${escapeHtml(row.shiftName)}</td><td>${escapeHtml(row.quantityLabel)}</td><td class="p-num">${formatMoney(row.payrollCost)}</td><td class="p-num">${formatMoney(row.premiumAmount)}</td><td class="p-num">${formatMoney(row.markupAmount)}</td><td class="p-num">${formatMoney(row.netAmount)}</td><td>${stamp(row.startAt)}</td><td>${stamp(row.endAt)}</td><td>${escapeHtml(invoiceReportStatusLabel(row))}</td></tr>`).join('')
+  const totalRow = `<tr class="p-total"><td colspan="3">${escapeHtml(t('comp.invoicing.total'))}</td><td class="p-num">${formatMoney(view.totals.payrollCost)}</td><td class="p-num">${formatMoney(view.totals.premiumAmount)}</td><td class="p-num">${formatMoney(view.totals.markupAmount)}</td><td class="p-num">${formatMoney(view.totals.netAmount)}</td><td colspan="3"></td></tr>`
+  const sickNotes = view.rows.filter(row => row.lineType === 'sick_leave_compensation').map(row => `<p>${escapeHtml(row.employeeName)}: ${escapeHtml(invoiceReportStatusLabel(row))}${row.billed ? ` · ${formatMoney(row.sickClientShareAmount ?? 0)}` : ''}</p>`).join('')
+  const summaryBox = `<table class="p-summary"><tbody><tr><td>${escapeHtml(t('invoiceReport.title'))}</td><td class="p-num">${formatMoney(view.totals.netAmount)}</td></tr><tr><td>${escapeHtml(t('staffing.vat'))}</td><td class="p-num">${formatMoney(view.totals.vatAmount)}</td></tr><tr class="p-total"><td>${escapeHtml(t('staffing.totalInclVat'))}</td><td class="p-num">${formatMoney(view.totals.totalAmount)}</td></tr></tbody></table>`
+  const css = `
+    @page { size: A4 landscape; margin: 10mm }
+    * { box-sizing: border-box; font-family: 'Helvetica Neue', Arial, sans-serif }
+    body { margin: 0; color: #111827; font-size: 9px }
+    h1 { font-size: 14px; text-align: center; margin: 0 0 2px }
+    .p-head p { text-align: center; margin: 1px 0; color: #374151 }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px }
+    th, td { border: 0.5px solid #9ca3af; padding: 3px 4px; text-align: left; vertical-align: top }
+    thead th { background: #eef2ff; font-size: 8.5px }
+    thead { display: table-header-group }
+    tr { page-break-inside: avoid }
+    .p-num { text-align: right; white-space: nowrap }
+    .p-total td { font-weight: 700; background: #f3f4f6 }
+    .p-notes { margin-top: 8px; border: 0.5px solid #a7f3d0; background: #ecfdf5; padding: 4px 6px }
+    .p-notes p { margin: 2px 0 }
+    .p-summary { width: 40%; margin-left: auto }
+    .p-draft { color: #b45309; font-weight: 700 }`
+  const statusLabel = view.status === 'final' ? t('invoiceReport.final') : `<span class="p-draft">${t('invoiceReport.draft').toUpperCase()}</span>`
+  const heading = `<header class="p-head"><h1>${escapeHtml(view.meta.clientName)} – ${escapeHtml(view.meta.departmentName)} – ${escapeHtml(t('invoiceReport.title'))}</h1><p>${escapeHtml(t('sick.period'))}: ${formatDate(view.meta.fromDate)}–${formatDate(view.meta.toDate)} · ${escapeHtml(t('invoiceReport.reportId'))}: ${escapeHtml(view.reportId)} · ${escapeHtml(t('common.status'))}: ${statusLabel} · ${escapeHtml(t('shiftPlan.exportedAt'))}: ${formatDate(todayIso())}</p></header>`
+  const notes = sickNotes ? `<div class="p-notes"><strong>${escapeHtml(t('invoiceReport.sickSection'))}</strong>${sickNotes}</div>` : ''
+  const docTag = (name, attrs, content) => ['<', name, attrs, '>', content, '</', name, '>'].join('')
+  const fileName = `fakturagrunnlag-${view.reportId.toLowerCase().replace(/[^a-z0-9-]+/g, '-')}.pdf`
+  const headPart = docTag('head', '', `<meta charset="utf-8"><title>${escapeHtml(fileName.replace(/\.pdf$/, ''))}</title><style>${css}</style>`)
+  const bodyPart = docTag('body', '', `${heading}<table><thead>${header}</thead><tbody>${rows}${totalRow}</tbody></table>${notes}${summaryBox}`)
+  const html = ['<', '!DOCTYPE html>'].join('') + docTag('html', ` lang="${state.locale}"`, headPart + bodyPart)
+  return { fileName, html }
+}
+
 // Seksjonen på Fakturagrunnlag-siden (§28-§31).
 function timesheetInvoiceSection() {
   const basis = timesheetInvoiceBasis()
@@ -12295,6 +12557,41 @@ function shiftReportTable(report) {
   return `<div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
 }
 
+// Fakturagrunnlag V2: filterkort, sammendrag, hovedtabell, eksport og
+// ferdigstilling - alt en presentasjon av det kanoniske grunnlaget.
+function invoiceReportSection() {
+  const form = state.invoiceReportForm
+  const openedFinal = state.invoiceReportView ? invoiceReportsCollection().find(item => String(item.id) === String(state.invoiceReportView)) : null
+  const view = openedFinal ? invoiceReportView(openedFinal) : buildInvoiceReport(form)
+  const clientChoices = collection('clients').map(item => `<option value="${item.id}"${String(form.clientId) === String(item.id) ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
+  const departmentChoices = collection('departments').filter(item => String(item.clientId) === String(form.clientId)).map(item => `<option value="${item.id}"${String(form.departmentId) === String(item.id) ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
+  const filters = `<article class="card"><div class="card-header"><h2>${t('invoiceReport.title')}</h2><span class="tag ${view.status === 'final' ? 'success' : 'info'}">${t(view.status === 'final' ? 'invoiceReport.final' : 'invoiceReport.draft')}</span></div><div class="grid cols-2">
+    <div class="field"><label>${t('rel.client')} *</label><select data-invoice-filter="clientId">${clientChoices}</select></div>
+    <div class="field"><label>${t('rel.department')}</label><select data-invoice-filter="departmentId"><option value=""${form.departmentId ? '' : ' selected'}>${t('invoiceReport.allDepartments')}</option>${departmentChoices}</select></div>
+    <div class="field"><label>${t('sick.from')} *</label><input type="date" data-invoice-filter="fromDate" value="${escapeHtml(form.fromDate)}"></div>
+    <div class="field"><label>${t('sick.to')} *</label><input type="date" data-invoice-filter="toDate" value="${escapeHtml(form.toDate)}"></div>
+  </div><div class="form-actions" style="margin-top:8px">${openedFinal ? `<button type="button" class="button secondary small" data-action="close-invoice-report-view">${t('invoiceReport.backToDraft')}</button>` : ''}<button type="button" class="button secondary small" data-action="export-invoice-report-csv"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}>${t('invoiceReport.exportCsv')}</button><button type="button" class="button secondary small" data-action="export-invoice-report-pdf"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}>${t('invoiceReport.exportPdf')}</button>${openedFinal ? '' : `<button type="button" class="button small" data-action="finalize-invoice-report">${t('invoiceReport.finalize')}</button>`}</div>${view.reportId && view.status === 'final' ? `<p class="field-help">${t('invoiceReport.reportId')}: <strong>${escapeHtml(view.reportId)}</strong></p>` : ''}</article>`
+  const cards = [
+    [t('invoiceReport.approvedShifts'), String(view.summary.approvedShifts)],
+    [t('invoiceReport.workedHours'), formatHoursMinutes(view.summary.workedMinutes)],
+    [t('invoiceReport.payrollCost'), formatMoney(view.totals.payrollCost)],
+    [t('staffing.markup'), formatMoney(view.totals.markupAmount)],
+    [t('invoiceReport.net'), formatMoney(view.totals.netAmount)],
+    [t('staffing.vat'), formatMoney(view.totals.vatAmount)],
+    [t('staffing.totalInclVat'), formatMoney(view.totals.totalAmount)]
+  ]
+  const summaryCards = `<div class="stats-grid" style="margin-top:16px">${cards.map(([labelText, value]) => `<article class="stat-card"><span class="stat-label">${labelText}</span><strong class="stat-value">${value}</strong></article>`).join('')}</div>`
+  const stamp = iso => iso && iso.includes('T') ? `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}` : ''
+  const rows = view.rows.map((row, index) => `<tr class="${row.billed ? '' : 'muted'}"><td><button class="row-link" data-action="open-invoice-line" data-index="${index}"${openedFinal ? ` data-report-id="${openedFinal.id}"` : ''}>${escapeHtml(row.employeeName)}</button></td><td>${escapeHtml(row.shiftName)}</td><td>${escapeHtml(row.quantityLabel)}</td><td>${formatMoney(row.payrollCost)}</td><td>${formatMoney(row.premiumAmount)}</td><td>${formatMoney(row.markupAmount)}</td><td>${formatMoney(row.netAmount)}</td><td>${stamp(row.startAt)}</td><td>${stamp(row.endAt)}</td><td>${escapeHtml(invoiceReportStatusLabel(row))}</td></tr>`)
+  const totalRow = `<tr class="row-total"><td colspan="3"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatMoney(view.totals.payrollCost)}</strong></td><td>${formatMoney(view.totals.premiumAmount)}</td><td>${formatMoney(view.totals.markupAmount)}</td><td><strong>${formatMoney(view.totals.netAmount)}</strong></td><td colspan="3"></td></tr>`
+  const table = `<article class="card" style="margin-top:16px"><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'shifts.name', 'invoiceReport.quantity', 'invoiceReport.payrollCost', 'premiumDisplay.total', 'staffing.markup', 'invoiceReport.invoicePrice', 'invoiceReport.startAt', 'invoiceReport.endAt', 'invoiceReport.remark'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}${totalRow}</tbody></table></div>${view.rows.length ? '' : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  const finals = invoiceReportsCollection().filter(item => String(item.snapshot?.meta?.clientId ?? '') === String(form.clientId))
+  const finalList = finals.length
+    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('invoiceReport.finalized')}</h3><span class="tag info">${finals.length}</span></div>${finals.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(item.reportId)}</strong><span>${formatDate(item.snapshot.meta.fromDate)}–${formatDate(item.snapshot.meta.toDate)} · ${escapeHtml(item.snapshot.meta.departmentName)} · ${formatMoney(item.snapshot.totals.netAmount)}</span></div><div class="modal-actions"><button class="button ghost small" data-action="open-invoice-report" data-id="${item.id}">${t('common.view')}</button></div></div>`).join('')}</article>`
+    : ''
+  return `${filters}${summaryCards}${table}${finalList}`
+}
+
 function renderInvoicing() {
   const report = economyReport(state.reportForm)
   const client = report.client
@@ -12311,7 +12608,7 @@ function renderInvoicing() {
   const table = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${detailed ? t('comp.invoicing.shiftList') : t('comp.invoicing.perDepartment')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-invoicing-detail"${detailed ? ' checked' : ''}><span>${t('comp.invoicing.showShifts')}</span></label></div>${detailed ? shiftReportTable(report) : departmentReportTable(report)}</article>`
   // Rapporten under fakturagrunnlaget er historisk (§30-§31).
   const legacyLabel = `<div class="banner info">${icon('file')}<span><strong>${t('financial.legacyReport')}</strong> · ${t('financial.legacyReportHelp')}</span></div>`
-  return `<section class="page">${timesheetInvoiceSection()}${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc', button('comp.invoicing.exportCsv', 'export-report', 'secondary', 'file'))}${legacyLabel}${setup}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
+  return `<section class="page">${invoiceReportSection()}${timesheetInvoiceSection()}${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc', button('comp.invoicing.exportCsv', 'export-report', 'secondary', 'file'))}${legacyLabel}${setup}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}</section>`
 }
 
 // === Lønnsgrunnlag ===
@@ -14914,6 +15211,37 @@ function confirmSickDeleteDialog() {
   return modalShell(t('sick.deleteAction'), escapeHtml(record('employees', item.employeeId)?.name ?? ''), 'trash', body, footer)
 }
 
+// Intern drill-down for én fakturalinje: full sporbarhet - aldri i eksporten.
+function invoiceLineDetailDialog() {
+  const row = state.invoiceLineDetail
+  if (!row) return ''
+  const stamp = iso => iso && iso.includes('T') ? `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}` : ''
+  const rowsOf = pairs => pairs.filter(([, value]) => value !== null && value !== undefined && value !== '').map(([labelKey, value]) => `<div><dt>${t(labelKey)}</dt><dd>${value}</dd></div>`).join('')
+  const body = `<dl class="detail-list">${rowsOf([
+    ['staffing.assignmentId', row.shiftId ? escapeHtml(String(row.shiftId)) : ''],
+    ['shifts.name', escapeHtml(row.shiftName)],
+    ['rel.client', escapeHtml(row.clientName)],
+    ['rel.department', escapeHtml(row.departmentName)],
+    ['jobs.employee', escapeHtml(row.employeeName)],
+    ['invoiceReport.replacementForLabel', row.replacementForEmployeeName ? escapeHtml(row.replacementForEmployeeName) : ''],
+    ['invoiceReport.startAt', stamp(row.startAt)],
+    ['invoiceReport.endAt', stamp(row.endAt)],
+    ['staffing.paidTime', escapeHtml(row.quantityLabel)],
+    ['comp.payroll.basePay', formatMoney(row.ordinaryAmount)],
+    ['premiumDisplay.total', formatMoney(row.premiumAmount)],
+    ['comp.payroll.overtime', formatMoney(row.overtimeAmount)],
+    ['invoiceReport.payrollCost', formatMoney(row.payrollCost)],
+    ['invoiceReport.clientShare', row.sickClientSharePercent !== null && row.sickClientSharePercent !== undefined ? `${formatPercent(row.sickClientSharePercent, 0)} · ${formatMoney(row.sickClientShareAmount ?? 0)}` : ''],
+    ['staffing.markup', `${formatMoney(row.markupAmount)} (${formatPercent(row.markupPercent, 0)})`],
+    ['comp.invoicing.netAmount', formatMoney(row.netAmount)],
+    ['staffing.vat', formatMoney(row.vatAmount)],
+    ['staffing.totalInclVat', formatMoney(row.totalAmount)],
+    ['common.status', escapeHtml(invoiceReportStatusLabel(row))]
+  ])}</dl>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"></div>`
+  return modalShell(t('invoiceReport.lineDetail'), escapeHtml(row.employeeName), 'file', body, footer)
+}
+
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
@@ -14948,6 +15276,7 @@ const dialogs = {
   'live-in-profile': liveInProfileDialog,
   'department-contacts': departmentContactsDialog,
   'confirm-sick-delete': confirmSickDeleteDialog,
+  'invoice-line-detail': invoiceLineDetailDialog,
   'contact-import': contactImportDialog,
   'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
@@ -15172,6 +15501,57 @@ function actionHandlers(target = null) {
     'close-drawer': () => { state.drawer = null; render() },
     'toggle-invoicing-detail': () => { state.invoicingDetailed = !state.invoicingDetailed; render() },
     'export-report': () => showToast(),
+    // === Fakturagrunnlag V2 ===
+    'open-invoice-report': () => { state.invoiceReportView = target?.dataset?.id ?? null; render() },
+    'close-invoice-report-view': () => { state.invoiceReportView = null; render() },
+    'finalize-invoice-report': () => {
+      const view = buildInvoiceReport(state.invoiceReportForm)
+      // Kontroll FØR ferdigstilling: blokkerte lønnslinjer, manglende
+      // kundepriser og ventende timelister stopper - avvik løses først.
+      if (view.blocked || view.pending) { showToast('invoiceReport.blockedToast', { count: view.blocked + view.pending }); return }
+      if (!view.rows.length) { showToast('invoiceReport.emptyToast', {}); return }
+      const saved = { id: nextNumericSlotId(), status: 'final', snapshot: JSON.parse(JSON.stringify({ meta: view.meta, rows: view.rows, totals: view.totals, summary: view.summary })), finalizedAt: new Date().toISOString(), finalizedBy: 'demo-admin' }
+      invoiceReportsCollection().push(saved)
+      // Stabil rapport-ID i Workmatic-konvensjonen - brukes i UI, PDF og CSV.
+      saved.reportId = `INV-BASIS-${String(view.meta.fromDate).slice(0, 7)}-${String(view.meta.clientId).toUpperCase()}-${saved.id}`
+      persist()
+      state.invoiceReportView = String(saved.id)
+      render(); showToast('invoiceReport.finalizedToast', { id: saved.reportId })
+    },
+    'export-invoice-report-csv': () => {
+      const final = target?.dataset?.id ? invoiceReportsCollection().find(item => String(item.id) === String(target.dataset.id)) : null
+      const view = final ? invoiceReportView(final) : buildInvoiceReport(state.invoiceReportForm)
+      const csv = invoiceReportCsv(view)
+      try {
+        const anchor = document.createElement('a')
+        anchor.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`
+        anchor.download = `fakturagrunnlag-${String(view.reportId).toLowerCase().replace(/[^a-z0-9-]+/g, '-')}.csv`
+        anchor.click()
+      } catch { /* forhåndsvisningsmiljø uten nedlasting */ }
+      showToast('invoiceReport.csvReady', {})
+    },
+    'export-invoice-report-pdf': () => {
+      const final = target?.dataset?.id ? invoiceReportsCollection().find(item => String(item.id) === String(target.dataset.id)) : null
+      const view = final ? invoiceReportView(final) : buildInvoiceReport(state.invoiceReportForm)
+      const doc = invoiceReportPrintDocument(view)
+      try {
+        const printWindow = window.open('', '_blank')
+        if (!printWindow) return
+        printWindow.document.open()
+        printWindow.document.write(doc.html)
+        printWindow.document.close()
+        printWindow.focus?.()
+        setTimeout(() => { try { printWindow.print() } catch {} }, 150)
+      } catch { /* testmiljø uten window.open */ }
+    },
+    'open-invoice-line': () => {
+      const final = target?.dataset?.reportId ? invoiceReportsCollection().find(item => String(item.id) === String(target.dataset.reportId)) : null
+      const view = final ? invoiceReportView(final) : buildInvoiceReport(state.invoiceReportForm)
+      const row = view.rows[Number(target?.dataset?.index)]
+      if (!row) return
+      state.invoiceLineDetail = row
+      openDialog('invoice-line-detail')
+    },
     'tariff-dismiss-banner': () => { state.tariffBannerVisible = false; render() },
     // Lønnssatsen lagres på den aktive versjonen, slik at UI og resolver leser
     // samme data.
@@ -15553,7 +15933,7 @@ function actionHandlers(target = null) {
       render()
     },
     'remove-worker': () => {
-      state.workerAction = { assignmentId: target?.dataset?.id, employeeId: target?.dataset?.employeeId }
+      state.workerAction = { assignmentId: target?.dataset?.id, employeeId: target?.dataset?.employeeId, slotId: target?.dataset?.slotId ?? null }
       state.rowMenu = null
       openDialog('remove-worker', 'remove', { reason: '' })
     },
@@ -15935,9 +16315,7 @@ function actionHandlers(target = null) {
       // kant-i-kant med egen forrige replacement er aldri overlapp.
       const blocker = finalAssignmentBlocker(employee, assignment, slot)
       if (blocker) {
-        const overlap = employeeOverlapInfo(employee.id, assignment)
-        if (overlap) showToast('staffing.overlapBlocked', { name: employee.name, period: overlap.period })
-        else showToast(blocker, {})
+        showToast('sick.extendBlocked', { name: employee.name })
         return
       }
       slot.employeeId = employee.id
@@ -16424,9 +16802,13 @@ function actionHandlers(target = null) {
       const assignment = record('assignments', state.workerAction?.assignmentId)
       const employeeId = state.workerAction?.employeeId
       if (!assignment || !employeeId) return
-      const slot = slotForEmployee(assignment, employeeId)
-      if (!slot) return
+      // Slot-spesifikk fjerning: en ansatt kan stå på flere (erstatter)plasser
+      // på samme vakt - fjern den konkrete plassen brukeren valgte.
+      const slot = (state.workerAction?.slotId ? slotById(assignment, state.workerAction.slotId) : null) ?? slotForEmployee(assignment, employeeId)
+      if (!slot || slot.employeeId !== employeeId) return
       // Fjerning åpner den samme plassen - ingen ny plass, ingen historikktap.
+      // Erstattermetadata (replacementFor*/coverageFrom/To) består urørt, slik
+      // at behovet forblir åpent for en annen ansatt.
       releaseSlotTimesheet(assignment, slot)
       slot.employeeId = null
       slot.status = 'open'
@@ -17865,6 +18247,14 @@ document.addEventListener('change', event => {
     setPayrollFilter(event.target.dataset.payrollFilter, event.target.value)
     return
   }
+  if (event.target.dataset?.invoiceFilter) {
+    const field = event.target.dataset.invoiceFilter
+    state.invoiceReportForm[field] = String(event.target.value)
+    if (field === 'clientId') state.invoiceReportForm.departmentId = ''
+    state.invoiceReportView = null
+    render()
+    return
+  }
   if (event.target.dataset?.timesheetFilter) {
     setTimesheetFilter(event.target.dataset.timesheetFilter, event.target.value)
     return
@@ -18043,6 +18433,12 @@ window.__workmaticPreview = {
   // Brukere og tilganger: den avledede, scopede visningen for én kontakt -
   // samme filtre som forhåndsvisningsdialogen leser (§15).
   contactImportTemplate: () => contactImportTemplate(),
+  setInvoiceReportForm: form => { Object.assign(state.invoiceReportForm, form); state.invoiceReportView = null; render() },
+  invoiceReportPdf: idOrForm => { const item = typeof idOrForm === 'string' || typeof idOrForm === 'number' ? invoiceReportsCollection().find(entry => String(entry.id) === String(idOrForm)) : null; return invoiceReportPrintDocument(item ? invoiceReportView(item) : buildInvoiceReport({ ...state.invoiceReportForm, ...(typeof idOrForm === 'object' ? idOrForm : {}) })).html },
+  invoiceReport: form => JSON.parse(JSON.stringify(buildInvoiceReport({ ...state.invoiceReportForm, ...(form ?? {}) }))),
+  invoiceReportCsv: form => invoiceReportCsv(buildInvoiceReport({ ...state.invoiceReportForm, ...(form ?? {}) })),
+  finalInvoiceReports: () => JSON.parse(JSON.stringify(invoiceReportsCollection())),
+  finalInvoiceReportCsv: id => { const item = invoiceReportsCollection().find(entry => String(entry.id) === String(id)); return item ? invoiceReportCsv(invoiceReportView(item)) : null },
   sickCoverage: sickLeaveId => JSON.parse(JSON.stringify(resolveSickLeaveCoverage(sickLeaveById(sickLeaveId)))),
   contactAccessPreview: contactId => {
     const contact = record('contacts', contactId)
