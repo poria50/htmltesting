@@ -3176,6 +3176,10 @@ const copy = {
     'staffing.replacementSlot': 'Erstatterbehov',
     'staffing.previousReplacement': 'Forrige erstatter',
     'sick.event.sick_leave_deleted': 'Sykefravær slettet',
+    'staffing.event.employee_sick_partial': 'Delvis sykefravær registrert',
+    'staffing.event.replacement_extended': 'Erstatter forlenget',
+    'staffing.event.replacement_kept_after_delete': 'Erstatter beholdt etter sletting',
+    'staffing.event.sick_leave_deleted': 'Sykefravær slettet',
     'invoiceReport.title': 'Fakturagrunnlag',
     'invoiceReport.draft': 'Utkast',
     'invoiceReport.final': 'Ferdigstilt',
@@ -4515,6 +4519,7 @@ copy.en = {
   'sick.coverageLabel': 'Coverage', 'sick.coveredDays': '{count} days', 'sick.coverageNotApproved': 'Not approved', 'sick.coverageRejected': 'Medical certificate rejected - coverage must be assessed',
   'sick.correction': 'Correction',
   'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.deleteAction': 'Delete sick leave', 'sick.deleteConfirmBody': 'The sick leave {period} is deleted and no longer affects staffing, coverage, payroll or invoicing. The history is kept.', 'sick.deleteReplacementWarning': 'A replacement is already assigned ({names}). The replacement is kept - review the staffing manually after deleting.', 'sick.deleteLocked': 'Cannot be deleted directly after approval. Use a correction.', 'sick.deleted': 'The sick leave was deleted', 'sick.deletedTag': 'Deleted', 'sick.extendReplacement': 'Extend {name}', 'sick.extendBlocked': '{name} cannot be extended because of another shift in this period.', 'staffing.replacementFor': 'Replacement for {name}', 'staffing.replacementSlot': 'Replacement need', 'staffing.previousReplacement': 'Previous replacement', 'sick.event.sick_leave_deleted': 'Sick leave deleted',
+  'staffing.event.employee_sick_partial': 'Partial sick leave registered', 'staffing.event.replacement_extended': 'Replacement extended', 'staffing.event.replacement_kept_after_delete': 'Replacement kept after deletion', 'staffing.event.sick_leave_deleted': 'Sick leave deleted',
   'invoiceReport.title': 'Invoice basis', 'invoiceReport.draft': 'Draft', 'invoiceReport.final': 'Finalized', 'invoiceReport.draftId': 'DRAFT', 'invoiceReport.allDepartments': 'All departments', 'invoiceReport.quantity': 'Quantity', 'invoiceReport.payrollCost': 'Payroll cost', 'invoiceReport.invoicePrice': 'Invoice price', 'invoiceReport.startAt': 'Start date-time', 'invoiceReport.endAt': 'End date-time', 'invoiceReport.remark': 'Remark', 'invoiceReport.ordinary': 'Ordinary', 'invoiceReport.clientShare': 'Client share', 'invoiceReport.notBilled': 'Not billed', 'invoiceReport.replacementFor': 'Replacement for {name}', 'invoiceReport.replacementForLabel': 'Replacement for', 'invoiceReport.approvedShifts': 'Approved shifts', 'invoiceReport.workedHours': 'Worked hours', 'invoiceReport.exportCsv': 'Export CSV', 'invoiceReport.exportPdf': 'Export PDF', 'invoiceReport.finalize': 'Finalize invoice basis', 'invoiceReport.finalized': 'Finalized invoice bases', 'invoiceReport.finalizedToast': 'Invoice basis {id} was finalized', 'invoiceReport.blockedToast': '{count} deviations must be resolved before finalizing', 'invoiceReport.emptyToast': 'No invoice lines in the selected period', 'invoiceReport.csvReady': 'The CSV export is ready', 'invoiceReport.net': 'Net invoice amount', 'invoiceReport.reportId': 'Report ID', 'invoiceReport.backToDraft': 'Back to draft', 'invoiceReport.sickSection': 'Sick leave / replacement', 'invoiceReport.lineDetail': 'Invoice line', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
   'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
   'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
@@ -9766,7 +9771,22 @@ function shiftEconomyCard(assignment, employee, slot = null) {
   const timeRows = economy.liveIn
     ? `${line(t('medlever.period'), `${liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')}`)}${line(t('staffing.paidTime'), liveInSnapshotTotalLabel(economy.liveIn))}${line(t('timesheets.break'), formatHoursMinutes(liveInBreakMinutesTotal(economy.liveIn)))}`
     : `${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}`
-  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${timeRows}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
+  // §: originalansatt med aktive sykesegmenter viser den automatisk beregnede
+  // sykekompensasjonen som egen informasjonslinje (den er en egen payroll-
+  // linje - aldri del av det ordinære arbeidsgrunnlaget her).
+  const sickInfo = (() => {
+    if (!assignment.liveInSnapshot || !slot || slot.coverageFrom || !slot.employeeId) return ''
+    const intervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+    if (!intervals.length) return ''
+    let minutes = 0
+    for (const interval of intervals) {
+      const resolved = resolveLiveInPaidMinutesForWindow(assignment, interval.sickStartAt, interval.sickEndAt)
+      if (resolved && !resolved.partial) minutes += resolved.paidMinutes
+    }
+    if (!minutes) return ''
+    return line(t('sick.title'), `${formatHoursMinutes(minutes)} · ${formatMoney(round2(minutes / 60) * economy.baseRate)}`)
+  })()
+  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${timeRows}${sickInfo}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
   if (asEmployee) {
     // Ingen kundedata: ingen påslag, ingen MVA, ingen totalpris.
     return `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${heading}</h3>${toggle}</div><p class="field-help">${escapeHtml(employee.name)} · ${stamp}</p>${pay}</article>`
@@ -9816,11 +9836,38 @@ function assignedEmployeesCard(assignment) {
     return `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td><span class="tag success">${t('staffing.qualified')}</span></td><td><strong>${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}</strong></td><td><div class="file-name"><strong>${escapeHtml(basis)}</strong><span>${escapeHtml(`${label(tariff?.name ?? '')} ${version?.name ?? ''}`.trim())} · ${t(result.tariffSource === 'department' ? 'staffing.inheritedFromDepartment' : 'staffing.inheritedFromClient')}</span></div></td><td class="row-actions"><button class="button ghost small" data-action="explain-rate" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}" data-date="${assignment.date || '2026-08-20'}">${t('staffing.explainRate')}</button>${workerActionMenu(assignment, employee)}</td></tr>`
   })
   const heading = team.length === 1 ? t('staffing.assignedEmployee') : t('staffing.team')
-  // Ett økonomikort per BEMANNINGSPLASS (aldri per ansatt): samme ansatt kan
-  // dekke flere kant-i-kant erstatterplasser med hver sin økonomi.
-  const economy = staffingSlotsFor(assignment)
-    .filter(slotEntry => slotEntry.employeeId && slotEntry.status !== 'cancelled')
-    .map(slotEntry => shiftEconomyCard(assignment, record('employees', slotEntry.employeeId), slotEntry))
+  // Ett økonomikort per BEMANNINGSPLASS - men SAMMENHENGENDE kant-i-kant
+  // erstatterplasser for samme person og samme originalplass (med samme
+  // funksjon) grupperes til ÉN lesbar beregning. De kanoniske slottene
+  // består alltid separat; kun presentasjonen samles (aldri gap, aldri
+  // ulike erstattere, aldri ulike originalplasser).
+  const activeSlots = staffingSlotsFor(assignment).filter(slotEntry => slotEntry.employeeId && slotEntry.status !== 'cancelled')
+  const grouped = []
+  const consumed = new Set()
+  for (const slotEntry of activeSlots) {
+    if (consumed.has(String(slotEntry.id))) continue
+    if (assignment.liveInSnapshot && slotEntry.coverageFrom) {
+      const chain = [slotEntry]
+      let cursor = slotEntry
+      let next
+      while ((next = activeSlots.find(candidate => !consumed.has(String(candidate.id)) && candidate !== cursor && !chain.includes(candidate) && candidate.employeeId === slotEntry.employeeId && String(candidate.replacementForSlotId) === String(slotEntry.replacementForSlotId) && String(candidate.functionId ?? '') === String(slotEntry.functionId ?? '') && candidate.coverageFrom === cursor.coverageTo))) {
+        chain.push(next)
+        cursor = next
+      }
+      chain.forEach(entry => consumed.add(String(entry.id)))
+      // Presentasjonsslot: union av kjedens kant-i-kant-vinduer - økonomien
+      // løses fortsatt fra de frosne segmentene i vinduet (aldri parent).
+      const presentationSlot = chain.length > 1
+        ? { ...slotEntry, coverageFrom: chain[0].coverageFrom, coverageTo: chain[chain.length - 1].coverageTo }
+        : slotEntry
+      grouped.push([presentationSlot, record('employees', slotEntry.employeeId)])
+    } else {
+      consumed.add(String(slotEntry.id))
+      grouped.push([slotEntry, record('employees', slotEntry.employeeId)])
+    }
+  }
+  const economy = grouped
+    .map(([slotEntry, employee]) => shiftEconomyCard(assignment, employee, slotEntry))
     .filter(Boolean)
     .join('')
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${heading}</h2><span class="tag info">${t('staffing.assignedOf', { assigned: team.length, total: assignment.slots })}</span></div>${table(['common.name', 'common.status', 'staffing.resolvedBasePay', 'staffing.basis', 'common.actions'], rows)}</article>${economy}`
@@ -10214,12 +10261,10 @@ function sickEligibleBasis(sickLeave, assignment) {
     const resolved = resolveLiveInPaidMinutesForWindow(assignment, sickLeave.sickStartAt, sickLeave.sickEndAt)
     if (!resolved) return { ok: false, reason: 'sick.medleverReview' }
     // Delvis truffet segment mangler definert tariffregel - kun det tilfellet
-    // går til review. Hele segmenter dekningsfiltreres per segmentdøgn.
+    // går til teknisk review (IKKE en sykepengegodkjenning). Alle HELE syke
+    // segmenter er automatisk betalbare - dekningen er dokumentasjonsinfo.
     if (resolved.partial) return { ok: false, reason: 'sick.medleverPartial' }
-    const plannedMinutes = resolved.segments.reduce((sum, segment) => {
-      const coverage = sickCoverageForDate(sickLeave, segment.windowFrom.slice(0, 10))
-      return coverage && !coverage.covered ? sum : sum + (Number(segment.paidMinutes) || 0)
-    }, 0)
+    const plannedMinutes = resolved.paidMinutes
     return { ok: true, rate: resolution.baseRate, plannedHours: round2(plannedMinutes / 60), plannedMinutes, resolution, liveIn: true }
   }
   const spanMinutes = timeSpanMinutes(assignment.startTime, assignment.endTime, assignment.endNextDay)
@@ -10291,20 +10336,10 @@ function computeSickLines(record, workedLines, blocked) {
   for (const item of shifts) {
     const assignment = collection('assignments').find(entry => entry.id === item.assignmentId) ?? null
     if (!assignment) continue
-    // Fraværsgrunnlaget styrer dekningen per døgn: avvist sykemelding krever
-    // vurdering (synlig blokkering); et udekket egenmeldingsdøgn (dag 4+)
-    // gir ingen kompensasjonslinje - aldri en stille full utbetaling.
-    // Medlever vurderer dekningen PER SEGMENTDØGN i sickEligibleBasis - kun
-    // avvist sykemelding (uniform for hele recorden) sjekkes her.
-    const coverage = sickCoverageForDate(record, record.sickStartAt ? record.sickStartAt.slice(0, 10) : assignment.date)
-    if (coverage && !coverage.covered && coverage.coverageReason === 'medical_certificate_rejected') {
-      blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: 'sick.coverageRejected' })
-      continue
-    }
-    if (!assignment.liveInSnapshot) {
-      const dayCoverage = sickCoverageForDate(record, assignment.date)
-      if (dayCoverage && !dayCoverage.covered) continue
-    }
+    // HARD PRODUKTREGEL: registrert sykefravær er AUTOMATISK betalbart.
+    // Fraværsgrunnlaget (egenmelding/sykemelding/avvist, 3-døgnsgrensen) er
+    // dokumentasjonsinformasjon - aldri en betalingsstopper. Ingen
+    // godkjenning, avvisning eller justering av sykepenger finnes.
     const basis = sickEligibleBasis(record, assignment)
     if (!basis.ok) { blocked.push({ sickLeaveId: record.id, assignmentId: assignment.id, employee, date: assignment.date, reasonKey: basis.reason }); continue }
     // Arbeidet del på samme vakt/plass trekkes fra det berettigede grunnlaget.
@@ -10534,6 +10569,23 @@ function sickCoverageSummary(record) {
   const days = resolveSickLeaveCoverage(record)
   const count = days.filter(day => day.covered).length
   return { key: 'sick.coveredDays', tone: 'info', count }
+}
+
+// ÉN kanonisk «neste udekkede medleverdøgn»: første frosne segment som ikke
+// allerede er fullt dekket av et aktivt sykefravær for den ansatte på vakten.
+// Brukes BÅDE av «Neste medleverdøgn»-knappen og som default ved ny delvis
+// registrering - aldri to implementasjoner.
+function nextUncoveredLiveInSegment(assignment, employeeId) {
+  const snapshot = assignment?.liveInSnapshot
+  if (!snapshot) return null
+  const intervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id)))
+  for (const segment of snapshot.segments ?? []) {
+    const from = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+    const to = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+    const fullyCovered = intervals.some(item => item.sickStartAt <= from && item.sickEndAt >= to)
+    if (!fullyCovered) return { from, to, segment }
+  }
+  return null
 }
 
 function sickLeavesOverlappingShift(employeeId, assignment, slot = null) {
@@ -16344,18 +16396,12 @@ function actionHandlers(target = null) {
       const snapshot = anchor?.liveInSnapshot
       if (!anchor || !employee || !snapshot) return
       const anchorEnd = shiftEndTimestamp(anchor) ?? `${anchor.date}T${anchor.endTime}`
-      const lastEnd = sickLeavesCollection()
-        .filter(item => item.employeeId === employee.id && item.validityStatus !== 'invalid' && item.sickEndAt && item.sickStartAt < anchorEnd && item.sickEndAt > `${anchor.date}T${anchor.startTime}`)
-        .reduce((max, item) => item.sickEndAt > max ? item.sickEndAt : max, '')
-      const floor = lastEnd || `${anchor.date}T${anchor.startTime}`
-      const segment = (snapshot.segments ?? []).find(entry => `${isoAddDays(anchor.date, entry.dayOffsetStart)}T${entry.startTime}` >= floor)
-      if (!segment) { showToast('sick.noNextLiveInDay', {}); return }
-      const from = `${isoAddDays(anchor.date, segment.dayOffsetStart)}T${segment.startTime}`
-      const to = `${isoAddDays(anchor.date, segment.dayOffsetEnd)}T${segment.endTime}`
-      state.draft.sickStartDate = from.slice(0, 10)
-      state.draft.sickStartTime = from.slice(11, 16)
-      state.draft.sickEndDate = to.slice(0, 10)
-      state.draft.sickEndTime = to.slice(11, 16)
+      const next = nextUncoveredLiveInSegment(anchor, employee.id)
+      if (!next) { showToast('sick.noNextLiveInDay', {}); return }
+      state.draft.sickStartDate = next.from.slice(0, 10)
+      state.draft.sickStartTime = next.from.slice(11, 16)
+      state.draft.sickEndDate = next.to.slice(0, 10)
+      state.draft.sickEndTime = next.to.slice(11, 16)
       render()
     },
     // === Slett sykefravær (soft delete med full bemanningsopprydding) ===
@@ -18205,8 +18251,11 @@ function applyDraftChange(name, value) {
   if (state.dialog === 'sick-leave' && name === 'absenceScope') {
     const anchor = state.slotAction?.assignmentId ? record('assignments', state.slotAction.assignmentId) : null
     if (anchor && value === 'partial_shift') {
-      const from = `${anchor.date}T${anchor.startTime}`
-      const to = shiftEndTimestamp(anchor) ?? `${anchor.date}T${anchor.endTime}`
+      // Medlever: default er NESTE UDEKKEDE frosne segment («ett døgn til»)
+      // - aldri resten av vakten. Brukeren kan fortsatt velge lengre manuelt.
+      const nextSegment = anchor.liveInSnapshot ? nextUncoveredLiveInSegment(anchor, state.slotAction?.employeeId) : null
+      const from = nextSegment ? nextSegment.from : `${anchor.date}T${anchor.startTime}`
+      const to = nextSegment ? nextSegment.to : (shiftEndTimestamp(anchor) ?? `${anchor.date}T${anchor.endTime}`)
       state.draft.sickStartDate = from.slice(0, 10)
       state.draft.sickStartTime = from.slice(11, 16)
       state.draft.sickEndDate = to.slice(0, 10)
