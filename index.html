@@ -7674,6 +7674,30 @@ function liveInBreakMinutesTotal(snapshot) {
   return liveInSnapshotDays(snapshot) * LIVE_IN_BREAK_MINUTES_PER_DAY
 }
 
+// ÉN kanonisk måte å summere medlever-paidMinutes innenfor et tidsvindu:
+// brukes av sykelønn, erstatterlønn og arbeidet-del - aldri tre varianter.
+// Kun HELE segmenter tas med automatisk; et delvis truffet segment markeres
+// som partial (ingen definert tariffregel for deling av paidMinutes).
+function resolveLiveInPaidMinutesForWindow(assignment, from, to) {
+  const snapshot = assignment?.liveInSnapshot
+  if (!snapshot || !from || !to) return null
+  const segments = []
+  let paidMinutes = 0
+  let partial = false
+  for (const segment of snapshot.segments ?? []) {
+    const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+    const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+    if (segmentFrom >= to || segmentTo <= from) continue
+    if (segmentFrom >= from && segmentTo <= to) {
+      paidMinutes += Number(segment.paidMinutes) || 0
+      segments.push({ ...segment, windowFrom: segmentFrom, windowTo: segmentTo })
+    } else {
+      partial = true
+    }
+  }
+  return { paidMinutes, segments, partial }
+}
+
 function liveInSnapshotTotalLabel(snapshot) {
   const minutesTotal = Number(snapshot?.totalPaidMinutes)
   return Number.isFinite(minutesTotal) && minutesTotal > 0 ? formatHoursMinutes(minutesTotal) : `${formatNumber(snapshot?.totalPaidHours, 2)} ${t('comp.ui.hoursShort')}`
@@ -10178,24 +10202,16 @@ function sickEligibleBasis(sickLeave, assignment) {
   // krever manuell avklaring: legacy-fravær uten presist tidsintervall, og
   // delvis fravær inne i ett segment (ingen definert fordelingsregel).
   if (assignment.liveInSnapshot) {
-    const segments = assignment.liveInSnapshot.segments ?? []
-    if (!sickLeave.sickStartAt || !sickLeave.sickEndAt || !segments.length) return { ok: false, reason: 'sick.medleverReview' }
-    let plannedMinutes = 0
-    let partial = false
-    for (const segment of segments) {
-      const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
-      const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
-      if (segmentFrom >= sickLeave.sickEndAt || segmentTo <= sickLeave.sickStartAt) continue
-      if (segmentFrom >= sickLeave.sickStartAt && segmentTo <= sickLeave.sickEndAt) {
-        // Helt sykt segment: dekningen avgjøres per segmentdøgn.
-        const coverage = sickCoverageForDate(sickLeave, segmentFrom.slice(0, 10))
-        if (coverage && !coverage.covered) continue
-        plannedMinutes += Number(segment.paidMinutes) || 0
-      } else {
-        partial = true
-      }
-    }
-    if (partial) return { ok: false, reason: 'sick.medleverPartial' }
+    if (!sickLeave.sickStartAt || !sickLeave.sickEndAt) return { ok: false, reason: 'sick.medleverReview' }
+    const resolved = resolveLiveInPaidMinutesForWindow(assignment, sickLeave.sickStartAt, sickLeave.sickEndAt)
+    if (!resolved) return { ok: false, reason: 'sick.medleverReview' }
+    // Delvis truffet segment mangler definert tariffregel - kun det tilfellet
+    // går til review. Hele segmenter dekningsfiltreres per segmentdøgn.
+    if (resolved.partial) return { ok: false, reason: 'sick.medleverPartial' }
+    const plannedMinutes = resolved.segments.reduce((sum, segment) => {
+      const coverage = sickCoverageForDate(sickLeave, segment.windowFrom.slice(0, 10))
+      return coverage && !coverage.covered ? sum : sum + (Number(segment.paidMinutes) || 0)
+    }, 0)
     return { ok: true, rate: resolution.baseRate, plannedHours: round2(plannedMinutes / 60), plannedMinutes, resolution, liveIn: true }
   }
   const spanMinutes = timeSpanMinutes(assignment.startTime, assignment.endTime, assignment.endNextDay)
@@ -10284,8 +10300,11 @@ function computeSickLines(record, workedLines, blocked) {
     const basis = sickEligibleBasis(record, assignment)
     if (!basis.ok) { blocked.push({ sickLeaveId: record.id, assignmentId: assignment.id, employee, date: assignment.date, reasonKey: basis.reason }); continue }
     // Arbeidet del på samme vakt/plass trekkes fra det berettigede grunnlaget.
+    // Medlever: grunnlaget er allerede avgrenset til de SYKE segmentene, og
+    // arbeidet del fryses kun for friske segmenter - fysiske timer og
+    // paidMinutes har ulik semantikk og trekkes ALDRI naivt mot hverandre.
     const worked = workedLines.find(line => line.assignmentId === assignment.id && String(line.slotId) === String(item.slotId))
-    const compensableHours = Math.max(0, round2(basis.plannedHours - (worked?.hours ?? 0)))
+    const compensableHours = basis.liveIn ? basis.plannedHours : Math.max(0, round2(basis.plannedHours - (worked?.hours ?? 0)))
     const share = type === 'percentage' ? (Number(record.compensationPercent) || 0) / 100 : 1
     const hours = round2(compensableHours * share)
     const amount = round2(hours * basis.rate)
@@ -12289,12 +12308,16 @@ function invoiceReportRow(line, billed) {
   const quantity = sick
     ? { quantity: round2(line.hours), unit: 'hour', paidMinutes: Math.round((Number(line.hours) || 0) * 60), label: formatHoursMinutes(Math.round((Number(line.hours) || 0) * 60)) }
     : invoiceLineQuantity(line)
-  const startAt = sick ? `${line.sickTrace?.period?.split('–')[0] ?? line.date}T00:00` : `${line.date}T${line.actualStart ?? line.plannedStart ?? ''}`
+  // Erstatterlinjer viser SITT dekningintervall - aldri hele originalvakten.
+  const coverageWindow = slot ? slotCoverageWindowIso(assignment, slot) : null
+  const startAt = sick ? `${line.sickTrace?.period?.split('–')[0] ?? line.date}T00:00` : coverageWindow ? coverageWindow.from : `${line.date}T${line.actualStart ?? line.plannedStart ?? ''}`
   const endAt = sick
     ? `${line.sickTrace?.period?.split('–')[1] ?? line.date}T00:00`
-    : (assignment?.liveInSnapshot || line.endNextDay) && assignment
-      ? (shiftEndTimestamp(assignment) ?? `${line.date}T${line.actualEnd ?? ''}`)
-      : `${line.date}T${line.actualEnd ?? line.plannedEnd ?? ''}`
+    : coverageWindow
+      ? coverageWindow.to
+      : (assignment?.liveInSnapshot || line.endNextDay) && assignment
+        ? (shiftEndTimestamp(assignment) ?? `${line.date}T${line.actualEnd ?? ''}`)
+        : `${line.date}T${line.actualEnd ?? line.plannedEnd ?? ''}`
   const clientShare = sick ? Number(line.sickTrace?.clientCoveragePercent) || 0 : null
   return {
     lineType: sick ? 'sick_leave_compensation' : 'worked_time',
@@ -16770,7 +16793,50 @@ function actionHandlers(target = null) {
         liveIn: (() => {
           const snapshot = assignment?.liveInSnapshot
           if (!snapshot) return null
-          const matchesPlan = String(timesheet.actualStart) === String(timesheet.plannedStart) && String(timesheet.actualEnd) === String(timesheet.plannedEnd)
+          let matchesPlan = String(timesheet.actualStart) === String(timesheet.plannedStart) && String(timesheet.actualEnd) === String(timesheet.plannedEnd)
+          // ERSTATTERLØNN AVGRENSES TIL SLOTENS EGET COVERAGE-VINDU: en
+          // erstatter på ett døgn får aldri hele originalvaktens betalte tid.
+          // ORIGINALANSATT med aktive sykesegmenter får kun de FRISKE hele
+          // segmentene - syke segmenter betales som sykekompensasjon, aldri
+          // dobbelt som ordinær tid. Delvis truffet segment (ingen definert
+          // tariffregel) krever manuell overstyring som før.
+          const slot = slotById(assignment, timesheet.slotId)
+          let frozenSegments = JSON.parse(JSON.stringify(snapshot.segments ?? []))
+          let totalPaidMinutes = snapshot.totalPaidMinutes ?? null
+          let totalPaidHours = snapshot.totalPaidHours
+          const window = slotCoverageWindowIso(assignment, slot)
+          if (window) {
+            const resolved = resolveLiveInPaidMinutesForWindow(assignment, window.from, window.to)
+            if (resolved && !resolved.partial) {
+              frozenSegments = JSON.parse(JSON.stringify(resolved.segments))
+              totalPaidMinutes = resolved.paidMinutes
+              totalPaidHours = round2(resolved.paidMinutes / 60)
+            } else {
+              matchesPlan = false
+            }
+          } else if (slot?.employeeId) {
+            const sickIntervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+            if (sickIntervals.length) {
+              let paidMinutes = 0
+              let partial = false
+              const healthy = []
+              for (const segment of snapshot.segments ?? []) {
+                const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+                const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+                const overlapping = sickIntervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)
+                const fullyCovered = sickIntervals.some(item => item.sickStartAt <= segmentFrom && item.sickEndAt >= segmentTo)
+                if (!overlapping) { paidMinutes += Number(segment.paidMinutes) || 0; healthy.push(segment) }
+                else if (!fullyCovered) partial = true
+              }
+              if (partial) {
+                matchesPlan = false
+              } else {
+                frozenSegments = JSON.parse(JSON.stringify(healthy))
+                totalPaidMinutes = paidMinutes
+                totalPaidHours = round2(paidMinutes / 60)
+              }
+            }
+          }
           const overrideHours = Number(state.draft.medleverPaidHours)
           const overrideReason = String(state.draft.medleverReason ?? '').trim()
           const override = !matchesPlan && Number.isFinite(overrideHours) && overrideHours >= 0 && overrideReason
@@ -16780,9 +16846,9 @@ function actionHandlers(target = null) {
           return {
             profileId: snapshot.profileId ?? null,
             profileName: snapshot.profileName ?? '',
-            segments: JSON.parse(JSON.stringify(snapshot.segments ?? [])),
-            totalPaidMinutes: snapshot.totalPaidMinutes ?? null,
-            totalPaidHours: snapshot.totalPaidHours,
+            segments: frozenSegments,
+            totalPaidMinutes,
+            totalPaidHours,
             matchesPlan,
             override
           }
