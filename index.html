@@ -2752,7 +2752,8 @@ const state = {
   deleteTarget: null,
   // Timelister: klient styrer avdeling, så avdelingen nullstilles når klienten
   // byttes. Tomme strenger betyr «alle».
-  timesheetFilters: { clientId: '', departmentId: '', employeeId: '', week: '' },
+  // Timelister er MÅNEDSBASERT: month ('YYYY-MM') er primærperioden.
+  timesheetFilters: { clientId: '', departmentId: '', employeeId: '', month: '' },
   // Vaktplanens visnings-state (aldri kanonisk data): vis ledige vakter,
   // kompakt modus, ønsket scrollmål (dato) og sist kjente scrollposisjon.
   shiftPlanDisplay: { showOpen: true, compact: false },
@@ -3001,6 +3002,10 @@ const copy = {
     'attention.timesheetCorrect': 'Timeliste må korrigeres',
     'timesheets.allEmployees': 'Alle ansatte',
     'timesheets.thisWeek': 'Denne uken',
+    'timesheets.thisMonth': 'Denne måneden',
+    'timesheets.month': 'Måned',
+    'timesheets.noneForMonth': 'Ingen timelister i {month}.',
+    'page.timesheets.desc': 'Månedlig oversikt over registrerte og godkjente timelister.',
     'shifts.emptyFiltered': 'Ingen vakter i valgt periode og filter.',
     'series.enable': 'Flere datoer / Gjenta vakten',
     'series.title': 'Vaktserie',
@@ -3070,6 +3075,7 @@ const copy = {
     'medlever.breakPerDay': 'Pause per døgn',
     'medlever.breakTotal': 'Total pause',
     'medlever.daysShort': 'døgn',
+    'medlever.period': 'Medleverperiode',
     'timesheets.event.medlever_override': 'Medlevergrunnlag overstyrt',
     'page.absence.desc': 'Sykefravær med gyldighet, kompensasjon og kostnadsansvar',
     'sick.title': 'Sykefravær',
@@ -4294,7 +4300,7 @@ copy.en = {
   'attention.timesheetApprove': 'Timesheet pending approval',
   'attention.timesheetCorrect': 'Timesheet needs correction',
   'timesheets.allEmployees': 'All employees',
-  'timesheets.thisWeek': 'This week',
+  'timesheets.thisWeek': 'This week', 'timesheets.thisMonth': 'This month', 'timesheets.month': 'Month', 'timesheets.noneForMonth': 'No timesheets in {month}.', 'page.timesheets.desc': 'Monthly overview of registered and approved timesheets.',
   'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
   'series.enable': 'Multiple dates / Repeat shift',
   'series.title': 'Shift series',
@@ -4358,6 +4364,7 @@ copy.en = {
   'medlever.needsReview': 'Live-in pay basis needs review',
   'medlever.reviewHelp': 'Actual attendance differs from the payment plan. Enter paid hours and a reason to override - otherwise the payroll basis stays blocked until resolved.',
   'medlever.day': 'Day',
+  'medlever.period': 'Live-in period',
   'medlever.hoursPart': 'Hours', 'medlever.minutesPart': 'Minutes', 'medlever.breakPerDay': 'Break per day', 'medlever.breakTotal': 'Total break',
   'medlever.days': 'Number of periods',
   'medlever.daysShort': 'periods',
@@ -7552,6 +7559,20 @@ function liveInPaidTimeLabel(segment) {
   return Number.isFinite(paidMinutes) && paidMinutes > 0 ? formatHoursMinutes(paidMinutes) : `${formatNumber(segment?.paidHours, 2)} ${t('comp.ui.hoursShort')}`
 }
 
+// PRODUKTREGEL: hvert medleverdøgn har 2 timer pause. Pausen er separat
+// informasjon avledet deterministisk av antall døgn - ALDRI av det generiske
+// shift.breakMinutes-feltet, og den trekkes ALDRI fra de tariffmessige
+// 15 t 33 min / 17 t 33 min betalt tid.
+const LIVE_IN_BREAK_MINUTES_PER_DAY = 120
+
+function liveInSnapshotDays(snapshot) {
+  return Math.max(1, Number(snapshot?.days) || (snapshot?.segments?.length ?? 1))
+}
+
+function liveInBreakMinutesTotal(snapshot) {
+  return liveInSnapshotDays(snapshot) * LIVE_IN_BREAK_MINUTES_PER_DAY
+}
+
 function liveInSnapshotTotalLabel(snapshot) {
   const minutesTotal = Number(snapshot?.totalPaidMinutes)
   return Number.isFinite(minutesTotal) && minutesTotal > 0 ? formatHoursMinutes(minutesTotal) : `${formatNumber(snapshot?.totalPaidHours, 2)} ${t('comp.ui.hoursShort')}`
@@ -9561,7 +9582,13 @@ function shiftEconomyCard(assignment, employee) {
   // Godkjent arbeid leser sitt eget snapshot; ellers er tallene et estimat.
   const stamp = economy.historical ? t('staffing.actualPay') : t('staffing.estimatedPay')
   const line = (labelText, value, extra = '') => `<div class="summary-line"><span>${labelText}${extra ? ` <span class="muted">${extra}</span>` : ''}</span><strong>${value}</strong></div>`
-  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
+  // Medlever bruker ALDRI standard «Vaktlengde/pause»-raden: perioden, den
+  // tariffmessige betalte tiden (t + min fra den kanoniske planen) og pausen
+  // (2 t per døgn) er egne rader. Pausen reduserer aldri betalt tid.
+  const timeRows = economy.liveIn
+    ? `${line(t('medlever.period'), `${liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')}`)}${line(t('staffing.paidTime'), liveInSnapshotTotalLabel(economy.liveIn))}${line(t('timesheets.break'), formatHoursMinutes(liveInBreakMinutesTotal(economy.liveIn)))}`
+    : `${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}`
+  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${timeRows}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
   if (asEmployee) {
     // Ingen kundedata: ingen påslag, ingen MVA, ingen totalpris.
     return `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${heading}</h3>${toggle}</div><p class="field-help">${escapeHtml(employee.name)} · ${stamp}</p>${pay}</article>`
@@ -9881,16 +9908,14 @@ function liveInSegmentLabel(segment, baseDate = null) {
 }
 
 function liveInPlanRows(segments, baseDate = null) {
-  return (segments ?? []).map(segment => `<div class="file-row"><div class="file-name"><strong>${liveInSegmentLabel(segment, baseDate)}</strong><span>${t(segment.segmentType === 'overlap' ? 'medlever.overlap' : 'medlever.standard')}</span></div><strong>${liveInPaidTimeLabel(segment)}</strong></div>`).join('')
+  return (segments ?? []).map(segment => `<div class="file-row"><div class="file-name"><strong>${liveInSegmentLabel(segment, baseDate)}</strong><span>${t(segment.segmentType === 'overlap' ? 'medlever.overlap' : 'medlever.standard')} · ${t('timesheets.break')}: ${formatHoursMinutes(LIVE_IN_BREAK_MINUTES_PER_DAY)}</span></div><strong>${liveInPaidTimeLabel(segment)}</strong></div>`).join('')
 }
 
 // Pause er separat informasjon: den trekkes ALDRI fra medlevergrunnlaget
 // (15 t 33 min / 17 t 33 min er allerede det tariffmessige betalte grunnlaget).
+// Regelen er deterministisk 2 t per medleverdøgn - aldri shift.breakMinutes.
 function liveInBreakRows(assignment, snapshot) {
-  const breakMinutes = Math.max(0, Number(assignment?.breakMinutes) || 0)
-  if (!breakMinutes) return ''
-  const days = Math.max(1, Number(snapshot?.days) || (snapshot?.segments?.length ?? 1))
-  return `<div><dt>${t('medlever.breakPerDay')}</dt><dd>${formatHoursMinutes(breakMinutes)}</dd></div><div><dt>${t('medlever.breakTotal')}</dt><dd>${formatHoursMinutes(breakMinutes * days)}</dd></div>`
+  return `<div><dt>${t('medlever.breakPerDay')}</dt><dd>${formatHoursMinutes(LIVE_IN_BREAK_MINUTES_PER_DAY)}</dd></div><div><dt>${t('medlever.breakTotal')}</dt><dd>${formatHoursMinutes(liveInBreakMinutesTotal(snapshot))}</dd></div>`
 }
 
 function liveInPlanCard(assignment) {
@@ -10902,9 +10927,9 @@ function sessionMatchesFilters(context) {
 }
 
 function timesheetMatchesFilters(timesheet) {
-  const { employeeId, week } = state.timesheetFilters
+  const { employeeId, month } = state.timesheetFilters
   if (employeeId && timesheet.employeeId !== employeeId) return false
-  if (week && timesheet.week !== isoWeekKey(week)) return false
+  if (month && isoMonthKey(isoWeekMonday(timesheet.week)) !== month) return false
   if (!state.timesheetFilters.clientId) return true
   return timesheetContext(timesheet).contexts.some(sessionMatchesFilters)
 }
@@ -10942,11 +10967,16 @@ function timesheetEmployeeSelect() {
   return `<select data-timesheet-filter="employeeId" aria-label="${t('jobs.employee')}"><option value=""${employeeId ? '' : ' selected'}>${t('timesheets.allEmployees')}</option>${choices}</select>`
 }
 
-// Ukenavigatoren for timelister: flytter bare perioden, aldri filtrene (§27).
-function timesheetWeekNavigator() {
-  const week = state.timesheetFilters.week
-  const label = week ? `${t('timesheets.week')} ${isoWeekKey(week).split('-W')[1]} · ${formatDate(week)}–${formatDate(addDays(week, 6))}` : t('shifts.range.all')
-  return `<div class="plan-toolbar"><div class="toolbar-group"><button type="button" class="button secondary small" data-action="timesheet-week-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small ${week && week === startOfWeekIso(todayIso()) ? 'is-active' : ''}" data-action="timesheet-week-this">${t('timesheets.thisWeek')}</button><button type="button" class="button secondary small" data-action="timesheet-week-next">${t('calendar.next')}${icon('arrow-right')}</button>${week ? `<button type="button" class="button ghost small" data-action="timesheet-week-all">${t('shifts.range.all')}</button>` : ''}</div><strong class="calendar-range">${escapeHtml(label)}</strong></div>`
+// Månedsnavigatoren for timelister: flytter bare perioden, aldri filtrene.
+function timesheetMonthLabel(month) {
+  if (!month) return t('shifts.range.all')
+  const locale = state.locale === 'nb' ? 'nb-NO' : 'en-GB'
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-15T12:00:00Z`))
+}
+
+function timesheetMonthNavigator() {
+  const month = state.timesheetFilters.month
+  return `<div class="plan-toolbar"><div class="toolbar-group"><button type="button" class="button secondary small" data-action="timesheet-month-prev">${icon('arrow-left')}${t('calendar.prev')}</button><button type="button" class="button secondary small ${month && month === isoMonthKey(todayIso()) ? 'is-active' : ''}" data-action="timesheet-month-this">${t('timesheets.thisMonth')}</button><button type="button" class="button secondary small" data-action="timesheet-month-next">${t('calendar.next')}${icon('arrow-right')}</button><input type="month" data-timesheet-filter="month" value="${escapeHtml(month)}" aria-label="${t('timesheets.month')}">${month ? `<button type="button" class="button ghost small" data-action="timesheet-month-all">${t('shifts.range.all')}</button>` : ''}</div><strong class="calendar-range">${escapeHtml(timesheetMonthLabel(month))}</strong></div>`
 }
 
 // Tom-tilstanden forteller hvilket av de to filtrene som tømte listen.
@@ -11000,6 +11030,12 @@ function slotTimesheetTable() {
 }
 
 function renderTimesheets() {
+  // Defaultvisningen er inneværende måned - satt første gang flaten åpnes,
+  // slik at et senere, eksplisitt «Alle» ('' ) respekteres.
+  if (state.timesheetFilters.month === '' && !state.timesheetMonthTouched) {
+    state.timesheetFilters.month = isoMonthKey(todayIso())
+    state.timesheetMonthTouched = true
+  }
   const visible = filterList('timesheets', ['week']).filter(timesheetMatchesFilters)
   const rows = visible.map(item => {
     const employee = record('employees', item.employeeId)
@@ -11007,10 +11043,15 @@ function renderTimesheets() {
     return `<tr><td><button class="row-link" data-action="open-timesheet" data-id="${item.id}">${escapeHtml(item.week)}</button></td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${timesheetClientCell(clientIds)}</td><td>${timesheetDepartmentCell(departmentIds)}</td><td>${formatNumber(item.totalHours, 1)}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-action="open-timesheet" data-id="${item.id}">${t('common.view')}</button></td></tr>`
   })
   const headers = ['timesheets.week', 'jobs.employee', 'timesheets.client', 'timesheets.department', 'timesheets.hours', 'common.status', 'common.actions']
+  // Tom måned: tydelig empty state - aldri fallback til en annen måned.
+  const monthEmpty = !rows.length && state.timesheetFilters.month
+    ? `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3><p>${t('timesheets.noneBody')}</p></div>`
+    : ''
   const list = !rows.length && state.timesheetFilters.clientId
     ? timesheetEmptyState()
-    : dataTable('timesheets', headers, rows, collection('timesheets').length)
-  return `<section class="page">${slotTimesheetTable()}${workforceTabs('timesheets')}${timesheetWeekNavigator()}${searchToolbar(timesheetFilterControls())}${list}</section>`
+    : monthEmpty || dataTable('timesheets', headers, rows, collection('timesheets').length)
+  // Ingen snarvei til Vaktmaler herfra: Timelister har egen sideoverskrift.
+  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${slotTimesheetTable()}${timesheetMonthNavigator()}${searchToolbar(timesheetFilterControls())}${list}</section>`
 }
 
 function renderTimesheetReview() {
@@ -11761,6 +11802,8 @@ function shiftEconomy(shiftInput, assignmentInput = null) {
     historical: Boolean(pay.historical),
     grossHours,
     breakMinutes,
+    // Autoritativt medleversignal - samme kanoniske plan som økonomien bruker.
+    liveIn: assignment?.liveInSnapshot ?? null,
     hours: pay.hours,
     baseRate: pay.baseRate,
     ordinaryAmount: pay.ordinaryAmount,
@@ -12560,12 +12603,13 @@ function activeSlotTimesheets() {
 // eksisterende klient-/avdelingsfilteret på Timelister-siden. Klient og
 // avdeling utledes av oppdraget timelisten hører til - aldri av den ansatte.
 function visibleSlotTimesheets() {
-  const { clientId, departmentId, employeeId, week } = state.timesheetFilters
-  const weekEnd = week ? addDays(week, 6) : ''
+  const { clientId, departmentId, employeeId, month } = state.timesheetFilters
   return activeSlotTimesheets().filter(item => {
     if (state.slotTimesheetFilter && item.status !== state.slotTimesheetFilter) return false
     if (employeeId && item.employeeId !== employeeId) return false
-    if (week && (!item.plannedDate || item.plannedDate < week || item.plannedDate > weekEnd)) return false
+    // Kanonisk periodedato er vaktens plannedDate (startdato): en vakt som
+    // krysser midnatt/månedsskifte tilhører startmåneden.
+    if (month && (!item.plannedDate || isoMonthKey(item.plannedDate) !== month)) return false
     if (!clientId && !departmentId) return true
     const assignment = record('assignments', item.assignmentId)
     if (clientId && assignment?.clientId !== clientId) return false
@@ -12597,10 +12641,35 @@ function shiftPlanGoto(value) {
   render()
 }
 
-// Ett uke-steg i timelistenes periodenavigator ('' = alle uker).
-function timesheetWeekStep(direction) {
-  const anchor = state.timesheetFilters.week || startOfWeekIso(todayIso())
-  return addDays(anchor, direction * 7)
+// === Timelister: måned er primærperioden ===
+function isoMonthKey(iso) {
+  return String(iso ?? '').slice(0, 7)
+}
+
+// Ett månedssteg i timelistenes periodenavigator ('' = alle).
+function timesheetMonthStep(direction) {
+  const anchor = state.timesheetFilters.month || isoMonthKey(todayIso())
+  const [year, month] = anchor.split('-').map(Number)
+  const next = new Date(Date.UTC(year, month - 1 + direction, 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+// Aktivt månedsfilter: settes til inneværende måned første gang Timelister
+// åpnes (defaultvisning) - '' betyr eksplisitt «alle perioder».
+function activeTimesheetMonth() {
+  return state.timesheetFilters.month
+}
+
+// Legacy uke-timelister plasseres i måneden til ukas mandag (ISO-uke).
+function isoWeekMonday(weekKey) {
+  const [yearPart, weekPart] = String(weekKey ?? '').split('-W')
+  const year = Number(yearPart)
+  const week = Number(weekPart)
+  if (!year || !week) return ''
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const day = jan4.getUTCDay() || 7
+  const monday = new Date(jan4.getTime() - (day - 1) * 86400000 + (week - 1) * 7 * 86400000)
+  return monday.toISOString().slice(0, 10)
 }
 
 // Matcher en plass dashboardfilteret? «Forespørsler venter» krever en aktiv
@@ -14566,13 +14635,15 @@ function actionHandlers(target = null) {
     // filter, slik at brukeren ser nøyaktig postene bak KPI-en (§12-§13).
     // Dashboardkortene leverer inn i den DELTE filtermodellen for Vakter (§19-§20).
     'dashboard-filter-slots': () => { state.shiftFilters.staffing = String(target?.dataset?.status ?? ''); navigate('staffing') },
-    'dashboard-filter-timesheets': () => { state.slotTimesheetFilter = String(target?.dataset?.status ?? ''); navigate('timesheets') },
+    // Statusfiltrene fra dashboardet gjelder ALLE perioder: månedsfilteret
+    // nullstilles eksplisitt, slik at antallet på kortet alltid stemmer.
+    'dashboard-filter-timesheets': () => { state.slotTimesheetFilter = String(target?.dataset?.status ?? ''); state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; navigate('timesheets') },
     'dashboard-open-payroll': () => navigate('payroll'),
     'dashboard-open-invoicing': () => navigate('invoicing'),
     'dashboard-open-absence': () => navigate('absence'),
     'dashboard-go-payroll': () => navigate('payroll'),
     'dashboard-go-invoicing': () => navigate('invoicing'),
-    'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; navigate('timesheets') },
+    'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; navigate('timesheets') },
     'clear-slot-timesheet-filter': () => { state.slotTimesheetFilter = ''; render() },
     // Vakter: to projeksjoner over samme utvalg. Bytte nullstiller aldri filtre (§36).
     // Statusfanene på Kunder-oversikten skriver til det SAMME generiske
@@ -14673,10 +14744,10 @@ function actionHandlers(target = null) {
       render()
     },
     // Timelister: ukenavigatoren flytter bare perioden - aldri filtrene (§27).
-    'timesheet-week-this': () => { state.timesheetFilters.week = startOfWeekIso(todayIso()); render() },
-    'timesheet-week-all': () => { state.timesheetFilters.week = ''; render() },
-    'timesheet-week-prev': () => { state.timesheetFilters.week = timesheetWeekStep(-1); render() },
-    'timesheet-week-next': () => { state.timesheetFilters.week = timesheetWeekStep(1); render() },
+    'timesheet-month-this': () => { state.timesheetFilters.month = isoMonthKey(todayIso()); state.timesheetMonthTouched = true; render() },
+    'timesheet-month-all': () => { state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; render() },
+    'timesheet-month-prev': () => { state.timesheetFilters.month = timesheetMonthStep(-1); state.timesheetMonthTouched = true; render() },
+    'timesheet-month-next': () => { state.timesheetFilters.month = timesheetMonthStep(1); state.timesheetMonthTouched = true; render() },
     // Varsler: å åpne panelet, lese eller merke lest endrer ALDRI fagdata (§23).
     'toggle-notifications': () => { state.notificationsOpen = !state.notificationsOpen; render() },
     'read-all-notifications': () => {
