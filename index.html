@@ -3128,6 +3128,27 @@ const copy = {
     'sick.reasonRequired': 'Begrunnelse er obligatorisk',
     'sick.replacementNeeded': 'Erstatter må finnes',
     'sick.needsReview': 'Sykefravær må avklares',
+    'sick.documentation': 'Fraværsgrunnlag',
+    'sick.documentationRequired': 'Fraværsgrunnlag er obligatorisk',
+    'sick.medicalFrom': 'Sykemelding fra dato',
+    'sick.medicalFromInvalid': 'Sykemelding fra dato må ligge innenfor fraværsperioden',
+    'sick.doc.self_certified': 'Egenmelding',
+    'sick.doc.medical_certificate': 'Sykemelding',
+    'sick.doc.self_certified_then_medical': 'Egenmelding + sykemelding',
+    'sick.doc.medical_certificate_rejected': 'Sykemelding avvist',
+    'sick.doc.no_medical_certificate_required': 'Ingen krav til sykemelding',
+    'sick.doc.rejectedHelp': 'Sykemelding avvist - dekning må vurderes. Ingen automatisk dekning eller fallback.',
+    'sick.coverageLabel': 'Dekning',
+    'sick.coveredDays': '{count} døgn',
+    'sick.coverageNotApproved': 'Ikke godkjent',
+    'sick.coverageRejected': 'Sykemelding avvist - dekning må vurderes',
+    'sick.correction': 'Korrigering',
+    'sick.markInvalid': 'Marker som ugyldig',
+    'sick.legacyPending': 'Eldre registrering',
+    'sick.event.sick_leave_validated': 'Gyldighet satt',
+    'sick.event.documentation_registered': 'Fraværsgrunnlag registrert',
+    'sick.event.documentation_changed': 'Fraværsgrunnlag endret',
+    'staffing.finalCheckSick': 'Den ansatte har registrert 100 % sykefravær i perioden',
     'sick.medleverReview': 'Medlever-sykefravær krever manuell avklaring av grunnlaget',
     'sick.source': 'Sykekompensasjon',
     'sick.finalize': 'Frys beregningen',
@@ -4423,6 +4444,13 @@ copy.en = {
   'sick.reasonRequired': 'A reason is required',
   'sick.replacementNeeded': 'Replacement needed',
   'sick.needsReview': 'Sick leave needs review',
+  'sick.documentation': 'Absence basis', 'sick.documentationRequired': 'The absence basis is required', 'sick.medicalFrom': 'Medical certificate from date', 'sick.medicalFromInvalid': 'The medical certificate date must fall within the absence period',
+  'sick.doc.self_certified': 'Self-certification', 'sick.doc.medical_certificate': 'Medical certificate', 'sick.doc.self_certified_then_medical': 'Self-certification + medical certificate', 'sick.doc.medical_certificate_rejected': 'Medical certificate rejected', 'sick.doc.no_medical_certificate_required': 'No medical certificate required',
+  'sick.doc.rejectedHelp': 'Medical certificate rejected - coverage must be assessed. No automatic coverage or fallback.',
+  'sick.coverageLabel': 'Coverage', 'sick.coveredDays': '{count} days', 'sick.coverageNotApproved': 'Not approved', 'sick.coverageRejected': 'Medical certificate rejected - coverage must be assessed',
+  'sick.correction': 'Correction', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
+  'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
+  'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
   'sick.medleverReview': 'Live-in sick leave requires manual review of the basis',
   'sick.source': 'Sick-leave compensation',
   'sick.finalize': 'Freeze the calculation',
@@ -8963,8 +8991,8 @@ function renderEmployeeDetail() {
       const records = sickLeavesCollection().filter(item => item.employeeId === employee.id)
       const registerButton = `<div class="form-actions" style="margin-bottom:8px"><button type="button" class="button secondary small" data-action="open-sick-leave" data-employee-id="${employee.id}">${t('sick.register')}</button></div>`
       if (!records.length) return `${registerButton}<p class="muted">${t('sick.none')}</p>`
-      const rows = records.map(item => `<tr><td>${formatDate(item.startDate)}–${formatDate(item.endDate)}</td><td>${formatPercent(item.absencePercent, 0)}</td><td>${t(`sick.validity.${item.validityStatus}`)}</td><td>${t(`sick.comp.${item.compensationStatus}`)}</td><td>${t(`sick.cost.${item.costResponsibility}`)}</td><td><button class="button ghost small" data-action="open-sick-leave-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>`)
-      return `${registerButton}${table(['sick.period', 'sick.degree', 'sick.validityLabel', 'sick.compLabel', 'sick.costLabel', 'common.actions'], rows)}`
+      const rows = records.map(item => { const cov = sickCoverageSummary(item); return `<tr><td>${formatDate(item.startDate)}–${formatDate(item.endDate)}</td><td>${formatPercent(item.absencePercent, 0)}</td><td>${item.documentationType ? t(`sick.doc.${item.documentationType}`) : `<span class="muted">${t('common.none')}</span>`}</td><td><span class="tag ${cov.tone}">${t(cov.key, { count: cov.count })}</span></td><td>${t(`sick.cost.${item.costResponsibility}`)}</td><td><button class="button ghost small" data-action="open-sick-leave-detail" data-id="${item.id}">${t('common.view')}</button></td></tr>` })
+      return `${registerButton}${table(['sick.period', 'sick.degree', 'sick.documentation', 'sick.coverageLabel', 'sick.costLabel', 'common.actions'], rows)}`
     })()}`],
   ]
   const accordions = sections.map(([title, content]) => `<details class="employee-accordion" open><summary>${title}<span aria-hidden="true">${icon('chevron')}</span></summary><div class="employee-accordion-content">${content}</div></details>`).join('')
@@ -10070,6 +10098,14 @@ function computeSickLines(record, workedLines, blocked) {
   for (const item of shifts) {
     const assignment = collection('assignments').find(entry => entry.id === item.assignmentId) ?? null
     if (!assignment) continue
+    // Fraværsgrunnlaget styrer dekningen per døgn: avvist sykemelding krever
+    // vurdering (synlig blokkering); et udekket egenmeldingsdøgn (dag 4+)
+    // gir ingen kompensasjonslinje - aldri en stille full utbetaling.
+    const coverage = sickCoverageForDate(record, assignment.date)
+    if (coverage && !coverage.covered) {
+      if (coverage.coverageReason === 'medical_certificate_rejected') blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: 'sick.coverageRejected' })
+      continue
+    }
     const basis = sickEligibleBasis(record, assignment)
     if (!basis.ok) { blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: basis.reason }); continue }
     // Arbeidet del på samme vakt/plass trekkes fra det berettigede grunnlaget.
@@ -10190,6 +10226,62 @@ function employeeWorkEvidence() {
 }
 
 // Sykefravær som overlapper vaktens fysiske periode (også medleverdøgn).
+// === Fraværsgrunnlag: fem kanoniske dokumentasjonstyper ===
+// Dokumentasjonen styrer ØKONOMISK dekning - aldri om personen er syk.
+const SICK_DOCUMENTATION_TYPES = ['self_certified', 'medical_certificate', 'self_certified_then_medical', 'medical_certificate_rejected', 'no_medical_certificate_required']
+
+// ÉN kanonisk dekningshelper for UI og økonomimotor: per døgn i perioden.
+// Egenmelding dekker MAKS 3 døgn; sykemelding følger perioden; kombinasjonen
+// bytter på medicalFromDate (egenmeldingsdelen fortsatt maks 3); avvist
+// sykemelding gir ALDRI automatisk dekning (og faller aldri tilbake til
+// egenmelding eller full lønn); «ingen krav» er en eksplisitt positiv
+// beslutning med full dekning. Legacy-records uten type beholder dekningen.
+function resolveSickLeaveCoverage(record) {
+  if (!record?.startDate || !record?.endDate) return []
+  const type = record.documentationType ?? null
+  const medicalFrom = record.medicalFromDate ?? null
+  const days = []
+  let iso = record.startDate
+  let index = 0
+  while (iso <= record.endDate && index < 366) {
+    let covered = true
+    let coverageReason = 'legacy'
+    if (type === 'self_certified') {
+      covered = index < 3
+      coverageReason = covered ? 'self_certified' : 'self_certification_limit'
+    } else if (type === 'medical_certificate') {
+      covered = true
+      coverageReason = 'medical_certificate'
+    } else if (type === 'self_certified_then_medical') {
+      if (medicalFrom && iso >= medicalFrom) { covered = true; coverageReason = 'medical_certificate' }
+      else { covered = index < 3; coverageReason = covered ? 'self_certified' : 'self_certification_limit' }
+    } else if (type === 'medical_certificate_rejected') {
+      covered = false
+      coverageReason = 'medical_certificate_rejected'
+    } else if (type === 'no_medical_certificate_required') {
+      covered = true
+      coverageReason = 'no_certificate_required'
+    }
+    days.push({ date: iso, documentationType: type, covered, coverageReason })
+    iso = isoAddDays(iso, 1)
+    index += 1
+  }
+  return days
+}
+
+function sickCoverageForDate(record, iso) {
+  return resolveSickLeaveCoverage(record).find(day => day.date === iso) ?? null
+}
+
+// Kompakt dekningsoppsummering for visning: antall dekkede døgn, eller den
+// eksplisitte «må vurderes»/«ikke godkjent»-tilstanden for avvist sykemelding.
+function sickCoverageSummary(record) {
+  if (record?.documentationType === 'medical_certificate_rejected') return { key: 'sick.coverageNotApproved', tone: 'danger', count: 0 }
+  const days = resolveSickLeaveCoverage(record)
+  const count = days.filter(day => day.covered).length
+  return { key: 'sick.coveredDays', tone: 'info', count }
+}
+
 function sickLeavesOverlappingShift(employeeId, assignment) {
   const startIso = assignment.date
   const endIso = (shiftEndTimestamp(assignment) ?? `${assignment.date}T00:00`).slice(0, 10)
@@ -10328,6 +10420,9 @@ function advanceSlotQueue(assignment, slot) {
 // bekreftelse etter ja (§21, §31): aktiv ansatt, ingen overlapp, eksplisitte krav.
 function finalAssignmentBlocker(employee, assignment) {
   if (!employee || employee.status === 'inactive' || employee.status === 'archived') return 'staffing.finalCheckInactive'
+  // 100 % sykefravær i perioden blokkerer HARDT ved lagring - samme kanoniske
+  // sjekk som matchingflaten, så ingen inngang kan omgå den (audit-funn H2).
+  if (sickLeavesOverlappingShift(employee.id, assignment).some(item => Number(item.absencePercent) >= 100)) return 'staffing.finalCheckSick'
   if (employeeBusyDuring(employee.id, assignment)) return 'staffing.replaceBusy'
   // Dobbeltbooking på planleggingsnivå: en aktiv tildeling på en annen vakt med
   // overlappende tidsrom blokkerer også - ikke bare registrerte vakter.
@@ -14038,8 +14133,10 @@ function sickLeaveDialog() {
   const overlapWarning = overlaps.length
     ? `<div class="banner warning">${icon('bell')}<span><strong>${t('sick.overlapWarning')}</strong> (${overlaps.map(item => `${formatDate(item.startDate)}–${formatDate(item.endDate)}`).join(', ')})</span></div>${boundCheckbox('confirmOverlap', t('sick.confirmOverlap'))}`
     : ''
+  const docChoice = String(draftValue('documentationType', ''))
+  const docSection = `<div class="form-section"><h3>${t('sick.documentation')}</h3><div class="grid cols-2">${boundSelect('documentationType', `${t('sick.documentation')} *`, SICK_DOCUMENTATION_TYPES.map(value => ({ value, text: t(`sick.doc.${value}`) })), { placeholder: t('common.select') })}${docChoice === 'self_certified_then_medical' ? bound('medicalFromDate', `${t('sick.medicalFrom')} *`, { type: 'date', required: true }) : ''}</div>${docChoice === 'medical_certificate_rejected' ? `<p class="field-help">${t('sick.doc.rejectedHelp')}</p>` : ''}</div>`
   const costSection = `<div class="form-section"><h3>${t('sick.costSection')}</h3><div class="grid cols-2">${boundSelect('costResponsibility', `${t('sick.costLabel')} *`, [{ value: 'client', text: t('sick.cost.client') }, { value: 'contractor', text: t('sick.cost.contractor') }, { value: 'shared', text: t('sick.cost.shared') }], { placeholder: t('common.select') })}${costChoice === 'shared' ? `${bound('clientSharePercent', t('sick.shareClient'), { type: 'number', required: true, help: '%' })}${bound('contractorSharePercent', t('sick.shareContractor'), { type: 'number', required: true, help: '%' })}` : ''}</div></div>`
-  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p><div class="grid cols-2">${bound('startDate', t('sick.from'), { type: 'date', required: true })}${bound('endDate', t('sick.to'), { type: 'date', required: true })}${bound('absencePercent', t('sick.degreePercent'), { type: 'number', required: true, help: '%' })}${bound('note', t('common.notes'))}</div>${costSection}${overlapWarning}${preview}`
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p><div class="grid cols-2">${bound('startDate', t('sick.from'), { type: 'date', required: true })}${bound('endDate', t('sick.to'), { type: 'date', required: true })}${bound('absencePercent', t('sick.degreePercent'), { type: 'number', required: true, help: '%' })}${bound('note', t('common.notes'))}</div>${docSection}${costSection}${overlapWarning}${preview}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-sick-leave">${t('sick.register')}</button></div>`
   return modalShell(t('sick.register'), escapeHtml(employee.name), 'bell', body, footer, 'medium')
 }
@@ -14063,10 +14160,21 @@ function sickLeaveDetailDialog() {
     ${statusRow('sick.degree', formatPercent(item.absencePercent, Number.isInteger(Number(item.absencePercent)) ? 0 : 1))}
     ${statusRow('sick.costLabel', costTag)}
     ${(() => { const shares = sickCoverageShares(item); return shares ? `${statusRow('sick.shareClient', formatPercent(shares.client, 0))}${statusRow('sick.shareContractor', formatPercent(shares.contractor, 0))}` : '' })()}
+    ${item.documentationType ? statusRow('sick.documentation', t(`sick.doc.${item.documentationType}`)) : ''}
+    ${(() => { const cov = sickCoverageSummary(item); return statusRow('sick.coverageLabel', `<span class="tag ${cov.tone}">${t(cov.key, { count: cov.count })}</span>`) })()}
     ${item.finalized ? statusRow('sick.finalized', `<span class="tag">${t('sick.finalizedTag')}</span>`) : ''}
   </dl>`
   const frozen = Boolean(item.finalized)
-  const validitySection = frozen ? '' : `<article class="card"><h3>${t('sick.validityLabel')}</h3><div class="grid cols-2">${bound('validityReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="sick-validity-valid">${t('sick.validity.valid')}</button><button type="button" class="button secondary small danger" data-action="sick-validity-invalid">${t('sick.validity.invalid')}</button></div></article>`
+  // Registreringen ER aktiveringen: ingen godkjenningsseksjon i normalflyt.
+  // Legacy pending-records beholder de gamle valgene; ellers vises kun
+  // korrigeringen «Marker som ugyldig» (feilregistrering, krever årsak).
+  const validitySection = frozen ? '' : item.validityStatus === 'pending'
+    ? `<article class="card"><h3>${t('sick.validityLabel')} <span class="tag warning">${t('sick.legacyPending')}</span></h3><div class="grid cols-2">${bound('validityReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="sick-validity-valid">${t('sick.validity.valid')}</button><button type="button" class="button secondary small danger" data-action="sick-validity-invalid">${t('sick.validity.invalid')}</button></div></article>`
+    : item.validityStatus === 'valid'
+      ? `<article class="card"><h3>${t('sick.correction')}</h3><div class="grid cols-2">${bound('validityReason', t('sick.reason'))}</div><div class="modal-actions" style="margin-top:8px"><button type="button" class="button secondary small danger" data-action="sick-validity-invalid">${t('sick.markInvalid')}</button></div></article>`
+      : ''
+  const coverage = sickCoverageSummary(item)
+  const detailDocSection = frozen ? '' : `<article class="card"><h3>${t('sick.documentation')}</h3><div class="grid cols-2">${(() => { const docChoice = String(draftValue('documentationType', item.documentationType ?? '')); return `${boundSelect('documentationType', `${t('sick.documentation')} *`, SICK_DOCUMENTATION_TYPES.map(value => ({ value, text: t(`sick.doc.${value}`) })), { placeholder: t('common.select') })}${docChoice === 'self_certified_then_medical' ? bound('medicalFromDate', `${t('sick.medicalFrom')} *`, { type: 'date' }) : ''}` })()}</div><p class="field-help">${item.documentationType === 'medical_certificate_rejected' ? t('sick.doc.rejectedHelp') : `${t('sick.coverageLabel')}: ${t(coverage.key, { count: coverage.count })}`}</p><div class="modal-actions" style="margin-top:8px"><button type="button" class="button small" data-action="save-sick-documentation">${t('common.save')}</button></div></article>`
   const compChoices = [
     { value: 'full_planned_pay', text: t('sick.comp.full') },
     { value: 'percentage', text: t('sick.comp.partial') },
@@ -14095,7 +14203,7 @@ function sickLeaveDetailDialog() {
     ? `<div class="form-actions" style="margin-top:8px">${bound('reopenReason', t('sick.reason'))}<button type="button" class="button secondary small danger" data-action="reopen-sick-leave">${t('sick.reopen')}</button></div>`
     : `<div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary small" data-action="finalize-sick-leave">${t('sick.finalize')}</button></div>`
   const history = (item.events ?? []).slice().reverse().map(event => `<div class="file-row"><div class="file-name"><strong>${t(`sick.event.${event.type}`)}</strong><span>${escapeHtml([event.actor, event.reason].filter(Boolean).join(' · '))}</span></div></div>`).join('')
-  const body = `${formError()}${summary}${validitySection}${compSection}${costSection}${finalizeSection}<article class="card" style="margin-top:12px"><h3>${t('timesheets.history')}</h3>${history}</article>`
+  const body = `${formError()}${summary}${detailDocSection}${validitySection}${compSection}${costSection}${finalizeSection}<article class="card" style="margin-top:12px"><h3>${t('timesheets.history')}</h3>${history}</article>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"></div>`
   return modalShell(t('sick.title'), `${formatDate(item.startDate)}–${formatDate(item.endDate)}`, 'bell', body, footer, 'medium')
 }
@@ -15390,6 +15498,11 @@ function actionHandlers(target = null) {
       // NØYAKTIG 100 % - systemet gjetter aldri en manglende andel.
       const responsibility = String(state.draft.costResponsibility ?? '')
       if (!['client', 'contractor', 'shared'].includes(responsibility)) { state.formError = 'common.required'; render(); return }
+      // Fraværsgrunnlaget er obligatorisk: én av de fem kanoniske typene.
+      const documentationType = String(state.draft.documentationType ?? '')
+      if (!SICK_DOCUMENTATION_TYPES.includes(documentationType)) { state.formError = 'sick.documentationRequired'; render(); return }
+      const medicalFromDate = String(state.draft.medicalFromDate ?? '').trim()
+      if (documentationType === 'self_certified_then_medical' && (!medicalFromDate || medicalFromDate < startDate || medicalFromDate > endDate)) { state.formError = 'sick.medicalFromInvalid'; render(); return }
       let clientShare = responsibility === 'client' ? 100 : responsibility === 'contractor' ? 0 : Number(String(state.draft.clientSharePercent ?? '').replace(',', '.'))
       let contractorShare = responsibility === 'client' ? 0 : responsibility === 'contractor' ? 100 : Number(String(state.draft.contractorSharePercent ?? '').replace(',', '.'))
       if (responsibility === 'shared') {
@@ -15412,10 +15525,18 @@ function actionHandlers(target = null) {
         absencePercent: percent,
         note: String(state.draft.note ?? '').trim(),
         registrationStatus: 'registered',
-        validityStatus: 'pending',
-        validityReason: null, validityReviewedAt: null, validityReviewedBy: null,
-        compensationStatus: 'pending',
-        compensationType: null, compensationPercent: null, compensationHours: null, compensationAmount: null, compensationReason: null,
+        // REGISTRERINGEN ER AKTIVERINGEN: sykefraværet er gyldig og operativt
+        // umiddelbart - ingen ekstra godkjenning i ansattkortet etterpå.
+        validityStatus: 'valid',
+        validityReason: null, validityReviewedAt: new Date().toISOString(), validityReviewedBy: 'demo-admin',
+        // Kompensasjonen avledes deterministisk av den registrerte fraværs-
+        // graden (100 % = full planlagt lønn, ellers samme prosentandel) -
+        // sporbart og korrigerbart, aldri et eget godkjenningstrinn.
+        compensationStatus: percent >= 100 ? 'full' : 'partial',
+        compensationType: percent >= 100 ? 'full_planned_pay' : 'percentage',
+        compensationPercent: percent >= 100 ? null : percent, compensationHours: null, compensationAmount: null, compensationReason: null,
+        documentationType,
+        medicalFromDate: documentationType === 'self_certified_then_medical' ? medicalFromDate : null,
         costResponsibility: responsibility,
         contractorSharePercent: contractorShare, clientSharePercent: clientShare, otherResponsibleParty: null, costReason: null,
         replacementRequired: false,
@@ -15450,6 +15571,9 @@ function actionHandlers(target = null) {
         }
       }
       logSickLeaveEvent(record_, { type: 'sick_leave_registered', absencePercent: percent })
+      logSickLeaveEvent(record_, { type: 'sick_leave_validated', auto: true })
+      logSickLeaveEvent(record_, { type: 'compensation_decided', decision: record_.compensationStatus, auto: true, derivedFromAbsencePercent: percent })
+      logSickLeaveEvent(record_, { type: 'documentation_registered', documentationType, medicalFromDate: record_.medicalFromDate })
       logSickLeaveEvent(record_, { type: 'cost_responsibility_decided', decision: responsibility, clientSharePercent: clientShare, contractorSharePercent: contractorShare })
       sickLeavesCollection().push(record_)
       state.slotAction = null
@@ -15536,6 +15660,22 @@ function actionHandlers(target = null) {
       item.costResponsibility = responsibility
       item.costReason = String(state.draft.costReason ?? '').trim() || null
       logSickLeaveEvent(item, { type: 'cost_responsibility_decided', decision: responsibility })
+      state.formError = null
+      persist(); render()
+    },
+    // Fraværsgrunnlaget kan redigeres i etterkant (mottatt sykemelding,
+    // avvist sykemelding, ...) - alltid med audit-event, aldri på fryst record.
+    'save-sick-documentation': () => {
+      const item = sickLeaveById(state.slotAction?.sickLeaveId)
+      if (!item || item.finalized) return
+      const documentationType = String(state.draft.documentationType ?? '')
+      if (!SICK_DOCUMENTATION_TYPES.includes(documentationType)) { state.formError = 'sick.documentationRequired'; render(); return }
+      const medicalFromDate = String(state.draft.medicalFromDate ?? '').trim()
+      if (documentationType === 'self_certified_then_medical' && (!medicalFromDate || medicalFromDate < item.startDate || medicalFromDate > item.endDate)) { state.formError = 'sick.medicalFromInvalid'; render(); return }
+      const previous = { documentationType: item.documentationType ?? null, medicalFromDate: item.medicalFromDate ?? null }
+      item.documentationType = documentationType
+      item.medicalFromDate = documentationType === 'self_certified_then_medical' ? medicalFromDate : null
+      logSickLeaveEvent(item, { type: 'documentation_changed', from: previous.documentationType, to: documentationType, medicalFromDate: item.medicalFromDate })
       state.formError = null
       persist(); render()
     },
@@ -17519,6 +17659,7 @@ window.__workmaticPreview = {
   // Brukere og tilganger: den avledede, scopede visningen for én kontakt -
   // samme filtre som forhåndsvisningsdialogen leser (§15).
   contactImportTemplate: () => contactImportTemplate(),
+  sickCoverage: sickLeaveId => JSON.parse(JSON.stringify(resolveSickLeaveCoverage(sickLeaveById(sickLeaveId)))),
   contactAccessPreview: contactId => {
     const contact = record('contacts', contactId)
     if (!contact) return null
