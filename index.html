@@ -4137,6 +4137,9 @@ const copy = {
     'staffing.newEmployee': 'Ny ansatt',
     'staffing.historyKept': 'Registrert arbeid, timelister og lønnsgrunnlag beholdes.',
     'staffing.hasRegisteredWork': 'Denne ansatte har registrert arbeid på vakten.',
+    'staffing.originalPeriod': 'Opprinnelig medleverperiode',
+    'staffing.totalPayable': 'Totalt betalbart',
+    'staffing.sickCompensation': 'Sykekompensasjon',
     'staffing.busy': 'Opptatt',
     'staffing.overlapBlocked': '{name} er allerede satt opp på en annen vakt som overlapper denne perioden ({period}).',
     'staffing.replaceBusy': 'Den valgte ansatte har en overlappende vakt og kan ikke tildeles.',
@@ -5247,6 +5250,7 @@ copy.en = {
   'staffing.newEmployee': 'New employee',
   'staffing.historyKept': 'Registered work, timesheets and payroll data are kept.',
   'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
+  'staffing.originalPeriod': 'Original live-in period', 'staffing.totalPayable': 'Total payable', 'staffing.sickCompensation': 'Sick compensation',
   'staffing.busy': 'Busy', 'staffing.overlapBlocked': '{name} is already assigned to another shift that overlaps this period ({period}).',
   'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.',
   'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
@@ -9775,7 +9779,9 @@ function blockingDetail(employee, assignment, result) {
 function shiftEconomyCard(assignment, employee, slot = null) {
   const date = assignment.date || '2026-08-20'
   // Vakten om den finnes, ellers oppdragets egne tider som estimat.
-  const shift = collection('shifts').find(item => item.employeeId === employee.id && (item.assignmentId === assignment.id || record('jobs', item.jobId)?.assignmentId === assignment.id))
+  // Et eksplisitt replacement-vindu bruker ALDRI en generisk shift-record
+  // (som kan bære et full-vakt-calculationSnapshot) - kun slot-konteksten.
+  const shift = (slot?.coverageFrom ? null : collection('shifts').find(item => item.employeeId === employee.id && (item.assignmentId === assignment.id || record('jobs', item.jobId)?.assignmentId === assignment.id)))
     ?? { employeeId: employee.id, assignmentId: assignment.id, date, start: assignment.startTime, end: assignment.endTime, breakMinutes: assignment.breakMinutes }
   const economy = shiftEconomy(shift, assignment, slot)
   const asEmployee = state.economyView === 'employee'
@@ -9793,24 +9799,19 @@ function shiftEconomyCard(assignment, employee, slot = null) {
   // tariffmessige betalte tiden (t + min fra den kanoniske planen) og pausen
   // (2 t per døgn) er egne rader. Pausen reduserer aldri betalt tid.
   const timeRows = economy.liveIn
-    ? `${line(t('medlever.period'), `${liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')}`)}${line(t('staffing.paidTime'), liveInSnapshotTotalLabel(economy.liveIn))}${line(t('timesheets.break'), formatHoursMinutes(liveInBreakMinutesTotal(economy.liveIn)))}`
+    ? economy.sickCompensation
+      // Originalansatt med sykesegmenter: sykefraværet endrer betalingstypen,
+      // aldri den betalbare vakten - splitten gjør totalen entydig.
+      ? `${line(t('staffing.originalPeriod'), `${Number(economy.liveIn.originalDays) || liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')}`)}${line(t('sick.worked'), `${liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')} · ${liveInSnapshotTotalLabel(economy.liveIn)}`)}${line(t('sick.title'), `${economy.sickCompensation.days} ${t('medlever.daysShort')} · ${formatHoursMinutes(economy.sickCompensation.minutes)}`)}${line(t('staffing.totalPayable'), `${liveInSnapshotDays(economy.liveIn) + economy.sickCompensation.days} ${t('medlever.daysShort')} · ${formatHoursMinutes((Number(economy.liveIn.totalPaidMinutes) || 0) + economy.sickCompensation.minutes)}`)}`
+      : `${line(t('medlever.period'), `${liveInSnapshotDays(economy.liveIn)} ${t('medlever.daysShort')}`)}${line(t('staffing.paidTime'), liveInSnapshotTotalLabel(economy.liveIn))}${line(t('timesheets.break'), formatHoursMinutes(liveInBreakMinutesTotal(economy.liveIn)))}`
     : `${line(t('staffing.shiftLength'), `${formatNumber(economy.grossHours, 1)} ${t('comp.ui.hoursShort')}`, `${formatNumber(economy.breakMinutes, 0)} min ${t('timesheets.break').toLocaleLowerCase()}`)}${line(t('staffing.paidTime'), `${formatNumber(economy.hours, 1)} ${t('comp.ui.hoursShort')}`)}`
-  // §: originalansatt med aktive sykesegmenter viser den automatisk beregnede
-  // sykekompensasjonen som egen informasjonslinje (den er en egen payroll-
-  // linje - aldri del av det ordinære arbeidsgrunnlaget her).
-  const sickInfo = (() => {
-    if (!assignment.liveInSnapshot || !slot || slot.coverageFrom || !slot.employeeId) return ''
-    const intervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
-    if (!intervals.length) return ''
-    let minutes = 0
-    for (const interval of intervals) {
-      const resolved = resolveLiveInPaidMinutesForWindow(assignment, interval.sickStartAt, interval.sickEndAt)
-      if (resolved && !resolved.partial) minutes += resolved.paidMinutes
-    }
-    if (!minutes) return ''
-    return line(t('sick.title'), `${formatHoursMinutes(minutes)} · ${formatMoney(round2(minutes / 60) * economy.baseRate)}`)
-  })()
-  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${timeRows}${sickInfo}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(economy.payBasis)}</strong></div>`
+  // Sykekompensasjonen er en egen payroll-linje (grain beholdes) - kortet
+  // SUMMERER work + sick til personens totale lønnsgrunnlag.
+  const sickAmountLine = economy.sickCompensation
+    ? line(t('staffing.sickCompensation'), formatMoney(economy.sickCompensation.amount))
+    : ''
+  const personalTotal = economy.payBasis + (economy.sickCompensation?.amount ?? 0)
+  const pay = `${line(t('staffing.hourlyRate'), `${formatMoney(economy.baseRate, 2)}/${t('comp.ui.hoursShort')}`)}${timeRows}${line(t('staffing.basePay'), formatMoney(economy.ordinaryAmount))}${premiumDisplaySection(economy.premiumLines, economy.premiumAmount)}${line(t('comp.payroll.overtime'), formatMoney(economy.overtimeAmount))}${sickAmountLine}<div class="summary-line total"><span>${asEmployee ? t('staffing.shiftTotal') : t('staffing.payBasisTotal')}</span><strong>${formatMoney(personalTotal)}</strong></div>`
   if (asEmployee) {
     // Ingen kundedata: ingen påslag, ingen MVA, ingen totalpris.
     return `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${heading}</h3>${toggle}</div><p class="field-help">${escapeHtml(employee.name)} · ${stamp}</p>${pay}</article>`
@@ -10915,7 +10916,10 @@ function shiftTemplateHours(template) {
 function shiftCompensation(shiftInput, slotContext = null) {
   const shift = typeof shiftInput === 'string' ? record('shifts', shiftInput) : shiftInput
   if (!shift) return { ok: false, reason: 'missing_context', trace: [] }
-  if (shift.calculationSnapshot) return { ok: true, historical: true, ...shift.calculationSnapshot }
+  // PRIORITETSREGEL: et eksplisitt replacement-slot-vindu vinner ALLTID over
+  // et generisk full-vakt-calculationSnapshot - snapshotet brukes kun for
+  // historiske helvaktskontekster uten slot-spesifikk økonomi.
+  if (shift.calculationSnapshot && !slotContext?.coverageFrom) return { ok: true, historical: true, ...shift.calculationSnapshot }
   const job = record('jobs', shift.jobId)
   const assignment = record('assignments', shift.assignmentId || job?.assignmentId)
   const employee = record('employees', shift.employeeId)
@@ -10941,6 +10945,8 @@ function shiftCompensation(shiftInput, slotContext = null) {
       const sickIntervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === effectiveSlot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(effectiveSlot.id)))
       if (sickIntervals.length) {
         let paidMinutes = 0
+        let sickMinutes = 0
+        let sickDays = 0
         let partial = false
         const healthy = []
         for (const segment of liveIn.segments ?? []) {
@@ -10949,9 +10955,15 @@ function shiftCompensation(shiftInput, slotContext = null) {
           const overlapping = sickIntervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)
           const fullyCovered = sickIntervals.some(item => item.sickStartAt <= segmentFrom && item.sickEndAt >= segmentTo)
           if (!overlapping) { paidMinutes += Number(segment.paidMinutes) || 0; healthy.push(segment) }
-          else if (!fullyCovered) partial = true
+          else if (fullyCovered) { sickMinutes += Number(segment.paidMinutes) || 0; sickDays += 1 }
+          else partial = true
         }
-        if (!partial) liveIn = { ...liveIn, segments: healthy, totalPaidMinutes: paidMinutes, totalPaidHours: round2(paidMinutes / 60), days: healthy.length }
+        if (!partial) {
+          // SYKEFRAVÆR ENDRER BETALINGSTYPEN - aldri den betalbare vakten:
+          // friske segmenter betales ordinært, syke som sykekompensasjon.
+          // Komponentene holdes adskilt (payroll-grain), presentasjonen summerer.
+          liveIn = { ...liveIn, segments: healthy, totalPaidMinutes: paidMinutes, totalPaidHours: round2(paidMinutes / 60), days: healthy.length, originalDays: (assignment.liveInSnapshot.segments ?? []).length, sickMinutes, sickDays }
+        }
       }
     }
   }
@@ -10969,11 +10981,15 @@ function shiftCompensation(shiftInput, slotContext = null) {
     : 0
   // «Erstatter ordinær lønn» (medlever) tar grunnlønnens plass - aldri begge.
   const ordinaryAmount = hours * resolution.baseRate - (premium.baseReplacement || 0)
+  const sickCompensation = liveIn?.sickMinutes
+    ? { minutes: liveIn.sickMinutes, days: liveIn.sickDays, hours: round2(liveIn.sickMinutes / 60), amount: round2(round2(liveIn.sickMinutes / 60) * resolution.baseRate) }
+    : null
   return {
     ...resolution,
     shiftId: shift.id,
     hours,
     liveIn,
+    sickCompensation,
     ordinaryAmount,
     premiumLines: premium.applied,
     premiumBlocked: premium.blocked,
@@ -12485,6 +12501,7 @@ function shiftEconomy(shiftInput, assignmentInput = null, slot = null) {
     // Autoritativt medleversignal: det SLOT-RESOLVEDE vinduet fra
     // beregningen - aldri automatisk hele assignmentens plan.
     liveIn: pay.liveIn ?? assignment?.liveInSnapshot ?? null,
+    sickCompensation: pay.sickCompensation ?? null,
     hours: pay.hours,
     baseRate: pay.baseRate,
     ordinaryAmount: pay.ordinaryAmount,
@@ -18912,7 +18929,7 @@ window.__workmaticPreview = {
   blockingMessageKey,
   setDepartmentOverride: (departmentId, values) => { Object.assign(record('departments', departmentId), values); persist(); render() },
   completedYears,
-  shiftCompensation,
+  shiftCompensation: (shiftInput, slotId = null) => shiftCompensation(shiftInput, slotId ? (() => { const shift = typeof shiftInput === 'string' ? record('shifts', shiftInput) : shiftInput; const assignment = record('assignments', shift?.assignmentId); return assignment ? slotById(assignment, slotId) : null })() : null),
   premiumDisplay: entry => ({ ...premiumDisplayModel(entry) }),
   paySystemRules: (assignmentId, date) => {
     const context = payContextFor(record('assignments', assignmentId), date)
