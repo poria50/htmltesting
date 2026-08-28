@@ -13785,9 +13785,9 @@ function draftValue(name, fallback = '') {
   return state.draft[name] !== undefined ? state.draft[name] : fallback
 }
 
-function bound(name, labelText, { type = 'text', value = '', help = '', required = false } = {}) {
+function bound(name, labelText, { type = 'text', value = '', help = '', required = false, min = '', max = '' } = {}) {
   const current = draftValue(name, value)
-  return `<div class="field"><label for="f-${name}">${labelText}${required ? ' *' : ''}</label><input id="f-${name}" type="${type}" data-field="${name}" value="${escapeHtml(current)}">${help ? `<p class="field-help">${help}</p>` : ''}</div>`
+  return `<div class="field"><label for="f-${name}">${labelText}${required ? ' *' : ''}</label><input id="f-${name}" type="${type}" data-field="${name}" value="${escapeHtml(current)}"${min ? ` min="${escapeHtml(min)}"` : ''}${max ? ` max="${escapeHtml(max)}"` : ''}>${help ? `<p class="field-help">${help}</p>` : ''}</div>`
 }
 
 function boundTextarea(name, labelText, { value = '', help = '', rows = 4 } = {}) {
@@ -14189,7 +14189,7 @@ function sickLeaveDialog() {
     ? `<article class="card" style="margin-bottom:8px"><h3>${t('sick.shiftPeriod')}</h3><p><strong>${humanStamp(anchorWindow.from)} → ${humanStamp(anchorWindow.to)}</strong></p></article>`
     : ''
   const scopeSection = anchorWindow
-    ? `<div class="form-section"><h3>${t('sick.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="full_shift"${scope === 'full_shift' ? ' checked' : ''}>${t('sick.scope.full')}</label><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="partial_shift"${scope === 'partial_shift' ? ' checked' : ''}>${t('sick.scope.partial')}</label></div>${scope === 'partial_shift' ? `<div class="grid cols-2">${bound('sickStartDate', `${t('sick.sickFrom')} *`, { type: 'date' })}${bound('sickStartTime', t('shifts.time'), { type: 'time' })}${bound('sickEndDate', `${t('sick.sickTo')} *`, { type: 'date', value: anchorWindow.to.slice(0, 10) })}${bound('sickEndTime', t('shifts.time'), { type: 'time', value: anchorWindow.to.slice(11, 16) })}</div>` : ''}</div>`
+    ? `<div class="form-section"><h3>${t('sick.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="full_shift"${scope === 'full_shift' ? ' checked' : ''}>${t('sick.scope.full')}</label><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="partial_shift"${scope === 'partial_shift' ? ' checked' : ''}>${t('sick.scope.partial')}</label></div>${scope === 'partial_shift' ? `<div class="grid cols-2">${bound('sickStartDate', `${t('sick.sickFrom')} *`, { type: 'date', value: anchorWindow.from.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickStartTime', t('shifts.time'), { type: 'time', value: anchorWindow.from.slice(11, 16) })}${bound('sickEndDate', `${t('sick.sickTo')} *`, { type: 'date', value: anchorWindow.to.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickEndTime', t('shifts.time'), { type: 'time', value: anchorWindow.to.slice(11, 16) })}</div>` : ''}</div>`
     : ''
   // Live-oppsummering: arbeidet del, sykefraværet og erstatterbehovet.
   const summarySection = (() => {
@@ -15571,8 +15571,8 @@ function actionHandlers(target = null) {
           sickStartAt = anchorWindow.from
           sickEndAt = anchorWindow.to
         } else {
-          sickStartAt = `${String(state.draft.sickStartDate ?? '').trim()}T${String(state.draft.sickStartTime ?? '').trim()}`
-          sickEndAt = `${String(state.draft.sickEndDate ?? anchorWindow.to.slice(0, 10)).trim()}T${String(state.draft.sickEndTime ?? anchorWindow.to.slice(11, 16)).trim()}`
+          sickStartAt = `${String(state.draft.sickStartDate || anchorWindow.from.slice(0, 10)).trim()}T${String(state.draft.sickStartTime || anchorWindow.from.slice(11, 16)).trim()}`
+          sickEndAt = `${String(state.draft.sickEndDate || anchorWindow.to.slice(0, 10)).trim()}T${String(state.draft.sickEndTime || anchorWindow.to.slice(11, 16)).trim()}`
           // HARD VALIDERING: shift.start <= sickStart < sickEnd <= shift.end.
           if (sickStartAt.length < 16 || sickEndAt.length < 16 || sickStartAt < anchorWindow.from || sickEndAt > anchorWindow.to || sickStartAt >= sickEndAt) {
             state.formError = 'sick.intervalOutsideShift'; render(); return
@@ -17430,6 +17430,22 @@ function applyDraftChange(name, value) {
   }
   // Avdelingen kan bare velge blant klientens lønnssystemer. Bytter man klient,
   // nullstilles et valg som ikke lenger er tilgjengelig.
+  // Vaktforankret sykefravær: når «Deler av vakten» velges, initialiseres
+  // Syk fra/til ALLTID fra den aktuelle vaktens kanoniske start/slutt -
+  // aldri dagens dato, aldri gammel dialogstate (§2-§5 i fiksen).
+  if (state.dialog === 'sick-leave' && name === 'absenceScope') {
+    const anchor = state.slotAction?.assignmentId ? record('assignments', state.slotAction.assignmentId) : null
+    if (anchor && value === 'partial_shift') {
+      const from = `${anchor.date}T${anchor.startTime}`
+      const to = shiftEndTimestamp(anchor) ?? `${anchor.date}T${anchor.endTime}`
+      state.draft.sickStartDate = from.slice(0, 10)
+      state.draft.sickStartTime = from.slice(11, 16)
+      state.draft.sickEndDate = to.slice(0, 10)
+      state.draft.sickEndTime = to.slice(11, 16)
+    }
+    render()
+    return
+  }
   if (state.dialog === 'department' && name === 'clientId') {
     const client = record('clients', value)
     const available = new Set([...(client?.paySystemIds ?? []), ...(client?.tariffId ? [client.tariffId] : [])])
