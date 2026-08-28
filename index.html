@@ -2753,7 +2753,7 @@ const state = {
   // Timelister: klient styrer avdeling, så avdelingen nullstilles når klienten
   // byttes. Tomme strenger betyr «alle».
   // Timelister er MÅNEDSBASERT: month ('YYYY-MM') er primærperioden.
-  timesheetFilters: { clientId: '', departmentId: '', employeeId: '', month: '' },
+  timesheetFilters: { clientId: '', departmentId: '', employeeId: '', month: '', search: '' },
   // Vaktplanens visnings-state (aldri kanonisk data): vis ledige vakter,
   // kompakt modus, ønsket scrollmål (dato) og sist kjente scrollposisjon.
   shiftPlanDisplay: { showOpen: true, compact: false },
@@ -2776,6 +2776,8 @@ const state = {
   // Fakturagrunnlag V2: presentasjonsfilter over samme kanoniske invoice basis.
   invoiceReportForm: { clientId: 'c1', departmentId: '', fromDate: '2026-08-01', toDate: '2026-08-31' },
   invoiceReportView: null,
+  timesheetEmployee: null,
+  timesheetMonthStatusFilter: '',
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -3010,6 +3012,26 @@ const copy = {
     'timesheets.thisMonth': 'Denne måneden',
     'timesheets.month': 'Måned',
     'timesheets.noneForMonth': 'Ingen timelister i {month}.',
+    'timesheets.perEmployee': 'Timelister per ansatt',
+    'timesheets.employeeCount': '{count} ansatte',
+    'timesheets.shiftCount': 'Vakter',
+    'timesheets.registered': 'Registrert',
+    'timesheets.viewTimesheets': 'Se timelister',
+    'timesheets.shiftsInMonth': 'Vakter i {month}',
+    'timesheets.submitOne': 'Send inn',
+    'timesheets.submitMonth': 'Send inn {month}',
+    'timesheets.batchReady': '{count} timelister er klare til innsending.',
+    'timesheets.batchBlocked': '{count} timelister må kontrolleres og sendes ikke.',
+    'timesheets.batchSubmit': 'Send inn {count} klare',
+    'timesheets.batchResult': '{submitted} timelister sendt inn. {remaining} gjenstår.',
+    'timesheets.legacyWeekly': 'Eldre uketimelister',
+    'timesheets.monthStatus.not_submitted': 'Ikke levert',
+    'timesheets.monthStatus.needs_review': 'Må kontrolleres',
+    'timesheets.monthStatus.ready': 'Klar til innsending',
+    'timesheets.monthStatus.partially_submitted': 'Delvis sendt inn',
+    'timesheets.monthStatus.submitted': 'Sendt inn',
+    'timesheets.monthStatus.approved': 'Godkjent',
+    'common.for': 'for',
     'page.timesheets.desc': 'Månedlig oversikt over registrerte og godkjente timelister.',
     'shifts.emptyFiltered': 'Ingen vakter i valgt periode og filter.',
     'series.enable': 'Flere datoer / Gjenta vakten',
@@ -4395,6 +4417,8 @@ copy.en = {
   'attention.timesheetCorrect': 'Timesheet needs correction',
   'timesheets.allEmployees': 'All employees',
   'timesheets.thisWeek': 'This week', 'timesheets.thisMonth': 'This month', 'timesheets.month': 'Month', 'timesheets.noneForMonth': 'No timesheets in {month}.', 'page.timesheets.desc': 'Monthly overview of registered and approved timesheets.',
+  'timesheets.perEmployee': 'Timesheets per employee', 'timesheets.employeeCount': '{count} employees', 'timesheets.shiftCount': 'Shifts', 'timesheets.registered': 'Registered', 'timesheets.viewTimesheets': 'View timesheets', 'timesheets.shiftsInMonth': 'Shifts in {month}', 'timesheets.submitOne': 'Submit', 'timesheets.submitMonth': 'Submit {month}', 'timesheets.batchReady': '{count} timesheets are ready for submission.', 'timesheets.batchBlocked': '{count} timesheets need review and are not sent.', 'timesheets.batchSubmit': 'Submit {count} ready', 'timesheets.batchResult': '{submitted} timesheets submitted. {remaining} remaining.', 'timesheets.legacyWeekly': 'Legacy weekly timesheets',
+  'timesheets.monthStatus.not_submitted': 'Not submitted', 'timesheets.monthStatus.needs_review': 'Needs review', 'timesheets.monthStatus.ready': 'Ready for submission', 'timesheets.monthStatus.partially_submitted': 'Partially submitted', 'timesheets.monthStatus.submitted': 'Submitted', 'timesheets.monthStatus.approved': 'Approved', 'common.for': 'for',
   'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
   'series.enable': 'Multiple dates / Repeat shift',
   'series.title': 'Shift series',
@@ -11300,6 +11324,73 @@ function timesheetApprover(assignment) {
 }
 
 // Normal redigering er bare mulig før innsending og under korrigering.
+// === Timelister V2: månedsaggregering per ansatt ===
+// Kanonisk kilde er de samme slot-timelistene som resten av systemet.
+
+// Planlagte minutter for én timeliste: medlever bruker den fryste planen
+// avgrenset til plassens vindu (erstatter) eller de friske segmentene
+// (original med sykefravær) - aldri fysisk varighet, aldri parent-totalen.
+function timesheetPlannedMinutes(timesheet) {
+  const assignment = record('assignments', timesheet.assignmentId)
+  const slot = assignment ? slotById(assignment, timesheet.slotId) : null
+  if (assignment?.liveInSnapshot) {
+    const window = slotCoverageWindowIso(assignment, slot)
+    if (window) {
+      const resolved = resolveLiveInPaidMinutesForWindow(assignment, window.from, window.to)
+      if (resolved && !resolved.partial) return resolved.paidMinutes
+    } else if (slot?.employeeId) {
+      const intervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+      if (intervals.length) {
+        let minutes = 0
+        for (const segment of assignment.liveInSnapshot.segments ?? []) {
+          const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+          const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+          if (!intervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)) minutes += Number(segment.paidMinutes) || 0
+        }
+        return minutes
+      }
+    }
+    return Number(assignment.liveInSnapshot.totalPaidMinutes) || Math.round((Number(assignment.liveInSnapshot.totalPaidHours) || 0) * 60)
+  }
+  const span = timeSpanMinutes(timesheet.plannedStart, timesheet.plannedEnd, timesheet.endNextDay)
+  return Math.max(0, (span ?? 0) - Math.max(0, Number(timesheet.plannedBreakMinutes) || 0))
+}
+
+// Registrerte minutter: godkjent medlever leser sitt fryste snapshot; ellers
+// faktiske tider når de er registrert - aldri en stille plan-som-faktisk.
+function timesheetActualMinutes(timesheet) {
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (assignment?.liveInSnapshot) {
+    const frozen = timesheet.status === 'approved' ? timesheet.approvalVersions?.at(-1)?.liveIn : null
+    if (frozen) {
+      return frozen.override?.paidHours ? Math.round(frozen.override.paidHours * 60) : (Number(frozen.totalPaidMinutes) || Math.round((Number(frozen.totalPaidHours) || 0) * 60))
+    }
+    return timesheet.actualStart && timesheet.actualEnd ? timesheetPlannedMinutes(timesheet) : 0
+  }
+  if (!timesheet.actualStart || !timesheet.actualEnd) return 0
+  const span = timeSpanMinutes(timesheet.actualStart, timesheet.actualEnd, timesheet.endNextDay)
+  return Math.max(0, (span ?? 0) - Math.max(0, Number(timesheet.actualBreakMinutes) || 0))
+}
+
+// «Klar til innsending»: samme gate som individuell innsending - faktiske
+// tider registrert, og avvik alltid med notat. Aldri en svakere batch-gate.
+function timesheetReadyToSubmit(timesheet) {
+  if (timesheet.status !== 'not_submitted' && timesheet.status !== 'needs_correction') return false
+  if (!timesheet.actualStart || !timesheet.actualEnd || timesheet.actualBreakMinutes === null || timesheet.actualBreakMinutes === undefined || timesheet.actualBreakMinutes === '') return false
+  if (timesheetDeviation(timesheet).any && !String(timesheet.deviationNote ?? '').trim()) return false
+  return true
+}
+
+// Én kanonisk månedsstatus per ansatt, avledet av per-timeliste-statusene.
+function employeeMonthTimesheetStatus(rows) {
+  if (!rows.length) return 'not_submitted'
+  const done = rows.filter(item => item.status === 'submitted' || item.status === 'approved')
+  if (done.length === rows.length) return rows.every(item => item.status === 'approved') ? 'approved' : 'submitted'
+  if (done.length > 0) return 'partially_submitted'
+  if (rows.some(item => !timesheetReadyToSubmit(item))) return rows.some(item => timesheetReadyToSubmit(item)) || rows.some(item => item.actualStart) ? 'needs_review' : 'not_submitted'
+  return 'ready'
+}
+
 function timesheetEditable(timesheet) {
   return !timesheet.voided && !timesheet.superseded && ['not_submitted', 'needs_correction'].includes(timesheet.status)
 }
@@ -11522,6 +11613,88 @@ function slotTimesheetTable() {
   return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('timesheets.perShift')}</h2><span class="tag info">${rows.length}</span></div>${filterBanner}${body}</article>`
 }
 
+// === Timelister V2: MÅNED -> ANSATT -> VAKTER -> TIMELISTE ===
+
+function timesheetMonthStatusLabel(status) {
+  return t(`timesheets.monthStatus.${status}`)
+}
+
+// Vaktradene for én ansatt i det filtrerte månedsutvalget.
+function employeeTimesheetRows(employeeId) {
+  return visibleSlotTimesheets().filter(item => item.employeeId === employeeId)
+}
+
+function timesheetRowStatusLabel(timesheet) {
+  if (timesheet.status === 'submitted' || timesheet.status === 'approved' || timesheet.status === 'needs_correction') return t(`timesheets.status.${timesheet.status}`)
+  return timesheetReadyToSubmit(timesheet) ? t('timesheets.monthStatus.ready') : t(`timesheets.status.${timesheet.status}`)
+}
+
+// Ansattens månedsdetalj: oppsummering, batch-innsending og vakttabellen.
+function employeeTimesheetDetail(employee) {
+  const rows = employeeTimesheetRows(employee.id)
+  const planned = rows.reduce((sum, item) => sum + timesheetPlannedMinutes(item), 0)
+  const actual = rows.reduce((sum, item) => sum + timesheetActualMinutes(item), 0)
+  // Avvik beregnes kun over registrerte rader - urapporterte vakter er ikke
+  // et negativt avvik, de er bare ikke levert ennå.
+  const deviationMinutes = rows.filter(item => timesheetActualMinutes(item) > 0).reduce((sum, item) => sum + (timesheetActualMinutes(item) - timesheetPlannedMinutes(item)), 0)
+  const signed = minutes => minutes < 0 ? `-${formatHoursMinutes(-minutes)}` : formatHoursMinutes(minutes)
+  const status = employeeMonthTimesheetStatus(rows)
+  const summary = `<div class="stats-grid" style="margin-top:12px">${[[t('timesheets.shiftCount'), String(rows.length)], [t('timesheets.planned'), formatHoursMinutes(planned)], [t('timesheets.registered'), formatHoursMinutes(actual)], [t('timesheets.deviation'), signed(deviationMinutes)], [t('common.status'), timesheetMonthStatusLabel(status)]].map(([labelText, value]) => `<article class="stat-card"><span class="stat-label">${labelText}</span><strong class="stat-value compact">${value}</strong></article>`).join('')}</div>`
+  const body = rows.map(item => {
+    const assignment = record('assignments', item.assignmentId)
+    const slot = assignment ? slotById(assignment, item.slotId) : null
+    const replacement = slot?.coverageFrom
+      ? `<div class="muted" style="font-size:11px">${(() => { const original = staffingSlotsFor(assignment).find(entry => String(entry.id) === String(slot.replacementForSlotId)); const name = record('employees', original?.employeeId ?? (slot.replacementForSickLeaveId ? sickLeaveById(slot.replacementForSickLeaveId)?.employeeId : null))?.name; return name ? t('staffing.replacementFor', { name }) : t('staffing.replacementSlot') })()}</div>`
+      : ''
+    const shiftName = assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : t('shifts.unnamed')
+    const period = slot?.coverageFrom
+      ? `${formatDate(slot.coverageFrom.slice(0, 10))}–${formatDate((slot.coverageTo ?? '').slice(0, 10))}`
+      : assignment?.liveInSnapshot
+        ? `${formatDate(assignment.date)}–${formatDate((shiftEndTimestamp(assignment) ?? '').slice(0, 10))}`
+        : item.plannedDate ? formatDate(item.plannedDate) : ''
+    const plannedMinutes = timesheetPlannedMinutes(item)
+    const actualMinutes = timesheetActualMinutes(item)
+    const ready = timesheetReadyToSubmit(item)
+    return `<tr><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span>${replacement}</div></td><td>${period}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${formatHoursMinutes(plannedMinutes)}</td><td>${actualMinutes ? formatHoursMinutes(actualMinutes) : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`}</td><td>${actualMinutes && actualMinutes !== plannedMinutes ? formatHoursMinutes(actualMinutes - plannedMinutes) : '0'}</td><td>${timesheetRowStatusLabel(item)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button>${ready ? `<button class="button small" data-action="submit-timesheet-row" data-id="${item.id}">${t('timesheets.submitOne')}</button>` : ''}</td></tr>`
+  })
+  const readyCount = rows.filter(timesheetReadyToSubmit).length
+  const heading = `<div class="content-toolbar"><span></span><div class="page-actions"><button type="button" class="button secondary" data-action="close-employee-timesheets">${icon('arrow-left')}${t('common.back')}</button>${readyCount ? `<button type="button" class="button" data-action="open-month-submit" data-employee-id="${employee.id}">${t('timesheets.submitMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</button>` : ''}</div></div>`
+  const table_ = rows.length
+    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.shiftsInMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h2><span class="tag info">${rows.length}</span></div><div class="table-scroller"><table><thead><tr>${['shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
+    : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3></div>`
+  return `${heading}<article class="card" style="margin-top:12px"><h2>${escapeHtml(employee.name)}</h2><p class="field-help">${t('nav.timesheets')} · ${timesheetMonthLabel(state.timesheetFilters.month)}</p>${summary}</article>${table_}`
+}
+
+// Førstesiden: ÉN rad per ansatt i valgt måned.
+function employeeTimesheetOverview() {
+  const query = String(state.timesheetFilters.search ?? '').trim().toLocaleLowerCase()
+  const byEmployee = new Map()
+  for (const item of visibleSlotTimesheets()) {
+    const list = byEmployee.get(item.employeeId) ?? []
+    list.push(item)
+    byEmployee.set(item.employeeId, list)
+  }
+  const rows = [...byEmployee.entries()]
+    .map(([employeeId, list]) => ({ employee: record('employees', employeeId), list }))
+    .filter(entry => entry.employee)
+    .filter(entry => !query || entry.employee.name.toLocaleLowerCase().includes(query))
+    .map(entry => ({ ...entry, status: employeeMonthTimesheetStatus(entry.list) }))
+    .filter(entry => !state.timesheetMonthStatusFilter || entry.status === state.timesheetMonthStatusFilter)
+    .sort((a, b) => a.employee.name.localeCompare(b.employee.name))
+  const body = rows.map(({ employee, list, status }) => {
+    const planned = list.reduce((sum, item) => sum + timesheetPlannedMinutes(item), 0)
+    const actual = list.reduce((sum, item) => sum + timesheetActualMinutes(item), 0)
+    const deviationMinutes = list.filter(item => timesheetActualMinutes(item) > 0).reduce((sum, item) => sum + (timesheetActualMinutes(item) - timesheetPlannedMinutes(item)), 0)
+    const deviationLabelText = deviationMinutes < 0 ? `-${formatHoursMinutes(-deviationMinutes)}` : formatHoursMinutes(deviationMinutes)
+    return `<tr><td><button class="row-link" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${escapeHtml(employee.name)}</button></td><td>${list.length}</td><td>${formatHoursMinutes(planned)}</td><td>${actual ? formatHoursMinutes(actual) : '0'}</td><td>${deviationLabelText}</td><td>${timesheetMonthStatusLabel(status)}</td><td class="row-actions"><button class="button ghost small" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${t('timesheets.viewTimesheets')}</button></td></tr>`
+  })
+  if (!rows.length) {
+    const filtered = state.timesheetFilters.clientId || state.timesheetFilters.departmentId || state.timesheetFilters.employeeId || state.timesheetMonthStatusFilter || query
+    return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${filtered ? t('timesheets.emptyFiltered') : t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3></div>`
+  }
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.perEmployee')}</h2><span class="tag info">${t('timesheets.employeeCount', { count: rows.length })}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'timesheets.shiftCount', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
+}
+
 function renderTimesheets() {
   // Defaultvisningen er inneværende måned - satt første gang flaten åpnes,
   // slik at et senere, eksplisitt «Alle» ('' ) respekteres.
@@ -11536,15 +11709,29 @@ function renderTimesheets() {
     return `<tr><td><button class="row-link" data-action="open-timesheet" data-id="${item.id}">${escapeHtml(item.week)}</button></td><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td>${timesheetClientCell(clientIds)}</td><td>${timesheetDepartmentCell(departmentIds)}</td><td>${formatNumber(item.totalHours, 1)}</td><td>${statusTag(item.status)}</td><td><button class="button ghost small" data-action="open-timesheet" data-id="${item.id}">${t('common.view')}</button></td></tr>`
   })
   const headers = ['timesheets.week', 'jobs.employee', 'timesheets.client', 'timesheets.department', 'timesheets.hours', 'common.status', 'common.actions']
-  // Tom måned: tydelig empty state - aldri fallback til en annen måned.
-  const monthEmpty = !rows.length && state.timesheetFilters.month
-    ? `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3><p>${t('timesheets.noneBody')}</p></div>`
-    : ''
-  const list = !rows.length && state.timesheetFilters.clientId
-    ? timesheetEmptyState()
-    : monthEmpty || dataTable('timesheets', headers, rows, collection('timesheets').length)
-  // Ingen snarvei til Vaktmaler herfra: Timelister har egen sideoverskrift.
-  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${slotTimesheetTable()}${timesheetMonthNavigator()}${searchToolbar(timesheetFilterControls())}${list}</section>`
+  // Det historiske ukekortet viser kun sine egne rader - hovedvisningens
+  // tom-måned-tilstand hører til per-ansatt-oversikten (§36: én hovedvisning).
+  const legacyList = rows.length
+    ? dataTable('timesheets', headers, rows, collection('timesheets').length)
+    : `<p class="muted">${t('rel.none')}</p>`
+  // ALLE filtre ligger ØVERST: månedsnavigatoren + virksomhet/avdeling/
+  // ansatt/månedsstatus/søk - før resultatene.
+  const statusChoices = ['not_submitted', 'needs_review', 'ready', 'partially_submitted', 'submitted', 'approved'].map(value => `<option value="${value}"${state.timesheetMonthStatusFilter === value ? ' selected' : ''}>${timesheetMonthStatusLabel(value)}</option>`).join('')
+  const statusSelect = `<select data-timesheet-month-status aria-label="${t('common.status')}"><option value=""${state.timesheetMonthStatusFilter ? '' : ' selected'}>${t('shifts.range.all')}</option>${statusChoices}</select>`
+  const searchInput = `<div class="search-control"><span>${icon('search')}</span><input type="search" data-timesheet-filter="search" value="${escapeHtml(String(state.timesheetFilters.search ?? ''))}" placeholder="${t('common.search')}" aria-label="${t('common.search')}"></div>`
+  const topFilters = `<div class="toolbar">${searchInput}<div class="toolbar-group">${timesheetFilterControls()}${statusSelect}</div></div>`
+  // Detaljnivå: MÅNED -> ANSATT -> VAKTER.
+  const detailEmployee = state.timesheetEmployee ? record('employees', state.timesheetEmployee) : null
+  if (detailEmployee) {
+    return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${employeeTimesheetDetail(detailEmployee)}</section>`
+  }
+  // Dashboardets statusfilter beholder den kanoniske per-vakt-tabellen - men
+  // KUN når filteret faktisk er aktivt (ingen dobbeltvisning ellers).
+  const statusFiltered = state.slotTimesheetFilter ? slotTimesheetTable() : ''
+  // Eldre uketimelister vises nederst som historisk kort - aldri som en
+  // konkurrerende hovedvisning.
+  const legacyCard = `<details style="margin-top:16px"><summary class="muted">${t('timesheets.legacyWeekly')}</summary>${legacyList}</details>`
+  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${statusFiltered}${employeeTimesheetOverview()}${legacyCard}</section>`
 }
 
 function renderTimesheetReview() {
@@ -13372,6 +13559,28 @@ function shiftPlanGoto(value) {
   state.shiftPlanAnchor = `${iso.slice(0, 7)}-01`
   state.planScrollTo = iso
   render()
+}
+
+// ÉN kanonisk innsending av en timeliste - brukes av dialogen, vaktlinjen
+// og månedsbatchen. Ingen svakere batch-gate finnes.
+function submitTimesheetRecord(timesheet, draftValues = {}) {
+  const actualStart = String(draftValues.actualStart ?? timesheet.actualStart ?? '')
+  const actualEnd = String(draftValues.actualEnd ?? timesheet.actualEnd ?? '')
+  const actualBreak = draftValues.actualBreakMinutes ?? timesheet.actualBreakMinutes
+  if (!actualStart || !actualEnd || actualBreak === null || actualBreak === undefined || actualBreak === '') {
+    return { errorKey: 'timesheets.actualRequired' }
+  }
+  const candidate = { ...timesheet, actualStart, actualEnd, actualBreakMinutes: Number(actualBreak) }
+  const note = String(draftValues.deviationNote ?? timesheet.deviationNote ?? '').trim()
+  if (timesheetDeviation(candidate).any && !note) {
+    return { errorKey: 'timesheets.deviationNoteRequired' }
+  }
+  Object.assign(timesheet, { actualStart, actualEnd, actualBreakMinutes: Number(actualBreak), deviationNote: note })
+  timesheet.status = 'submitted'
+  timesheet.submittedAt = new Date().toISOString()
+  timesheet.submittedBy = 'demo-admin'
+  logTimesheetEvent(timesheet, { type: 'timesheet_submitted', actor: 'demo-admin', employeeId: timesheet.employeeId, assignmentId: timesheet.assignmentId, slotId: timesheet.slotId })
+  return { ok: true }
 }
 
 // === Timelister: måned er primærperioden ===
@@ -15398,6 +15607,18 @@ function invoiceLineDetailDialog() {
   return modalShell(t('invoiceReport.lineDetail'), escapeHtml(row.employeeName), 'file', body, footer)
 }
 
+// Månedsinnsending: klare sendes, blokkerte står - aldri alt-eller-ingenting.
+function monthSubmitDialog() {
+  const employee = record('employees', state.slotAction?.employeeId)
+  if (!employee) return ''
+  const rows = visibleSlotTimesheets().filter(item => item.employeeId === employee.id)
+  const ready = rows.filter(timesheetReadyToSubmit)
+  const blocked = rows.filter(item => (item.status === 'not_submitted' || item.status === 'needs_correction') && !timesheetReadyToSubmit(item))
+  const body = `<p><strong>${timesheetMonthLabel(state.timesheetFilters.month)}</strong></p><p>${t('timesheets.batchReady', { count: ready.length })}</p>${blocked.length ? `<div class="banner warning">${icon('bell')}<span>${t('timesheets.batchBlocked', { count: blocked.length })}</span></div>` : ''}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-month-submit"${ready.length ? '' : ' disabled'}>${t('timesheets.batchSubmit', { count: ready.length })}</button></div>`
+  return modalShell(t('timesheets.submitMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) }), escapeHtml(employee.name), 'file', body, footer)
+}
+
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
@@ -15433,6 +15654,7 @@ const dialogs = {
   'department-contacts': departmentContactsDialog,
   'confirm-sick-delete': confirmSickDeleteDialog,
   'invoice-line-detail': invoiceLineDetailDialog,
+  'month-submit': monthSubmitDialog,
   'contact-import': contactImportDialog,
   'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
@@ -16824,24 +17046,40 @@ function actionHandlers(target = null) {
     'submit-slot-timesheet': () => {
       const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
       if (!timesheet || !timesheetEditable(timesheet)) return
-      const actualStart = String(state.draft.actualStart ?? timesheet.actualStart ?? '')
-      const actualEnd = String(state.draft.actualEnd ?? timesheet.actualEnd ?? '')
-      const actualBreak = state.draft.actualBreakMinutes ?? timesheet.actualBreakMinutes
-      if (!actualStart || !actualEnd || actualBreak === null || actualBreak === '') {
-        state.formError = 'timesheets.actualRequired'; render(); return
-      }
-      const candidate = { ...timesheet, actualStart, actualEnd, actualBreakMinutes: Number(actualBreak) }
-      const note = String(state.draft.deviationNote ?? timesheet.deviationNote ?? '').trim()
-      if (timesheetDeviation(candidate).any && !note) {
-        state.formError = 'timesheets.deviationNoteRequired'; render(); return
-      }
-      Object.assign(timesheet, { actualStart, actualEnd, actualBreakMinutes: Number(actualBreak), deviationNote: note })
-      timesheet.status = 'submitted'
-      timesheet.submittedAt = new Date().toISOString()
-      timesheet.submittedBy = 'demo-admin'
-      logTimesheetEvent(timesheet, { type: 'timesheet_submitted', actor: 'demo-admin', employeeId: timesheet.employeeId, assignmentId: timesheet.assignmentId, slotId: timesheet.slotId })
+      const result = submitTimesheetRecord(timesheet, { actualStart: state.draft.actualStart, actualEnd: state.draft.actualEnd, actualBreakMinutes: state.draft.actualBreakMinutes, deviationNote: state.draft.deviationNote })
+      if (result.errorKey) { state.formError = result.errorKey; render(); return }
       persist(); closeDialog(); showToast('timesheets.submitted')
     },
+    // Send inn ÉN timeliste direkte fra vaktlinjen (samme kanoniske gate).
+    'submit-timesheet-row': () => {
+      const timesheet = collection('slotTimesheets').find(item => String(item.id) === String(target?.dataset?.id))
+      if (!timesheet || !timesheetEditable(timesheet)) return
+      const result = submitTimesheetRecord(timesheet, {})
+      if (result.errorKey) { showToast(result.errorKey, {}); return }
+      persist(); render(); showToast('timesheets.submitted')
+    },
+    // Send inn alle KLARE timelister for ansatt + måned: partial success -
+    // klare sendes, blokkerte står urørt. Samme validering som individuelt.
+    'open-month-submit': () => {
+      state.slotAction = { employeeId: target?.dataset?.employeeId }
+      openDialog('month-submit', 'create', {})
+    },
+    'confirm-month-submit': () => {
+      const employeeId = state.slotAction?.employeeId
+      const rows = visibleSlotTimesheets().filter(item => item.employeeId === employeeId)
+      const submittedIds = []
+      const skippedIds = []
+      for (const timesheet of rows) {
+        if (!timesheetReadyToSubmit(timesheet)) { if (timesheet.status === 'not_submitted' || timesheet.status === 'needs_correction') skippedIds.push(timesheet.id); continue }
+        const result = submitTimesheetRecord(timesheet, {})
+        if (result.errorKey) skippedIds.push(timesheet.id)
+        else submittedIds.push(timesheet.id)
+      }
+      persist(); closeDialog()
+      showToast('timesheets.batchResult', { submitted: submittedIds.length, remaining: skippedIds.length })
+    },
+    'open-employee-timesheets': () => { state.timesheetEmployee = target?.dataset?.employeeId ?? null; render() },
+    'close-employee-timesheets': () => { state.timesheetEmployee = null; render() },
     // Godkjenning låser timelisten og fryser et uforanderlig arbeidsøyeblikk.
     // Lønnsberegningen røres ikke: dette er tid, ikke penger (§12, §40).
     'approve-slot-timesheet': () => {
@@ -18448,6 +18686,11 @@ document.addEventListener('change', event => {
     state.invoiceReportForm[field] = String(event.target.value)
     if (field === 'clientId') state.invoiceReportForm.departmentId = ''
     state.invoiceReportView = null
+    render()
+    return
+  }
+  if (event.target.dataset?.timesheetMonthStatus !== undefined) {
+    state.timesheetMonthStatusFilter = String(event.target.value)
     render()
     return
   }
