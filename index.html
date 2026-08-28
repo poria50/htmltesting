@@ -4026,6 +4026,8 @@ const copy = {
     'staffing.newEmployee': 'Ny ansatt',
     'staffing.historyKept': 'Registrert arbeid, timelister og lønnsgrunnlag beholdes.',
     'staffing.hasRegisteredWork': 'Denne ansatte har registrert arbeid på vakten.',
+    'staffing.busy': 'Opptatt',
+    'staffing.overlapBlocked': '{name} er allerede satt opp på en annen vakt som overlapper denne perioden ({period}).',
     'staffing.replaceBusy': 'Den valgte ansatte har en overlappende vakt og kan ikke tildeles.',
     'staffing.requestBody': 'Hei,\n\nVi har en ledig vakt hos {client}.\n\nDato: {date}\nTid: {time}\nAvdeling: {department}\n\nEr du tilgjengelig og interessert?',
     'staffing.noAvailable': 'Ingen ledige ansatte passer til denne vakten.',
@@ -5121,6 +5123,7 @@ copy.en = {
   'staffing.newEmployee': 'New employee',
   'staffing.historyKept': 'Registered work, timesheets and payroll data are kept.',
   'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
+  'staffing.busy': 'Busy', 'staffing.overlapBlocked': '{name} is already assigned to another shift that overlaps this period ({period}).',
   'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.',
   'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
   'staffing.noAvailable': 'No available employees match this shift.',
@@ -9465,7 +9468,7 @@ function staffingCandidates(assignment) {
   const assigned = new Set(assignment.employeeIds ?? [])
   return collection('employees')
     .filter(employee => employee.status === 'active' && !assigned.has(employee.id))
-    .map(employee => ({ employee, busy: employeeBusyDuring(employee.id, assignment), match: matchStatusFor(employee, assignment) }))
+    .map(employee => ({ employee, busy: employeeUnavailableFor(employee.id, assignment), match: matchStatusFor(employee, assignment) }))
     .filter(row => {
       if (availableOnly && row.busy) return false
       if (!needle) return true
@@ -9484,10 +9487,13 @@ function availableEmployeesCard(assignment) {
   const toolbar = `<div class="toolbar"><div class="search-control"><span>${icon('search')}</span><input type="search" data-staffing-filter="search" value="${escapeHtml(search)}" placeholder="${t('staffing.searchEmployee')}" aria-label="${t('staffing.searchEmployee')}"></div><div class="toolbar-group"><label class="checkbox-row"><input type="checkbox" data-staffing-filter="availableOnly"${availableOnly ? ' checked' : ''}><span>${t('staffing.availableOnly')}</span></label></div></div>`
   const body = rows.map(({ employee, busy, match }) => {
     const request = requestStatusFor(assignment.id, employee.id)
+    // Opptatt = tydelig markert med perioden og stedet personen er opptatt,
+    // og tildelingsknappen er deaktivert - opptatte er ALDRI valgbare.
+    const overlap = busy ? employeeOverlapInfo(employee.id, assignment) : null
     const availability = busy
-      ? `<span class="tag danger">${t('staffing.unavailable')}</span>`
+      ? `<span class="tag danger">${t('staffing.busy')}</span>${overlap ? `<div class="muted" style="font-size:11px">${escapeHtml(overlap.period)}${overlap.context ? `<br>${escapeHtml(overlap.context)}` : ''}</div>` : ''}`
       : `<span class="tag success">${t('staffing.available')}</span>`
-    return `<tr><td><label class="checkbox-row"><input type="checkbox" data-request-recipient="${employee.id}"${selected.has(employee.id) ? ' checked' : ''}><span>${escapeHtml(employee.name)}</span></label><span class="muted"> ${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())}</span></td><td><div class="file-name"><strong>${lab(employee.profession)}</strong><span>${escapeHtml(educationTypeLabel(employee.education))}</span></div></td><td>${availability}<span class="muted"> ${(employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')}</span></td><td><span class="tag ${match.tone}">${t(match.key)}</span> <span class="tag ${request.tone}">${t(request.key)}</span> ${policeCertificateMarkup(employee)}${match.detail ? `<div class="muted">${escapeHtml(match.detail)}</div>` : ''}</td><td class="row-actions"><button class="button ghost small" data-action="assign-employee-direct" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.assign')}</button><button class="button ghost small" data-action="open-request" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button></td></tr>`
+    return `<tr><td><label class="checkbox-row"><input type="checkbox" data-request-recipient="${employee.id}"${selected.has(employee.id) ? ' checked' : ''}><span>${escapeHtml(employee.name)}</span></label><span class="muted"> ${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())}</span></td><td><div class="file-name"><strong>${lab(employee.profession)}</strong><span>${escapeHtml(educationTypeLabel(employee.education))}</span></div></td><td>${availability}<span class="muted"> ${(employee.availability ?? []).map(key => t(`demo.shift.${key}`)).join(' · ')}</span></td><td><span class="tag ${match.tone}">${t(match.key)}</span> <span class="tag ${request.tone}">${t(request.key)}</span> ${policeCertificateMarkup(employee)}${match.detail ? `<div class="muted">${escapeHtml(match.detail)}</div>` : ''}</td><td class="row-actions"><button class="button ghost small" data-action="assign-employee-direct" data-id="${assignment.id}" data-employee-id="${employee.id}"${busy ? ' disabled' : ''}>${t('staffing.assign')}</button><button class="button ghost small" data-action="open-request" data-id="${assignment.id}" data-employee-id="${employee.id}">${t('staffing.sendRequest')}</button></td></tr>`
   })
   const chosen = rows.filter(row => selected.has(row.employee.id)).length
   const bulk = `<div class="tag-row"><button type="button" class="button secondary" data-action="open-request" data-id="${assignment.id}"${chosen ? '' : ' disabled'}>${icon('envelope')}${t('staffing.sendRequest')}</button><span class="muted">${chosen ? t('staffing.selected', { count: chosen }) : t('staffing.selectRecipients')}</span></div>`
@@ -9545,7 +9551,7 @@ function replaceWorkerDialogBody() {
   let preview = `<p class="field-help">${t('staffing.selectRecipients')}</p>`
   let blocked = true
   if (chosen) {
-    const busy = employeeBusyDuring(chosen.id, assignment)
+    const busy = employeeUnavailableFor(chosen.id, assignment)
     const match = matchStatusFor(chosen, assignment)
     const result = resolveCompensation(chosen, assignment, assignment.date || '2026-08-20')
     const tariff = record('tariffs', result.tariffId)
@@ -10355,6 +10361,26 @@ function employeeOverlappingAssignment(employeeId, assignment) {
 
 function employeeAssignedElsewhereDuring(employeeId, assignment) {
   return Boolean(employeeOverlappingAssignment(employeeId, assignment))
+}
+
+// KRITISK INVARIANT: én ansatt kan aldri ha to aktive, tidsoverlappende
+// tildelinger - GLOBALT, på tvers av virksomheter og avdelinger. Denne
+// helperen er den ENE kilden alle flater (kandidatliste, direktetildeling,
+// bytte, kø-bekreftelse) leser: legacy vaktregistreringer OG aktive
+// assignment-tildelinger, alltid på faktisk tidsintervall.
+function employeeUnavailableFor(employeeId, assignment) {
+  return employeeBusyDuring(employeeId, assignment) || employeeAssignedElsewhereDuring(employeeId, assignment)
+}
+
+// Menneskelig forklaring på overlappen: periode + hvor personen er opptatt.
+function employeeOverlapInfo(employeeId, assignment) {
+  const other = employeeOverlappingAssignment(employeeId, assignment)
+  if (!other) return null
+  const end = shiftEndTimestamp(other) ?? ''
+  const [endDate, endTime] = end.split('T')
+  const period = `${formatDate(other.date)} ${other.startTime ?? ''} – ${endDate ? formatDate(endDate) : ''} ${endTime ?? ''}`.trim()
+  const context = [record('clients', other.clientId)?.name, other.departmentId ? label(record('departments', other.departmentId)?.name) : ''].filter(Boolean).join(' · ')
+  return { assignment: other, period, context }
 }
 
 function slotForEmployee(assignment, employeeId) {
@@ -15271,7 +15297,11 @@ function actionHandlers(target = null) {
       const employee = record('employees', state.draft.assignEmployeeId)
       if (!assignment || !slot || !employee || assignment.status === 'cancelled') return
       const blocker = finalAssignmentBlocker(employee, assignment)
-      if (blocker) { state.formError = blocker; render(); return }
+      if (blocker) {
+        const overlap = employeeOverlapInfo(employee.id, assignment)
+        state.formError = blocker === 'staffing.replaceBusy' && overlap ? { key: 'staffing.overlapBlocked', values: { name: employee.name, period: overlap.period } } : blocker
+        render(); return
+      }
       slot.employeeId = employee.id
       slot.status = 'assigned'
       // Valgfri funksjon på plassen (§13): tomt valg betyr Ingen (null).
@@ -15907,8 +15937,13 @@ function actionHandlers(target = null) {
       const nextId = state.draft.assignEmployeeId
       const next = record('employees', nextId)
       if (!assignment || !previousId || !next) return
-      // Samme regel som dialogen viser: en overlappende vakt blokkerer byttet.
-      if (employeeBusyDuring(next.id, assignment)) { state.formError = 'staffing.replaceBusy'; render(); return }
+      // Samme kanoniske regel som overalt ellers: enhver tidsoverlappende
+      // aktiv vakt blokkerer byttet - globalt, uansett kunde/avdeling.
+      if (employeeUnavailableFor(next.id, assignment)) {
+        const overlap = employeeOverlapInfo(next.id, assignment)
+        state.formError = overlap ? { key: 'staffing.overlapBlocked', values: { name: next.name, period: overlap.period } } : 'staffing.replaceBusy'
+        render(); return
+      }
       const replacedSlot = slotForEmployee(assignment, previousId)
       if (!replacedSlot) return
       // En urørt timeliste følger den nye eieren; en med aktivitet bevares som
@@ -15934,7 +15969,17 @@ function actionHandlers(target = null) {
     'assign-employee-direct': () => {
       const assignment = record('assignments', target?.dataset?.id)
       const employeeId = target?.dataset?.employeeId
-      if (!assignment || !record('employees', employeeId)) return
+      const employee = record('employees', employeeId)
+      if (!assignment || !employee) return
+      // HARD SAVE-BLOCKER: UI-filtre er aldri nok - den kanoniske
+      // revalideringen kjøres ved selve lagringen (stale UI, to faner osv.).
+      const blocker = finalAssignmentBlocker(employee, assignment)
+      if (blocker) {
+        const overlap = employeeOverlapInfo(employeeId, assignment)
+        if (overlap) showToast('staffing.overlapBlocked', { name: employee.name, period: overlap.period })
+        else showToast(blocker, {})
+        return
+      }
       // Direktetildeling fyller en konkret åpen plass (§16).
       const openSlot = slotForEmployee(assignment, employeeId) ? null : openStaffingSlots(assignment)[0]
       if (slotForEmployee(assignment, employeeId)) return
