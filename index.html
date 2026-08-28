@@ -3065,6 +3065,10 @@ const copy = {
     'medlever.reviewHelp': 'Faktisk oppmøte avviker fra betalingsplanen. Oppgi betalte timer og årsak for å overstyre - ellers blokkeres lønnsgrunnlaget til det er avklart.',
     'medlever.day': 'Dag',
     'medlever.days': 'Antall døgn',
+    'medlever.hoursPart': 'Timer',
+    'medlever.minutesPart': 'Minutter',
+    'medlever.breakPerDay': 'Pause per døgn',
+    'medlever.breakTotal': 'Total pause',
     'medlever.daysShort': 'døgn',
     'timesheets.event.medlever_override': 'Medlevergrunnlag overstyrt',
     'page.absence.desc': 'Sykefravær med gyldighet, kompensasjon og kostnadsansvar',
@@ -4330,6 +4334,7 @@ copy.en = {
   'medlever.needsReview': 'Live-in pay basis needs review',
   'medlever.reviewHelp': 'Actual attendance differs from the payment plan. Enter paid hours and a reason to override - otherwise the payroll basis stays blocked until resolved.',
   'medlever.day': 'Day',
+  'medlever.hoursPart': 'Hours', 'medlever.minutesPart': 'Minutes', 'medlever.breakPerDay': 'Break per day', 'medlever.breakTotal': 'Total break',
   'medlever.days': 'Number of periods',
   'medlever.daysShort': 'periods',
   'timesheets.event.medlever_override': 'Live-in pay basis overridden',
@@ -5596,6 +5601,7 @@ const compCopy = {
     'comp.ui.editRule': 'Rediger regel',
     'comp.ui.rules': 'Regler',
     'comp.ui.hoursShort': 't',
+    'comp.ui.minutesShort': 'min',
     'comp.ui.value': 'Verdi',
     'comp.ui.timeWindow': 'Tidsvindu',
     'comp.ui.missingEffective': 'Mangler gyldighetsdato',
@@ -6025,6 +6031,7 @@ const compCopy = {
     'comp.ui.editRule': 'Edit rule',
     'comp.ui.rules': 'Rules',
     'comp.ui.hoursShort': 'h',
+    'comp.ui.minutesShort': 'min',
     'comp.ui.value': 'Value',
     'comp.ui.timeWindow': 'Time window',
     'comp.ui.missingEffective': 'Missing effective date',
@@ -7423,7 +7430,7 @@ function selectableFunctions(currentId = null) {
 function liveInProfilesCollection() {
   if (!Array.isArray(db.liveInProfiles)) {
     db.liveInProfiles = [
-      { id: nextNumericSlotId(), name: 'Standard medlever', standardPaidHours: 15.33, overlapPaidHours: 17.33, active: true }
+      { id: nextNumericSlotId(), name: 'Standard medlever', standardPaidMinutes: 933, overlapPaidMinutes: 1053, active: true }
     ]
     persist()
   }
@@ -7435,10 +7442,34 @@ function liveInProfileById(profileId) {
   return liveInProfilesCollection().find(item => String(item.id) === String(profileId)) ?? null
 }
 
-// Deterministisk to-desimalers avrunding, så 15,33 + 15,33 + 17,33 alltid er
-// nøyaktig 47,99 - aldri en flyttallsartefakt (§42-§43).
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100
+}
+
+// KANONISK MEDLEVER-TIDSGRUNNLAG: timer + minutter, representert som hele
+// minutter. 15 t 33 min = 933 min, 17 t 33 min = 1053 min. Legacy-verdier som
+// 15.33 var t.mm-notasjon (15 t 33 min) - aldri 15,33 desimaltimer - og
+// tolkes deterministisk tilbake til minutter.
+function legacyHoursMinutesToMinutes(value) {
+  const number = Number(value) || 0
+  const hours = Math.trunc(number)
+  return hours * 60 + Math.round((number - hours) * 100)
+}
+
+function profilePaidMinutes(profile, kind) {
+  const stored = Number(profile?.[`${kind}PaidMinutes`])
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored)
+  const legacy = profile?.[`${kind}PaidHours`]
+  if (legacy !== undefined && legacy !== null && legacy !== '') return legacyHoursMinutesToMinutes(legacy)
+  return kind === 'overlap' ? 1053 : 933
+}
+
+// «48 t 39 min» - aldri desimalformat som kan misforstås som 48,39 timer.
+function formatHoursMinutes(minutesTotal) {
+  const total = Math.round(Number(minutesTotal) || 0)
+  const hours = Math.floor(total / 60)
+  const rest = total % 60
+  return rest ? `${hours} ${t('comp.ui.hoursShort')} ${rest} ${t('comp.ui.minutesShort')}` : `${hours} ${t('comp.ui.hoursShort')}`
 }
 
 // Generatoren (§17): fra fysisk start, antall døgn og med/uten overlapp lages
@@ -7454,21 +7485,50 @@ function buildLiveInSegments(profile, startTime, days, overlap) {
   return Array.from({ length: count }, (_, index) => {
     const last = index === count - 1
     const isOverlap = Boolean(overlap) && last
+    const paidMinutes = profilePaidMinutes(profile, isOverlap ? 'overlap' : 'standard')
     return {
       id: nextNumericSlotId(),
       dayOffsetStart: index,
       startTime: startTime || '10:00',
       dayOffsetEnd: index + 1,
       endTime: isOverlap ? overlapEnd : (startTime || '10:00'),
-      paidHours: round2(isOverlap ? profile?.overlapPaidHours ?? 17.33 : profile?.standardPaidHours ?? 15.33),
+      // Minutter er sannheten; desimaltimer er kun avledet beregningsverdi.
+      paidMinutes,
+      paidHours: round2(paidMinutes / 60),
       segmentType: isOverlap ? 'overlap' : 'standard'
     }
   })
 }
 
 // Totalen er alltid avledet av segmentene - aldri et fritt redigerbart tall (§20).
+// Summering skjer i minutter (933 + 933 + 1053 = 2919 = 48 t 39 min = 48,65
+// desimaltimer) - aldri som sum av displayverdier (15.33 + 15.33 + 17.33).
+function liveInTotalPaidMinutes(segments) {
+  const list = segments ?? []
+  if (!list.length || !list.every(segment => Number.isFinite(Number(segment.paidMinutes)) && Number(segment.paidMinutes) > 0)) return null
+  return list.reduce((sum, segment) => sum + Math.round(Number(segment.paidMinutes)), 0)
+}
+
 function liveInTotalPaidHours(segments) {
+  const minutesTotal = liveInTotalPaidMinutes(segments)
+  if (minutesTotal !== null) return round2(minutesTotal / 60)
+  // Legacy-fryste segmenter uten minutter beholder sin historiske sum (§I).
   return round2((segments ?? []).reduce((sum, segment) => sum + (Number(segment.paidHours) || 0), 0))
+}
+
+function liveInSegmentsTotalLabel(segments) {
+  const minutesTotal = liveInTotalPaidMinutes(segments)
+  return minutesTotal !== null ? formatHoursMinutes(minutesTotal) : `${formatNumber(liveInTotalPaidHours(segments), 2)} ${t('comp.ui.hoursShort')}`
+}
+
+function liveInPaidTimeLabel(segment) {
+  const paidMinutes = Number(segment?.paidMinutes)
+  return Number.isFinite(paidMinutes) && paidMinutes > 0 ? formatHoursMinutes(paidMinutes) : `${formatNumber(segment?.paidHours, 2)} ${t('comp.ui.hoursShort')}`
+}
+
+function liveInSnapshotTotalLabel(snapshot) {
+  const minutesTotal = Number(snapshot?.totalPaidMinutes)
+  return Number.isFinite(minutesTotal) && minutesTotal > 0 ? formatHoursMinutes(minutesTotal) : `${formatNumber(snapshot?.totalPaidHours, 2)} ${t('comp.ui.hoursShort')}`
 }
 
 function archiveRecord(collectionName, id) {
@@ -9716,7 +9776,16 @@ function liveInSegmentLabel(segment, baseDate = null) {
 }
 
 function liveInPlanRows(segments, baseDate = null) {
-  return (segments ?? []).map(segment => `<div class="file-row"><div class="file-name"><strong>${liveInSegmentLabel(segment, baseDate)}</strong><span>${t(segment.segmentType === 'overlap' ? 'medlever.overlap' : 'medlever.standard')}</span></div><strong>${formatNumber(segment.paidHours, 2)} ${t('comp.ui.hoursShort')}</strong></div>`).join('')
+  return (segments ?? []).map(segment => `<div class="file-row"><div class="file-name"><strong>${liveInSegmentLabel(segment, baseDate)}</strong><span>${t(segment.segmentType === 'overlap' ? 'medlever.overlap' : 'medlever.standard')}</span></div><strong>${liveInPaidTimeLabel(segment)}</strong></div>`).join('')
+}
+
+// Pause er separat informasjon: den trekkes ALDRI fra medlevergrunnlaget
+// (15 t 33 min / 17 t 33 min er allerede det tariffmessige betalte grunnlaget).
+function liveInBreakRows(assignment, snapshot) {
+  const breakMinutes = Math.max(0, Number(assignment?.breakMinutes) || 0)
+  if (!breakMinutes) return ''
+  const days = Math.max(1, Number(snapshot?.days) || (snapshot?.segments?.length ?? 1))
+  return `<div><dt>${t('medlever.breakPerDay')}</dt><dd>${formatHoursMinutes(breakMinutes)}</dd></div><div><dt>${t('medlever.breakTotal')}</dt><dd>${formatHoursMinutes(breakMinutes * days)}</dd></div>`
 }
 
 function liveInPlanCard(assignment) {
@@ -9726,7 +9795,7 @@ function liveInPlanCard(assignment) {
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('medlever.title')}</h2><span class="tag info">${escapeHtml(snapshot.profileName)}</span></div>
     <dl class="detail-list">
       <div><dt>${t('medlever.physicalPeriod')}</dt><dd>${formatDate(assignment.date)} ${escapeHtml(assignment.startTime ?? '')} → ${end}</dd></div>
-      <div><dt>${t('medlever.totalPaidHours')}</dt><dd><strong>${formatNumber(snapshot.totalPaidHours, 2)} ${t('comp.ui.hoursShort')}</strong></dd></div>
+      <div><dt>${t('medlever.totalPaidHours')}</dt><dd><strong>${liveInSnapshotTotalLabel(snapshot)}</strong></dd></div>${liveInBreakRows(assignment, snapshot)}
     </dl>
     <h3 style="margin-top:12px">${t('medlever.paymentPlan')}</h3>${liveInPlanRows(snapshot.segments, assignment.date)}</article>`
 }
@@ -10575,7 +10644,7 @@ function renderShiftTemplates() {
     const liveIn = item.type === 'live_in'
     const period = liveIn ? `${escapeHtml(item.startTime)} → ${escapeHtml(item.endTime)} <span class="muted">(+${Number(item.liveInDays) || 0} ${t('medlever.daysShort')})</span> · <span class="tag info">${t('medlever.title')}</span>` : `${escapeHtml(item.startTime)}–${escapeHtml(item.endTime)} ${overnight}`
     const hoursCell = liveIn
-      ? `<div class="file-name"><strong>${formatNumber(liveInTotalPaidHours(item.liveInSegments), 2)} ${t('comp.ui.hoursShort')}</strong><span>${t('medlever.paidHours')}</span></div>`
+      ? `<div class="file-name"><strong>${liveInSegmentsTotalLabel(item.liveInSegments)}</strong><span>${t('medlever.paidHours')}</span></div>`
       : `<div class="file-name"><strong>${formatNumber(hours.workingHours, 1)} ${t('comp.ui.hoursShort')}</strong><span>${t('shiftTemplates.grossDuration')}: ${formatNumber(hours.grossHours, 1)} ${t('comp.ui.hoursShort')}</span></div>`
     return `<tr><td><button class="row-link" data-action="open-shift-template" data-id="${item.id}">${escapeHtml(item.name)}</button></td><td>${relationLink('client-detail', client?.id, client?.name ?? '')}</td><td>${period}</td><td>${liveIn ? '—' : `${formatNumber(item.breakMinutes, 0)} min`}</td><td>${hoursCell}</td><td>${statusTag(item.status)}</td><td class="row-actions"><button class="button ghost small" data-action="open-shift-template" data-id="${item.id}">${t('common.view')}</button><button class="button ghost small" data-action="edit-shift-template" data-id="${item.id}">${t('common.edit')}</button><button class="button ghost small" data-action="duplicate-shift-template" data-id="${item.id}">${t('shiftTemplates.duplicate')}</button><button class="button ghost small" data-action="${toggle}-shift-template" data-id="${item.id}">${t(`shiftTemplates.${toggle}`)}</button><button class="button ghost small danger" data-action="delete-shift-template" data-id="${item.id}">${t('common.delete')}</button></td></tr>`
   })
@@ -10909,7 +10978,7 @@ function renderMessages() {
 // Medleverprofilene (§8-§9): konfigurerbare betalte timer per standard- og
 // overlappsdøgn. Brukte profiler arkiveres - aldri hard-slettes (§61).
 function liveInProfilesCard() {
-  const rows = liveInProfilesCollection().map(item => `<tr><td>${escapeHtml(item.name)}${item.active ? '' : ` <span class="tag warning">${t('common.archived')}</span>`}</td><td>${formatNumber(item.standardPaidHours, 2)} ${t('comp.ui.hoursShort')}</td><td>${formatNumber(item.overlapPaidHours, 2)} ${t('comp.ui.hoursShort')}</td><td class="row-actions"><button class="button ghost small" data-action="edit-live-in-profile" data-id="${item.id}">${t('common.edit')}</button>${item.active ? `<button class="button ghost small danger" data-action="archive-live-in-profile" data-id="${item.id}">${t('crud.archive')}</button>` : ''}</td></tr>`)
+  const rows = liveInProfilesCollection().map(item => `<tr><td>${escapeHtml(item.name)}${item.active ? '' : ` <span class="tag warning">${t('common.archived')}</span>`}</td><td>${formatHoursMinutes(profilePaidMinutes(item, 'standard'))}</td><td>${formatHoursMinutes(profilePaidMinutes(item, 'overlap'))}</td><td class="row-actions"><button class="button ghost small" data-action="edit-live-in-profile" data-id="${item.id}">${t('common.edit')}</button>${item.active ? `<button class="button ghost small danger" data-action="archive-live-in-profile" data-id="${item.id}">${t('crud.archive')}</button>` : ''}</td></tr>`)
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('medlever.profiles')}</h2><button type="button" class="button secondary small" data-action="create-live-in-profile">${icon('plus')}${t('medlever.newProfile')}</button></div><p class="field-help">${t('medlever.profilesHelp')}</p>${table(['common.name', 'medlever.standard', 'medlever.overlap', 'common.actions'], rows)}</article>`
 }
 
@@ -11938,7 +12007,7 @@ function timesheetPayrollBasis(period = null) {
       // funksjonstillegg med funksjonens fryste id/navn fra snapshotet.
       functionId: snapshot.functionId ?? null,
       functionName: snapshot.functionName ?? null,
-      liveIn: liveIn ? { profileName: liveIn.profileName, totalPaidHours: liveIn.override ? liveIn.override.paidHours : liveIn.totalPaidHours, segments: liveIn.segments, override: liveIn.override ?? null } : null,
+      liveIn: liveIn ? { profileName: liveIn.profileName, totalPaidHours: liveIn.override ? liveIn.override.paidHours : liveIn.totalPaidHours, totalPaidMinutes: liveIn.override ? null : (liveIn.totalPaidMinutes ?? null), segments: liveIn.segments, override: liveIn.override ?? null } : null,
       premiumLines: premium.applied.map(match => ({ ruleId: match.rule.id, name: match.rule.name, family: match.rule.family ?? 'time', method: match.rule.method, value: Number(match.rule.amount) || 0, unit: match.rule.unit ?? null, hours: match.hours, amount: match.amount, functionId: match.rule.functionId ?? null })),
       overtimeHours,
       overtimeRule,
@@ -13821,7 +13890,8 @@ function sickLeaveDetailDialog() {
 // Medleverprofil (§9): navn og betalte timer per standard-/overlappsdøgn.
 function liveInProfileDialog() {
   const editing = Boolean(state.editingId)
-  const body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}${bound('standardPaidHours', t('medlever.standard'), { type: 'number' })}${bound('overlapPaidHours', t('medlever.overlap'), { type: 'number' })}</div>${storageNote()}`
+  // Timer og minutter som separate felter - aldri t.mm-desimalnotasjon.
+  const body = `${formError()}<div class="grid cols-2">${bound('name', t('common.name'), { required: true })}</div><div class="form-section"><h3>${t('medlever.standard')}</h3><div class="grid cols-2">${bound('standardHoursPart', t('medlever.hoursPart'), { type: 'number' })}${bound('standardMinutesPart', t('medlever.minutesPart'), { type: 'number' })}</div></div><div class="form-section"><h3>${t('medlever.overlap')}</h3><div class="grid cols-2">${bound('overlapHoursPart', t('medlever.hoursPart'), { type: 'number' })}${bound('overlapMinutesPart', t('medlever.minutesPart'), { type: 'number' })}</div></div>${storageNote()}`
   return modalShell(t(editing ? 'medlever.editProfile' : 'medlever.newProfile'), t('medlever.profile'), 'calendar', body, formFooter('save-live-in-profile'), 'small')
 }
 
@@ -13901,7 +13971,7 @@ function slotTimesheetDialog() {
   const liveInSnapshot = assignment?.liveInSnapshot ?? null
   const liveInMatches = liveInSnapshot ? String(timesheet.actualStart || draftValue('actualStart', '')) === String(timesheet.plannedStart) && String(timesheet.actualEnd || draftValue('actualEnd', '')) === String(timesheet.plannedEnd) : true
   const liveInInfo = liveInSnapshot
-    ? `<div class="banner info">${icon('calendar')}<span><strong>${t('medlever.title')}:</strong> ${t('medlever.physicalPeriod')} ${formatDate(assignment.date)} ${escapeHtml(assignment.startTime ?? '')} → ${formatDate(isoAddDays(assignment.date, liveInSnapshot.days))} ${escapeHtml(assignment.endTime ?? '')} · ${t('medlever.payBasis')}: <strong>${formatNumber(liveInSnapshot.totalPaidHours, 2)} ${t('comp.ui.hoursShort')}</strong></span></div>`
+    ? `<div class="banner info">${icon('calendar')}<span><strong>${t('medlever.title')}:</strong> ${t('medlever.physicalPeriod')} ${formatDate(assignment.date)} ${escapeHtml(assignment.startTime ?? '')} → ${formatDate(isoAddDays(assignment.date, liveInSnapshot.days))} ${escapeHtml(assignment.endTime ?? '')} · ${t('medlever.payBasis')}: <strong>${liveInSnapshotTotalLabel(liveInSnapshot)}</strong></span></div>`
     : ''
   const liveInReview = liveInSnapshot && timesheet.status === 'submitted' && !liveInMatches
     ? `<div class="banner warning">${icon('bell')}<span><strong>${t('medlever.needsReview')}</strong> · ${t('medlever.reviewHelp')}</span></div><div class="grid cols-2">${bound('medleverPaidHours', t('medlever.paidHours'), { type: 'number' })}${bound('medleverReason', t('staffing.reason'))}</div>`
@@ -14042,7 +14112,7 @@ function shiftTemplateDialog() {
     const days = Math.max(1, Math.min(14, Number(draftValue('liveInDays', 3)) || 3))
     const overlap = Boolean(draftValue('liveInOverlap'))
     const segments = buildLiveInSegments(profile, startTime, days, overlap)
-    const preview = `<article class="card"><div class="card-header"><h3>${t('medlever.paymentPlan')}</h3><span class="tag info">${overlap ? t('medlever.withOverlap') : t('medlever.withoutOverlap')}</span></div>${liveInPlanRows(segments)}<div class="summary-line total"><span>${t('medlever.totalPaidHours')}</span><strong>${formatNumber(liveInTotalPaidHours(segments), 2)} ${t('comp.ui.hoursShort')}</strong></div></article>`
+    const preview = `<article class="card"><div class="card-header"><h3>${t('medlever.paymentPlan')}</h3><span class="tag info">${overlap ? t('medlever.withOverlap') : t('medlever.withoutOverlap')}</span></div>${liveInPlanRows(segments)}<div class="summary-line total"><span>${t('medlever.totalPaidHours')}</span><strong>${liveInSegmentsTotalLabel(segments)}</strong></div></article>`
     const body = `${formError()}<div class="grid cols-2">${bound('name', t('shiftTemplates.name'), { required: true })}${boundSelect('clientId', t('rel.client'), clientOptions(), { placeholder: t('common.select') })}${boundSelect('type', t('common.type'), typeChoices)}${boundSelect('liveInProfileId', t('medlever.profile'), profileChoices)}${bound('startTime', t('shifts.start'), { type: 'time', value: '10:00', required: true })}${bound('liveInDays', t('medlever.days'), { type: 'number', value: 3 })}${boundCheckbox('liveInOverlap', t('medlever.withOverlap'))}${boundSelect('status', t('common.status'), statusOptions())}</div>${preview}${storageNote()}`
     return modalShell(t(editing ? 'shiftTemplates.edit' : 'shiftTemplates.new'), t('page.shifts.desc'), 'calendar', body, formFooter('save-shift-template'), 'medium')
   }
@@ -15178,22 +15248,28 @@ function actionHandlers(target = null) {
       persist(); render()
     },
     // Medleverprofiler (§8-§9, §61): konfigurerbare betalte timer per døgn.
-    'create-live-in-profile': () => openDialog('live-in-profile', 'create', { standardPaidHours: 15.33, overlapPaidHours: 17.33 }),
+    'create-live-in-profile': () => openDialog('live-in-profile', 'create', { standardHoursPart: 15, standardMinutesPart: 33, overlapHoursPart: 17, overlapMinutesPart: 33 }),
     'edit-live-in-profile': () => {
       const item = liveInProfileById(target?.dataset?.id)
       if (!item) return
-      openDialog('live-in-profile', 'edit', { name: item.name, standardPaidHours: item.standardPaidHours, overlapPaidHours: item.overlapPaidHours }, item.id)
+      const standard = profilePaidMinutes(item, 'standard')
+      const overlap = profilePaidMinutes(item, 'overlap')
+      openDialog('live-in-profile', 'edit', { name: item.name, standardHoursPart: Math.floor(standard / 60), standardMinutesPart: standard % 60, overlapHoursPart: Math.floor(overlap / 60), overlapMinutesPart: overlap % 60 }, item.id)
     },
     'save-live-in-profile': () => {
       const name = String(state.draft.name ?? '').trim()
-      const standard = round2(state.draft.standardPaidHours)
-      const overlap = round2(state.draft.overlapPaidHours)
-      if (!name || standard <= 0 || overlap <= 0) { state.formError = 'common.required'; render(); return }
+      const part = value => Math.round(Number(value) || 0)
+      const standardMinutesPart = part(state.draft.standardMinutesPart)
+      const overlapMinutesPart = part(state.draft.overlapMinutesPart)
+      const standard = part(state.draft.standardHoursPart) * 60 + standardMinutesPart
+      const overlap = part(state.draft.overlapHoursPart) * 60 + overlapMinutesPart
+      const validMinutes = value => value >= 0 && value <= 59
+      if (!name || standard <= 0 || overlap <= 0 || !validMinutes(standardMinutesPart) || !validMinutes(overlapMinutesPart)) { state.formError = 'common.required'; render(); return }
       if (state.editingId) {
         const item = liveInProfileById(state.editingId)
-        if (item) Object.assign(item, { name, standardPaidHours: standard, overlapPaidHours: overlap })
+        if (item) { Object.assign(item, { name, standardPaidMinutes: standard, overlapPaidMinutes: overlap }); delete item.standardPaidHours; delete item.overlapPaidHours }
       } else {
-        liveInProfilesCollection().push({ id: nextNumericSlotId(), name, standardPaidHours: standard, overlapPaidHours: overlap, active: true })
+        liveInProfilesCollection().push({ id: nextNumericSlotId(), name, standardPaidMinutes: standard, overlapPaidMinutes: overlap, active: true })
       }
       persist(); closeDialog(); showToast('crud.updated', { name })
     },
@@ -15458,6 +15534,7 @@ function actionHandlers(target = null) {
             profileId: snapshot.profileId ?? null,
             profileName: snapshot.profileName ?? '',
             segments: JSON.parse(JSON.stringify(snapshot.segments ?? [])),
+            totalPaidMinutes: snapshot.totalPaidMinutes ?? null,
             totalPaidHours: snapshot.totalPaidHours,
             matchesPlan,
             override
@@ -15870,6 +15947,7 @@ const entities = {
             profileName: profile?.name ?? '',
             days: Number(template.liveInDays) || segments.length,
             segments,
+            totalPaidMinutes: liveInTotalPaidMinutes(segments),
             totalPaidHours: liveInTotalPaidHours(segments)
           }
         }
