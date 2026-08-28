@@ -2982,6 +2982,8 @@ const copy = {
     'shifts.range.year': 'År',
     'shifts.range.all': 'Hele perioden',
     'shifts.moreFilters': 'Flere filtre',
+    'shifts.name': 'Navn på vakt',
+    'shifts.unnamed': 'Uten navn',
     'shifts.requiresAction': 'Krever handling',
     'shifts.filterOnClick': 'Filtrer på denne',
     'shifts.shiftType': 'Vakttype',
@@ -4281,6 +4283,7 @@ copy.en = {
   'shifts.range.year': 'Year',
   'shifts.range.all': 'All time',
   'shifts.moreFilters': 'More filters',
+  'shifts.name': 'Shift name', 'shifts.unnamed': 'Unnamed',
   'shifts.requiresAction': 'Requires action',
   'shifts.filterOnClick': 'Filter on this',
   'shifts.shiftType': 'Shift type',
@@ -9159,19 +9162,29 @@ function shiftYearOverview() {
   return `<div class="dashboard-metrics">${cards}</div>`
 }
 
-// Listevisningen (§21): Dato, Tid, Klient, Avdeling, Rolle, Bemanning,
+// Listevisningen (§21): Navn på vakt, Dato, Tid, Klient, Avdeling, Bemanning,
 // Tildelte ansatte, Status, Handlinger. Vakt-ID står som undertekst på datoen.
+
+// Kanonisk vaktnavn: det FRYSTE malnavn-snapshotet på vakten (aldri live-
+// oppslag i malen). Legacy-vakter uten navn får en rolig fallback.
+function shiftDisplayName(assignment) {
+  const name = label(assignment.shiftTemplateSnapshot?.name ?? '')
+  return name || ''
+}
+
 function shiftListTable(visible) {
   const rows = visible.map(item => {
     const client = record('clients', item.clientId)
     const department = record('departments', item.departmentId)
+    const name = shiftDisplayName(item)
+    const nameCell = name ? `<strong>${escapeHtml(name)}</strong>` : `<span class="muted">${t('shifts.unnamed')}</span>`
     const dateCell = `<div class="file-name"><strong><button class="row-link" data-route="job-detail" data-id="${item.id}">${item.date ? formatDate(item.date) : item.from && item.to ? formatDateRange(item.from, item.to) : t('common.none')}</button></strong><span>${escapeHtml(String(item.id))}${item.shiftSeriesId ? ` · ${t('series.tag')}` : ''}</span></div>`
     // «X av Y bemannet» adskilt fra status; behovet («Antall ansatte») som undertekst (§22, §25).
     const staffing = `<div class="file-name"><strong>${staffedOfLabel(item)}</strong><span>${t('staffing.slots')}: ${formatNumber(item.slots, 0)}</span></div>`
-    return `<tr><td>${dateCell}</td><td>${item.liveInSnapshot ? `${escapeHtml(item.startTime ?? '')} → ${escapeHtml(item.endTime ?? '')} <span class="muted">(+${item.liveInSnapshot.days} ${t('medlever.daysShort')})</span>` : item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td><button class="row-link" data-action="shift-filter-client" data-id="${client?.id ?? ''}" title="${t('shifts.filterOnClick')}">${escapeHtml(client?.name ?? '')}</button>${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? `<button class="row-link" data-action="shift-filter-department" data-id="${department.id}" title="${t('shifts.filterOnClick')}">${lab(department.name)}</button>` : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}${(() => { const reasons = assignmentAttention(item); return reasons.length ? `<div class="muted" style="font-size:11px">${t('shifts.requiresAction')}: ${reasons.map(reason => t(reason.key, { count: reason.count ?? 0 })).join(' · ')}</div>` : '' })()}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
+    return `<tr><td>${nameCell}</td><td>${dateCell}</td><td>${item.liveInSnapshot ? `${escapeHtml(item.startTime ?? '')} → ${escapeHtml(item.endTime ?? '')} <span class="muted">(+${item.liveInSnapshot.days} ${t('medlever.daysShort')})</span>` : item.startTime ? timeRangeLabel(item.startTime, item.endTime, item.endNextDay) : `<span class="muted">${t('common.none')}</span>`}</td><td><button class="row-link" data-action="shift-filter-client" data-id="${client?.id ?? ''}" title="${t('shifts.filterOnClick')}">${escapeHtml(client?.name ?? '')}</button>${client?.status === 'archived' ? ` <span class="tag warning">${t('common.archived')}</span>` : ''}</td><td>${department ? `<button class="row-link" data-action="shift-filter-department" data-id="${department.id}" title="${t('shifts.filterOnClick')}">${lab(department.name)}</button>` : `<span class="muted">${t('common.none')}</span>`}</td><td>${staffing}</td><td>${assignedEmployeesCell(item)}</td><td>${shiftStatusTag(item)}${(() => { const reasons = assignmentAttention(item); return reasons.length ? `<div class="muted" style="font-size:11px">${t('shifts.requiresAction')}: ${reasons.map(reason => t(reason.key, { count: reason.count ?? 0 })).join(' · ')}</div>` : '' })()}</td>${rowActions('assignment', item.id, 'job-detail')}</tr>`
   })
   if (!rows.length) return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('shifts.emptyFiltered')}</h3></div>`
-  return dataTable('assignments', ['common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
+  return dataTable('assignments', ['shifts.name', 'common.date', 'shifts.time', 'staffing.client', 'rel.department', 'staffing.staffingLabel', 'staffing.assigned', 'common.status', 'common.actions'], rows, collection('assignments').length)
 }
 
 // Én kalenderoppføring: klikk åpner den eksisterende vaktdetaljen (§31).
