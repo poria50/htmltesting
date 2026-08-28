@@ -3357,6 +3357,30 @@ const copy = {
     // Avdelingens egne masterdata. Leder og telefonnumre skrives inn direkte og er
     // ikke koblet til kontaktpersoner.
     'departments.manager': 'Avdelingsleder',
+    'departments.managerEmail': 'Avdelingsleder e-post',
+    'departments.removeFromDepartment': 'Fjern fra avdeling',
+    'departments.addContact': 'Legg til kontaktperson',
+    'departments.pickExisting': 'Velg kontaktperson',
+    'departments.accessCard': 'Tilganger',
+    'departments.manageAccess': 'Administrer tilganger',
+    'departments.createUser': 'Opprett som bruker',
+    'contacts.import.title': 'Importer fra Excel',
+    'contacts.import.help': 'Lim inn rader fra Excel med kolonnene Fullt navn, Telefonnummer og E-post.',
+    'contacts.import.template': 'Last ned Excel-mal',
+    'contacts.import.templateReady': 'Excel-malen er klar',
+    'contacts.import.rows': 'Rader fra Excel',
+    'contacts.import.preview': 'Forhåndsvisning',
+    'contacts.import.fullName': 'Fullt navn',
+    'contacts.import.ready': 'Klar',
+    'contacts.import.exists': 'Finnes allerede',
+    'contacts.import.error': 'Feil',
+    'contacts.import.missingName': 'Fullt navn mangler',
+    'contacts.import.missingPhone': 'Telefonnummer mangler',
+    'contacts.import.missingEmail': 'E-post mangler',
+    'contacts.import.run': 'Importer',
+    'contacts.import.empty': 'Ingen rader å importere',
+    'contacts.import.done': '{count} kontakter importert',
+    'contacts.import.departmentNote': 'Kontaktene kobles til avdelingen {name} - uten bruker eller tilgang.',
     'departments.managerPhone': 'Telefonnummer til avdelingsleder',
     'departments.departmentPhone': 'Avdelingstelefon',
     'departments.phone': 'Telefonnummer',
@@ -4536,6 +4560,8 @@ copy.en = {
   'clients.doc.select': 'Select document', 'clients.invoiceEmail': 'Invoice email',
   'clients.paymentTerms': 'Payment terms', 'clients.days': '14 days',
   'departments.manager': 'Department manager',
+  'departments.managerEmail': 'Manager email', 'departments.removeFromDepartment': 'Remove from department', 'departments.addContact': 'Add contact person', 'departments.pickExisting': 'Select contact person', 'departments.accessCard': 'Access', 'departments.manageAccess': 'Manage access', 'departments.createUser': 'Create as user',
+  'contacts.import.title': 'Import from Excel', 'contacts.import.help': 'Paste rows from Excel with the columns Full name, Phone number and Email.', 'contacts.import.template': 'Download Excel template', 'contacts.import.templateReady': 'The Excel template is ready', 'contacts.import.rows': 'Rows from Excel', 'contacts.import.preview': 'Preview', 'contacts.import.fullName': 'Full name', 'contacts.import.ready': 'Ready', 'contacts.import.exists': 'Already exists', 'contacts.import.error': 'Error', 'contacts.import.missingName': 'Full name missing', 'contacts.import.missingPhone': 'Phone number missing', 'contacts.import.missingEmail': 'Email missing', 'contacts.import.run': 'Import', 'contacts.import.empty': 'No rows to import', 'contacts.import.done': '{count} contacts imported', 'contacts.import.departmentNote': 'The contacts are linked to the department {name} - without user or access.',
   'departments.managerPhone': 'Department manager phone',
   'departments.departmentPhone': 'Department phone',
   'departments.phone': 'Phone number',
@@ -8347,6 +8373,71 @@ function clientSystemUsers(clientId) {
   return collection('contacts').filter(item => item.clientId === clientId && item.systemAccess)
 }
 
+// === Avdelingens kontakter: relasjoner til virksomhetens kanoniske register ===
+// Virksomhetens contacts-poster er grunnregisteret; avdelingen bærer KUN
+// referanser (contactIds + managerContactId) - aldri kopier av kontaktobjektet.
+
+function normalizedContactEmail(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function departmentLinkedContacts(department) {
+  return (department?.contactIds ?? []).map(contactId => record('contacts', contactId)).filter(Boolean)
+}
+
+// Finn-eller-opprett i virksomhetens register. Primær identitet er normalisert
+// e-post; uten e-post brukes navn+telefon som trygg fallback - aldri navn alene.
+function ensureClientContact(clientId, { name, phone = '', email = '', role = '' }) {
+  const trimmedName = String(name ?? '').trim()
+  if (!trimmedName) return null
+  const wantedEmail = normalizedContactEmail(email)
+  const registry = collection('contacts').filter(item => item.clientId === clientId)
+  const existing = wantedEmail
+    ? registry.find(item => normalizedContactEmail(item.email) === wantedEmail)
+    : registry.find(item => String(item.name ?? '').trim() === trimmedName && String(item.phone ?? '').trim() === String(phone ?? '').trim())
+  if (existing) return existing
+  // Kontakt ≠ bruker: ny kontakt opprettes ALLTID uten systemAccess (least
+  // privilege) - innlogging og tilgang er separate, eksplisitte beslutninger.
+  return createRecord('contacts', 'k', { clientId, name: trimmedName, role, email: String(email ?? '').trim(), phone: String(phone ?? '').trim(), status: 'active', systemAccess: null })
+}
+
+function linkDepartmentContact(department, contactId) {
+  if (!department || !contactId) return
+  const ids = (department.contactIds ?? []).map(String)
+  if (!ids.includes(String(contactId))) department.contactIds = [...(department.contactIds ?? []), contactId]
+}
+
+// === Bulkimport av kontakter: Fullt navn | Telefonnummer | E-post ===
+// Navn er ETT komplett felt - aldri splittet i for-/etternavn. Alle tre felter
+// er obligatoriske per rad; identitet for dedupe er normalisert e-post.
+
+function contactImportTemplate() {
+  return 'Fullt navn;Telefonnummer;E-post\nKari Hansen;+47 900 00 000;kari@kunde.no'
+}
+
+function parseContactImportRows(text, clientId) {
+  const lines = String(text ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  const registryEmails = new Set(collection('contacts').filter(item => item.clientId === clientId).map(item => normalizedContactEmail(item.email)).filter(Boolean))
+  const seenInBatch = new Set()
+  const rows = []
+  for (const line of lines) {
+    const parts = (line.includes('\t') ? line.split('\t') : line.includes(';') ? line.split(';') : line.split(',')).map(part => part.trim())
+    const [name = '', phone = '', email = ''] = parts
+    // Header-raden fra malen hoppes over.
+    if (name.toLowerCase() === 'fullt navn') continue
+    const normalized = normalizedContactEmail(email)
+    let status = 'ready'
+    let errorKey = null
+    if (!name) { status = 'error'; errorKey = 'contacts.import.missingName' }
+    else if (!phone) { status = 'error'; errorKey = 'contacts.import.missingPhone' }
+    else if (!email) { status = 'error'; errorKey = 'contacts.import.missingEmail' }
+    else if (registryEmails.has(normalized) || seenInBatch.has(normalized)) status = 'exists'
+    if (status !== 'error') seenInBatch.add(normalized)
+    rows.push({ name, phone, email, normalizedEmail: normalized, status, errorKey })
+  }
+  return rows
+}
+
 // Én felles bygger for systemAccess fra skjemafelter: brukes både av
 // kontakt-dialogen og av kladdekontaktene i Opprett/Rediger virksomhet.
 // Least privilege: uten eksplisitt «Gi tilgang» er resultatet alltid null.
@@ -8435,7 +8526,7 @@ function renderClientDetail() {
     // Kontakt ≠ systembruker: kolonnen viser eksplisitt om personen har
     // Workmatic-tilgang, og en vanlig kontakt har det ALDRI automatisk.
     const rows = clientContacts.map(item => `<tr><td><strong>${escapeHtml(item.name)}</strong>${primary && (primary.contact?.id === item.id || primary.name === item.name) ? ` <span class="tag info">${t('clients.responsibleForAgreement')}</span>` : ''}</td><td>${lab(item.role)}</td><td>${escapeHtml(item.email ?? '')}</td><td>${escapeHtml(item.phone ?? '')}</td><td>${item.systemAccess ? `<span class="tag ${item.systemAccess.status === 'inactive' ? 'warning' : 'success'}">${t('access.systemUser')}</span>` : `<span class="tag">${t('access.contactOnly')}</span>`}</td><td><button class="button ghost small" data-action="edit-contact" data-id="${item.id}">${t('common.edit')}</button></td></tr>`)
-    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.contacts')}</h3><button type="button" class="button" data-action="create-client-contact" data-id="${client.id}">${icon('plus')}${t('clients.newContact')}</button></div><p class="field-help">${t('access.contactsHint')}</p>${rows.length ? table(['common.name', 'contacts.role', 'common.email', 'common.phone', 'access.accessStatus', 'common.actions'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+    body = `<article class="card"><div class="card-header"><h3>${t('clients.tabs.contacts')}</h3><div class="page-actions"><button type="button" class="button secondary" data-action="open-contact-import" data-client-id="${client.id}">${icon('plus')}${t('contacts.import.title')}</button><button type="button" class="button" data-action="create-client-contact" data-id="${client.id}">${icon('plus')}${t('clients.newContact')}</button></div></div><p class="field-help">${t('access.contactsHint')}</p>${rows.length ? table(['common.name', 'contacts.role', 'common.email', 'common.phone', 'access.accessStatus', 'common.actions'], rows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   }
   if (tab === 'users') {
     // Bare kontakter med eksplisitt systemtilgang er brukere. Scope og
@@ -8511,7 +8602,7 @@ function departmentContactFields() {
     : contacts.length
       ? `<div class="field"><label for="f-departmentContactPick">${t('departments.pickContact')}</label><select id="f-departmentContactPick" data-department-contact-pick><option value="" selected>${t('common.select')}</option>${choices}</select></div>`
       : `<div class="field"><label>${t('departments.pickContact')}</label><p class="muted">${t('departments.noClientContacts')}</p></div>`
-  return `${picker}${bound('manager', t('departments.manager'))}${bound('managerPhone', t('departments.managerPhone'), { type: 'tel' })}${bound('departmentPhone', t('departments.departmentPhone'), { type: 'tel' })}${bound('departmentNumber', t('departments.number'))}`
+  return `${picker}${bound('manager', t('departments.manager'))}${bound('managerPhone', t('departments.managerPhone'), { type: 'tel' })}${bound('managerEmail', t('departments.managerEmail'), { type: 'email' })}${bound('departmentPhone', t('departments.departmentPhone'), { type: 'tel' })}${bound('departmentNumber', t('departments.number'))}`
 }
 
 // Hvem som faktisk har jobbet på avdelingen, utledet av vaktene til oppdragene
@@ -8541,7 +8632,10 @@ function renderDepartmentDetail() {
   const item = record('departments', state.selected.department)
   if (!item) return missingRecord('back-departments')
   const client = record('clients', item.clientId)
-  const manager = String(item.manager ?? '').trim()
+  // Avdelingslederen leses fra den KANONISKE kontaktrelasjonen når den finnes;
+  // de gamle tekstfeltene er kun backward compatibility for urørte poster.
+  const managerContact = record('contacts', item.managerContactId)
+  const manager = managerContact?.name ?? String(item.manager ?? '').trim()
   // Ingen permanent tilhørighet: kortet viser hvem som faktisk har jobbet her
   // (fra vaktene) og hvem som står på aktive bemanningsplasser nå.
   const workedHere = departmentWorkHistory(item.id)
@@ -8562,12 +8656,23 @@ function renderDepartmentDetail() {
   const approverMarkup = approver
     ? `${escapeHtml(approver)}${manager ? '' : ` <span class="muted">(${t('departments.approverFromClient')})</span>`}`
     : `<span class="tag warning">${t('timesheets.noApprover')}</span>`
-  const contactInfo = `<article class="card"><h2>${t('departments.contactInfo')}</h2><dl class="detail-list"><div><dt>${t('departments.manager')}</dt><dd>${manager ? escapeHtml(manager) : `<span class="muted">${t('departments.noManager')}</span>`}</dd></div><div><dt>${t('departments.approver')}</dt><dd>${approverMarkup}</dd></div><div><dt>${t('departments.phone')}</dt><dd>${departmentPhoneLink(item.managerPhone)}</dd></div><div><dt>${t('departments.departmentPhone')}</dt><dd>${departmentPhoneLink(item.departmentPhone)}</dd></div></dl></article>`
+  const contactInfo = `<article class="card"><h2>${t('departments.contactInfo')}</h2><dl class="detail-list"><div><dt>${t('departments.manager')}</dt><dd>${manager ? escapeHtml(manager) : `<span class="muted">${t('departments.noManager')}</span>`}</dd></div><div><dt>${t('departments.approver')}</dt><dd>${approverMarkup}</dd></div><div><dt>${t('departments.phone')}</dt><dd>${departmentPhoneLink(managerContact?.phone ?? item.managerPhone)}</dd></div><div><dt>${t('departments.departmentPhone')}</dt><dd>${departmentPhoneLink(item.departmentPhone)}</dd></div></dl></article>`
   const team = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.workedHere')}</h2><span class="tag info">${employees.length}</span></div>${employees.length ? table(['common.name', 'employees.educationLevel', 'common.status'], employees.map(employee => `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td>${escapeHtml(educationTypeLabel(employee.education))}</td><td>${statusTag(employee.status)}</td></tr>`)) : `<p class="muted">${t('rel.none')}</p>`}</article>`
   const tabs = [['department-overview', 'dashboard.overview'], ['department-history', 'departments.employeeHistory'], ['department-assignments', 'clients.tabs.assignments'], ['department-documents', 'clients.tabs.documents']]
   const tab = tabs.some(([name]) => name === state.activeTab) ? state.activeTab : 'department-overview'
   const tabBar = `<div class="tabs">${tabs.map(([name, key]) => `<button class="tab ${tab === name ? 'is-active' : ''}" data-tab="${name}">${t(key)}</button>`).join('')}</div>`
-  let body = `<div class="grid cols-2">${basics}${contactInfo}</div>${team}`
+  // Kontaktpersoner, Brukere og Tilganger: samme prinsipp som på Virksomhet.
+  const linkedContacts = departmentLinkedContacts(item)
+  const contactRows = linkedContacts.map(contact => `<tr><td><strong>${escapeHtml(contact.name)}</strong>${String(item.managerContactId) === String(contact.id) ? ` <span class="tag info">${t('departments.manager')}</span>` : ''}</td><td>${contact.role ? lab(contact.role) : t('clients.contactPerson')}</td><td>${escapeHtml(contact.email ?? '')}</td><td>${escapeHtml(contact.phone ?? '')}</td><td class="row-actions"><button class="button ghost small" data-action="edit-contact" data-id="${contact.id}">${t('common.edit')}</button><button class="button ghost small danger" data-action="unlink-department-contact" data-id="${item.id}" data-contact-id="${contact.id}">${t('departments.removeFromDepartment')}</button></td></tr>`)
+  const contactsCard = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('clients.tabs.contacts')}</h2><div class="page-actions"><button type="button" class="button secondary small" data-action="open-contact-import" data-id="${item.id}">${icon('plus')}${t('contacts.import.title')}</button><button type="button" class="button small" data-action="open-department-contact-picker" data-id="${item.id}">${icon('plus')}${t('departments.addContact')}</button></div></div>${contactRows.length ? table(['common.name', 'contacts.role', 'common.email', 'common.phone', 'common.actions'], contactRows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  // Kontakt ≠ bruker: kortet viser eksplisitt hvem som faktisk har innlogging.
+  const userRows = linkedContacts.map(contact => `<tr><td><strong>${escapeHtml(contact.name)}</strong></td><td>${contact.systemAccess ? `<span class="tag ${contact.systemAccess.status === 'inactive' ? 'warning' : 'success'}">${t('access.systemUser')}</span>` : `<span class="tag">${t('access.contactOnly')}</span>`}</td><td class="row-actions"><button class="button ghost small" data-action="edit-contact" data-id="${contact.id}">${t(contact.systemAccess ? 'common.edit' : 'departments.createUser')}</button></td></tr>`)
+  const usersCard = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('clients.tabs.users')}</h2></div>${userRows.length ? table(['common.name', 'access.accessStatus', 'common.actions'], userRows) : `<p class="muted">${t('rel.none')}</p>`}</article>`
+  // Tilganger: alle virksomhetsbrukere hvis scope dekker denne avdelingen -
+  // lest fra de kanoniske referansene, aldri kopier.
+  const accessRows = clientSystemUsers(item.clientId).filter(contact => contactActiveAccess(contact)).filter(contact => accessDepartmentIds(item.clientId, contact.systemAccess).map(String).includes(String(item.id))).map(contact => `<tr><td><strong>${escapeHtml(contact.name)}</strong></td><td>${accessScopeLabel(contact.systemAccess)}</td><td>${accessPermissionSummary(contact.systemAccess)}</td><td class="row-actions"><button class="button ghost small" data-action="edit-contact" data-id="${contact.id}">${t('departments.manageAccess')}</button></td></tr>`)
+  const accessCard = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('departments.accessCard')}</h2></div>${accessRows.length ? table(['common.name', 'access.scope', 'access.permissions', 'common.actions'], accessRows) : `<p class="muted">${t('access.none')}</p>`}</article>`
+  let body = `<div class="grid cols-2">${basics}${contactInfo}</div>${contactsCard}${usersCard}${accessCard}${team}`
   if (tab === 'department-history') {
     const rows = departmentWorkHistory(item.id).map(entry => `<tr><td>${relationLink('employee-detail', entry.employee.id, entry.employee.name)}</td><td>${escapeHtml(String(entry.employee.employeeNumber ?? entry.employee.id).toUpperCase())}</td><td>${entry.lastWorked ? formatDate(entry.lastWorked) : ''}</td><td>${entry.shifts}</td></tr>`)
     body = `<article class="card"><div class="card-header"><h2>${t('departments.employeeHistory')}</h2><span class="tag info">${rows.length}</span></div>${rows.length ? table(['common.name', 'comp.payroll.employeeNumber', 'departments.lastWorked', 'departments.shiftCount'], rows) : `<p class="muted">${t('departments.noHistory')}</p>`}</article>`
@@ -13486,8 +13591,8 @@ function professionOptions() {
   return ['demo.profession.nurse', 'demo.profession.socialEducator', 'demo.profession.healthWorker'].map(key => ({ value: key, text: t(key) }))
 }
 
-function formFooter(saveAction) {
-  return `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="${saveAction}">${t('common.save')}</button></div>`
+function formFooter(saveAction, saveLabelKey = 'common.save') {
+  return `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="${saveAction}">${t(saveLabelKey)}</button></div>`
 }
 
 function storageNote() {
@@ -14354,6 +14459,40 @@ function timesheetRejectDialog() {
   return modalShell(t('timesheets.rejectTitle'), t('page.timesheets.desc'), 'file', body, footer, 'small')
 }
 
+// Koble virksomhetskontakter til avdelingen: førstevalget er ALLTID de
+// eksisterende kontaktene fra virksomhetens register; ny kontakt er tilbudet
+// når personen ikke finnes. Relasjon - aldri kopi.
+function departmentContactsDialog() {
+  const department = record('departments', state.draft.departmentId)
+  if (!department) return ''
+  const linked = new Set((department.contactIds ?? []).map(String))
+  const available = collection('contacts').filter(item => item.clientId === department.clientId && !linked.has(String(item.id)))
+  const picker = available.length
+    ? `<div class="form-section"><h3>${t('departments.pickExisting')}</h3><div class="availability-grid">${available.map(item => boundCheckbox(`link-contact-${item.id}`, `${item.name}${item.email ? ` · ${item.email}` : ''}`)).join('')}</div></div>`
+    : `<p class="muted">${t('departments.noClientContacts')}</p>`
+  const create = `<div class="form-section"><h3>${t('clients.newContact')}</h3><div class="grid cols-2">${bound('newContactName', t('common.name'))}${bound('newContactRole', t('contacts.role'))}${bound('newContactEmail', t('common.email'), { type: 'email' })}${bound('newContactPhone', t('common.phone'))}</div><p class="field-help">${t('access.contactsHint')}</p></div>`
+  return modalShell(t('departments.addContact'), lab(department.name), 'link', `${formError()}${picker}${create}`, formFooter('save-department-contacts'))
+}
+
+// Bulkimport: Fullt navn | Telefonnummer | E-post. Forhåndsvisning med status
+// per rad; delvis import - gyldige rader importeres, feilrader blokkeres.
+function contactImportDialog() {
+  const clientId = state.draft.clientId
+  const department = state.draft.departmentId ? record('departments', state.draft.departmentId) : null
+  const rows = parseContactImportRows(state.draft.importRows, clientId)
+  const statusCell = row => row.status === 'error'
+    ? `<span class="tag danger">${t('contacts.import.error')}: ${t(row.errorKey)}</span>`
+    : row.status === 'exists'
+      ? `<span class="tag warning">${t('contacts.import.exists')}</span>`
+      : `<span class="tag success">${t('contacts.import.ready')}</span>`
+  const previewRows = rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.phone)}</td><td>${escapeHtml(row.email)}</td><td>${statusCell(row)}</td></tr>`)
+  const preview = rows.length
+    ? `<div class="form-section"><h3>${t('contacts.import.preview')}</h3>${table(['contacts.import.fullName', 'common.phone', 'common.email', 'common.status'], previewRows)}</div>`
+    : ''
+  const body = `${formError()}<p class="field-help">${t('contacts.import.help')}</p><div class="form-actions" style="margin-bottom:8px"><button type="button" class="button secondary small" data-action="download-contact-import-template">${t('contacts.import.template')}</button></div>${boundTextarea('importRows', t('contacts.import.rows'))}${preview}${department ? `<p class="field-help">${t('contacts.import.departmentNote', { name: lab(department.name) })}</p>` : ''}`
+  return modalShell(t('contacts.import.title'), t('contacts.import.help'), 'link', body, formFooter('confirm-contact-import', 'contacts.import.run'))
+}
+
 const dialogs = {
   employee: employeeDialog,
   'cancel-assignment': cancelAssignmentDialog,
@@ -14386,6 +14525,8 @@ const dialogs = {
   'slot-function': slotFunctionDialog,
   'function': functionDialog,
   'live-in-profile': liveInProfileDialog,
+  'department-contacts': departmentContactsDialog,
+  'contact-import': contactImportDialog,
   'match-employees': matchEmployeesDialog,
   'sick-leave': sickLeaveDialog,
   'sick-leave-detail': sickLeaveDetailDialog,
@@ -14666,6 +14807,69 @@ function actionHandlers(target = null) {
     // Ny kontakt på klienten: klienten er forhåndsvalgt, slik at kontakten blir
     // valgbar som kontaktperson med én gang.
     'create-client-contact': () => openDialog('contact', 'create', { clientId: target?.dataset?.id ?? state.selected.client, status: 'active' }),
+    // === Avdelingens kontaktrelasjoner ===
+    'open-department-contact-picker': () => {
+      const department = record('departments', target?.dataset?.id)
+      if (department) openDialog('department-contacts', 'create', { departmentId: department.id })
+    },
+    'save-department-contacts': () => {
+      const department = record('departments', state.draft.departmentId)
+      if (!department) return
+      // Koble valgte eksisterende kontakter (relasjon - aldri kopi).
+      collection('contacts').filter(item => item.clientId === department.clientId && state.draft[`link-contact-${item.id}`]).forEach(item => linkDepartmentContact(department, item.id))
+      // Eventuell ny kontakt: dedupe mot registeret; aldri automatisk tilgang.
+      const newName = String(state.draft.newContactName ?? '').trim()
+      if (newName) {
+        const contact = ensureClientContact(department.clientId, { name: newName, role: String(state.draft.newContactRole ?? '').trim(), email: state.draft.newContactEmail, phone: state.draft.newContactPhone })
+        if (contact) linkDepartmentContact(department, contact.id)
+      }
+      persist(); closeDialog(); showToast('crud.updated', { name: label(department.name) })
+    },
+    // Fjerning er alltid kun relasjonen: kontakten består i virksomhetens
+    // register og på andre avdelinger. Lederrollen ryddes hvis den pekte hit.
+    'unlink-department-contact': () => {
+      const department = record('departments', target?.dataset?.id)
+      const contactId = target?.dataset?.contactId
+      if (!department || !contactId) return
+      department.contactIds = (department.contactIds ?? []).filter(id => String(id) !== String(contactId))
+      if (String(department.managerContactId) === String(contactId)) department.managerContactId = null
+      persist(); render()
+    },
+    // === Bulkimport av kontakter ===
+    'open-contact-import': () => {
+      const department = record('departments', target?.dataset?.id)
+      const clientId = department?.clientId ?? target?.dataset?.clientId ?? state.selected.client
+      openDialog('contact-import', 'create', { clientId, departmentId: department?.id ?? null, importRows: '' })
+    },
+    'download-contact-import-template': () => {
+      // Nedlasting der DOM-en støtter det; malinnholdet er uansett kanonisk
+      // via contactImportTemplate() (testbart uten nettleser).
+      try {
+        const anchor = document.createElement('a')
+        anchor.href = `data:text/csv;charset=utf-8,${encodeURIComponent(contactImportTemplate())}`
+        anchor.download = 'kontakter-mal.csv'
+        anchor.click()
+      } catch { /* forhåndsvisningsmiljø uten nedlasting */ }
+      showToast('contacts.import.templateReady', {})
+    },
+    'confirm-contact-import': () => {
+      const clientId = state.draft.clientId
+      const department = state.draft.departmentId ? record('departments', state.draft.departmentId) : null
+      const rows = parseContactImportRows(state.draft.importRows, clientId)
+      if (!rows.length) { state.formError = 'contacts.import.empty'; render(); return }
+      let imported = 0
+      for (const row of rows) {
+        // Delvis import: feilrader blokkeres, gyldige rader importeres.
+        if (row.status === 'error') continue
+        // Navnet er ETT komplett felt - aldri splittet. Dedupe på e-post.
+        const contact = ensureClientContact(clientId, { name: row.name, phone: row.phone, email: row.email })
+        if (!contact) continue
+        if (row.status === 'ready') imported += 1
+        // Fra avdeling: kontakten kobles - men blir aldri bruker/tilgang.
+        if (department) linkDepartmentContact(department, contact.id)
+      }
+      persist(); closeDialog(); showToast('contacts.import.done', { count: imported })
+    },
     // Relasjonslenkene mellom Virksomhet, Avdelinger og Vakter: åpner mål-
     // flaten ferdig filtrert på den kanoniske relasjonen.
     'open-client-departments': () => {
@@ -15756,6 +15960,7 @@ const entities = {
       departmentNumber: String(draft.departmentNumber ?? '').trim(),
       manager: String(draft.manager ?? '').trim(),
       managerPhone: String(draft.managerPhone ?? '').trim(),
+      managerEmail: String(draft.managerEmail ?? '').trim(),
       // Avdelingen velger ett av klientens lønnssystemer. Dette er den effektive
       // konteksten for oppdragene på avdelingen.
       paySystemId: draft.paySystemId || null,
@@ -16314,7 +16519,22 @@ function crudHandlers(target) {
           state.formError = 'departments.paySystemNoBasis'; render(); return
         }
       }
-      commit(entities.department.collection, entities.department.prefix, entities.department.nameField, entities.department.fromDraft)
+      // Lederfeltene leses FØR commit (closeDialog tømmer kladden).
+      const managerDraft = { name: String(state.draft.manager ?? '').trim(), phone: String(state.draft.managerPhone ?? '').trim(), email: String(state.draft.managerEmail ?? '').trim() }
+      const saved = commit(entities.department.collection, entities.department.prefix, entities.department.nameField, entities.department.fromDraft)
+      // Avdelingslederen blir automatisk kontaktperson på avdelingen: dedupe
+      // mot virksomhetens register (normalisert e-post), koble relasjonen og
+      // sett den eksplisitte lederrollen. ALDRI automatisk bruker/tilgang.
+      // Lederbytte er ikke-destruktivt: forrige leder består som vanlig
+      // kontakt både globalt og på avdelingen - kun rollen flyttes.
+      if (saved && managerDraft.name) {
+        const contact = ensureClientContact(saved.clientId, managerDraft)
+        if (contact) {
+          linkDepartmentContact(saved, contact.id)
+          saved.managerContactId = contact.id
+          persist()
+        }
+      }
     },
     // Kandidaten må ha navn, etternavn, e-post og telefon. Adressefeltene er
     // frivillige.
@@ -16977,6 +17197,7 @@ document.addEventListener('change', event => {
     if (contact) {
       state.draft.manager = contact.name ?? ''
       state.draft.managerPhone = contact.phone ?? ''
+      state.draft.managerEmail = contact.email ?? ''
       render()
     }
     return
@@ -17168,6 +17389,7 @@ window.__workmaticPreview = {
   matchForSlot: (assignmentId, slotId) => JSON.parse(JSON.stringify(matchCandidatesForSlot(record('assignments', assignmentId), slotById(record('assignments', assignmentId), slotId)).map(match => ({ ...match, employee: { id: match.employee.id, name: match.employee.name } })))),
   // Brukere og tilganger: den avledede, scopede visningen for én kontakt -
   // samme filtre som forhåndsvisningsdialogen leser (§15).
+  contactImportTemplate: () => contactImportTemplate(),
   contactAccessPreview: contactId => {
     const contact = record('contacts', contactId)
     if (!contact) return null
