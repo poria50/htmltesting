@@ -3157,6 +3157,9 @@ const copy = {
     'sick.fromShiftStart': 'vaktstart',
     'sick.dayWorked': 'Arbeid',
     'sick.dayNotCovered': 'Ikke dekket',
+    'sick.alreadyRegistered': 'Allerede registrert sykefravær',
+    'sick.nextLiveInDay': 'Neste medleverdøgn',
+    'sick.noNextLiveInDay': 'Ingen flere medleverdøgn i vakten',
     'sick.markInvalid': 'Marker som ugyldig',
     'sick.legacyPending': 'Eldre registrering',
     'sick.event.sick_leave_validated': 'Gyldighet satt',
@@ -4463,7 +4466,7 @@ copy.en = {
   'sick.doc.rejectedHelp': 'Medical certificate rejected - coverage must be assessed. No automatic coverage or fallback.',
   'sick.coverageLabel': 'Coverage', 'sick.coveredDays': '{count} days', 'sick.coverageNotApproved': 'Not approved', 'sick.coverageRejected': 'Medical certificate rejected - coverage must be assessed',
   'sick.correction': 'Correction',
-  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
+  'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
   'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
   'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
   'sick.medleverReview': 'Live-in sick leave requires manual review of the basis',
@@ -9363,10 +9366,19 @@ function renderJobDetail() {
       if (slot.status === 'assigned' && employee) {
         slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button><button type="button" class="button ghost small" data-action="open-sick-leave" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}">${t('sick.register')}</button>`
       }
-      // Delvis sykefravær: original plass viser arbeidet del; erstatterplassen
-      // viser tydelig fra hvilket tidspunkt behovet gjelder.
-      if (slot.workedUntil) detail = `${detail ? `${detail} · ` : ''}${t('sick.workedUntil')}: ${escapeHtml(String(slot.workedUntil).replace('T', ' kl. '))}`
-      if (slot.coverageFrom && slot.status === 'open') detail = `${detail ? `${detail} · ` : ''}${t('sick.replacementFrom')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))}`
+      // Delvis sykefravær: originalplassen er fortsatt PLANLAGT utenfor
+      // segmentene - den lister segmentene med eventuell erstatter, og
+      // erstatterplassen viser sitt eksakte tidsvindu.
+      if (slot.employeeId && !slot.coverageFrom) {
+        const stamp = iso => escapeHtml(String(iso ?? '').replace('T', ' kl. '))
+        const segments = sickLeavesCollection().filter(item => item.employeeId === slot.employeeId && item.validityStatus !== 'invalid' && item.sickStartAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+        for (const segment of segments) {
+          const replacementSlot = staffingSlotsFor(assignment).find(entry => String(entry.replacementForSickLeaveId) === String(segment.id))
+          const replacementName = replacementSlot?.employeeId ? record('employees', replacementSlot.employeeId)?.name : null
+          detail += `<div class="muted" style="font-size:11px">${t('sick.sickTag')}: ${stamp(segment.sickStartAt)} → ${stamp(segment.sickEndAt)}${replacementName ? ` · ${t('staffing.replace')}: ${escapeHtml(replacementName)}` : ''}</div>`
+        }
+      }
+      if (slot.coverageFrom && slot.status === 'open') detail = `${detail ? `${detail} · ` : ''}${t('sick.replacementFrom')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))} → ${escapeHtml(String(slot.coverageTo ?? '').replace('T', ' kl. '))}`
     }
     // Funksjonen hører til plassen: en åpen plass kan stå med funksjon uten
     // ansatt (§73), og en erstatter arver den til noen endrer den (§72).
@@ -10051,11 +10063,15 @@ function sickLeaveAffectedShifts(employeeId, startDate, endDate) {
 }
 
 // Aktive (ikke avviste) sykefravær som overlapper en periode (§55, §81).
-function overlappingSickLeaves(employeeId, startDate, endDate, excludeId = null) {
-  return sickLeavesCollection().filter(item => item.employeeId === employeeId
-    && String(item.id) !== String(excludeId ?? '')
-    && item.validityStatus !== 'invalid'
-    && item.startDate <= endDate && item.endDate >= startDate)
+// Når BEGGE sider har presise tidspunkter brukes den kanoniske intervall-
+// regelen (start < end && end > start): kant-i-kant er aldri overlapp.
+// Legacy-records uten timestamps beholder dato-fallbacken.
+function overlappingSickLeaves(employeeId, startDate, endDate, excludeId = null, startAt = null, endAt = null) {
+  return sickLeavesCollection().filter(item => {
+    if (item.employeeId !== employeeId || String(item.id) === String(excludeId ?? '') || item.validityStatus === 'invalid') return false
+    if (startAt && endAt && item.sickStartAt && item.sickEndAt) return item.sickStartAt < endAt && item.sickEndAt > startAt
+    return item.startDate <= endDate && item.endDate >= startDate
+  })
 }
 
 // Er den ansatte sykmeldt på en gitt dato? Brukes kun til visning (§48).
@@ -10273,10 +10289,62 @@ const SICK_DOCUMENTATION_TYPES = ['self_certified', 'medical_certificate', 'self
 // sykemelding gir ALDRI automatisk dekning (og faller aldri tilbake til
 // egenmelding eller full lønn); «ingen krav» er en eksplisitt positiv
 // beslutning med full dekning. Legacy-records uten type beholder dekningen.
+// Sammenhengende sykdom over flere records: egenmeldingsgrensen resettes
+// ALDRI fordi fraværet registreres ett døgn om gangen. Kjeden bygges bakover
+// via eksakte tidspunkter (forrige slutt === denne start) - hvert tidligere
+// døgn i kjeden forskyver egenmeldingstelleren (§22-§23, løsning B).
+function sickChainDayOffset(record) {
+  if (!record?.sickStartAt) return 0
+  let offset = 0
+  let cursor = record
+  let guard = 0
+  while (cursor && guard < 50) {
+    const previous = sickLeavesCollection().find(item => item.employeeId === record.employeeId
+      && String(item.id) !== String(cursor.id)
+      && item.validityStatus !== 'invalid'
+      && item.sickEndAt && item.sickEndAt === cursor.sickStartAt)
+    if (!previous) break
+    offset += Math.max(1, Math.ceil((Date.parse(`${previous.sickEndAt}:00Z`) - Date.parse(`${previous.sickStartAt}:00Z`)) / 86400000))
+    cursor = previous
+    guard += 1
+  }
+  return offset
+}
+
 function resolveSickLeaveCoverage(record) {
   if (!record?.startDate || !record?.endDate) return []
   const type = record.documentationType ?? null
   const medicalFrom = record.medicalFromDate ?? null
+  // Med presise tidspunkter telles DØGN fra faktisk sykdomsstart (ett per
+  // påbegynt 24-timersintervall, datert ved døgnstart) - aldri kalenderdato-
+  // dobbelttelling for segmenter som slutter på samme klokkeslett neste dag.
+  const chainOffset = sickChainDayOffset(record)
+  if (record.sickStartAt && record.sickEndAt) {
+    const totalDays = Math.max(1, Math.ceil((Date.parse(`${record.sickEndAt}:00Z`) - Date.parse(`${record.sickStartAt}:00Z`)) / 86400000))
+    return Array.from({ length: Math.min(totalDays, 366) }, (_, dayIndex) => {
+      const iso = isoAddDays(record.sickStartAt.slice(0, 10), dayIndex)
+      const index = chainOffset + dayIndex
+      let covered = true
+      let coverageReason = 'legacy'
+      if (type === 'self_certified') {
+        covered = index < 3
+        coverageReason = covered ? 'self_certified' : 'self_certification_limit'
+      } else if (type === 'medical_certificate') {
+        covered = true
+        coverageReason = 'medical_certificate'
+      } else if (type === 'self_certified_then_medical') {
+        if (medicalFrom && iso >= medicalFrom) { covered = true; coverageReason = 'medical_certificate' }
+        else { covered = index < 3; coverageReason = covered ? 'self_certified' : 'self_certification_limit' }
+      } else if (type === 'medical_certificate_rejected') {
+        covered = false
+        coverageReason = 'medical_certificate_rejected'
+      } else if (type === 'no_medical_certificate_required') {
+        covered = true
+        coverageReason = 'no_certificate_required'
+      }
+      return { date: iso, documentationType: type, covered, coverageReason }
+    })
+  }
   const days = []
   let iso = record.startDate
   let index = 0
@@ -10319,13 +10387,17 @@ function sickCoverageSummary(record) {
   return { key: 'sick.coveredDays', tone: 'info', count }
 }
 
-function sickLeavesOverlappingShift(employeeId, assignment) {
-  const startIso = assignment.date
-  const endIso = (shiftEndTimestamp(assignment) ?? `${assignment.date}T00:00`).slice(0, 10)
+function sickLeavesOverlappingShift(employeeId, assignment, slot = null) {
+  // Erstatterplasser sjekkes mot sitt eksakte dekningintervall (§19-§20).
+  const window = slotCoverageWindowIso(assignment, slot)
+  const startIso = window ? window.from.slice(0, 10) : assignment.date
+  const endIso = window ? window.to.slice(0, 10) : (shiftEndTimestamp(assignment) ?? `${assignment.date}T00:00`).slice(0, 10)
   if (!startIso) return []
-  return sickLeavesCollection().filter(item => item.employeeId === employeeId
-    && item.validityStatus !== 'invalid'
-    && item.startDate <= endIso && item.endDate >= startIso)
+  return sickLeavesCollection().filter(item => {
+    if (item.employeeId !== employeeId || item.validityStatus === 'invalid') return false
+    if (window && item.sickStartAt && item.sickEndAt) return item.sickStartAt < window.to && item.sickEndAt > window.from
+    return item.startDate <= endIso && item.endDate >= startIso
+  })
 }
 
 // Én ansatt mot én konkret plass (§3-§4). Harde blokkeringer og informasjon
@@ -10343,7 +10415,7 @@ function employeeMatchForSlot(employee, assignment, slot, evidence) {
   if (staffingSlotsFor(assignment).some(item => String(item.id) !== String(slot.id) && item.employeeId === employee.id && item.status !== 'cancelled')) {
     blockers.push('match.sameShift')
   }
-  const sickLeaves = sickLeavesOverlappingShift(employee.id, assignment)
+  const sickLeaves = sickLeavesOverlappingShift(employee.id, assignment, slot)
   if (sickLeaves.some(item => Number(item.absencePercent) >= 100)) blockers.push('match.sick')
   else if (sickLeaves.length) warnings.push('match.partialSick')
   const qualification = qualificationFor(employee, assignment)
@@ -10459,7 +10531,7 @@ function finalAssignmentBlocker(employee, assignment, slot = null) {
   if (!employee || employee.status === 'inactive' || employee.status === 'archived') return 'staffing.finalCheckInactive'
   // 100 % sykefravær i perioden blokkerer HARDT ved lagring - samme kanoniske
   // sjekk som matchingflaten, så ingen inngang kan omgå den (audit-funn H2).
-  if (sickLeavesOverlappingShift(employee.id, assignment).some(item => Number(item.absencePercent) >= 100)) return 'staffing.finalCheckSick'
+  if (sickLeavesOverlappingShift(employee.id, assignment, slot).some(item => Number(item.absencePercent) >= 100)) return 'staffing.finalCheckSick'
   if (employeeBusyDuring(employee.id, assignment)) return 'staffing.replaceBusy'
   // Dobbeltbooking på planleggingsnivå: en aktiv tildeling på en annen vakt med
   // overlappende tidsrom blokkerer også - erstatterplasser sjekkes kun mot
@@ -14188,8 +14260,19 @@ function sickLeaveDialog() {
   const anchorSection = anchorWindow
     ? `<article class="card" style="margin-bottom:8px"><h3>${t('sick.shiftPeriod')}</h3><p><strong>${humanStamp(anchorWindow.from)} → ${humanStamp(anchorWindow.to)}</strong></p></article>`
     : ''
+  // Allerede registrerte segmenter på vakten - og for medlever en enkel
+  // «neste medleverdøgn»-snarvei basert på planens EGNE døgnsgrenser.
+  const existingSegments = anchorWindow
+    ? sickLeavesCollection().filter(item => item.employeeId === employee.id && item.validityStatus !== 'invalid' && item.sickStartAt && item.sickStartAt < anchorWindow.to && item.sickEndAt > anchorWindow.from)
+    : []
+  const existingSection = existingSegments.length
+    ? `<div class="banner info">${icon('bell')}<span><strong>${t('sick.alreadyRegistered')}:</strong> ${existingSegments.map(item => `${humanStamp(item.sickStartAt)} → ${humanStamp(item.sickEndAt)}`).join(' · ')}</span></div>`
+    : ''
+  const nextDayButton = anchorWindow && anchor?.liveInSnapshot && scope === 'partial_shift'
+    ? `<div class="form-actions"><button type="button" class="button ghost small" data-action="sick-next-live-in-day">${t('sick.nextLiveInDay')}</button></div>`
+    : ''
   const scopeSection = anchorWindow
-    ? `<div class="form-section"><h3>${t('sick.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="full_shift"${scope === 'full_shift' ? ' checked' : ''}>${t('sick.scope.full')}</label><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="partial_shift"${scope === 'partial_shift' ? ' checked' : ''}>${t('sick.scope.partial')}</label></div>${scope === 'partial_shift' ? `<div class="grid cols-2">${bound('sickStartDate', `${t('sick.sickFrom')} *`, { type: 'date', value: anchorWindow.from.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickStartTime', t('shifts.time'), { type: 'time', value: anchorWindow.from.slice(11, 16) })}${bound('sickEndDate', `${t('sick.sickTo')} *`, { type: 'date', value: anchorWindow.to.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickEndTime', t('shifts.time'), { type: 'time', value: anchorWindow.to.slice(11, 16) })}</div>` : ''}</div>`
+    ? `<div class="form-section"><h3>${t('sick.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="full_shift"${scope === 'full_shift' ? ' checked' : ''}>${t('sick.scope.full')}</label><label class="checkbox-row"><input type="radio" name="absence-scope" data-field="absenceScope" value="partial_shift"${scope === 'partial_shift' ? ' checked' : ''}>${t('sick.scope.partial')}</label></div>${scope === 'partial_shift' ? `<div class="grid cols-2">${bound('sickStartDate', `${t('sick.sickFrom')} *`, { type: 'date', value: anchorWindow.from.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickStartTime', t('shifts.time'), { type: 'time', value: anchorWindow.from.slice(11, 16) })}${bound('sickEndDate', `${t('sick.sickTo')} *`, { type: 'date', value: anchorWindow.to.slice(0, 10), min: anchorWindow.from.slice(0, 10), max: anchorWindow.to.slice(0, 10) })}${bound('sickEndTime', t('shifts.time'), { type: 'time', value: anchorWindow.to.slice(11, 16) })}</div>${nextDayButton}` : ''}</div>`
     : ''
   // Live-oppsummering: arbeidet del, sykefraværet og erstatterbehovet.
   const summarySection = (() => {
@@ -14207,7 +14290,7 @@ function sickLeaveDialog() {
   const periodFields = anchorWindow
     ? `<div class="grid cols-2">${bound('absencePercent', t('sick.degreePercent'), { type: 'number', required: true, help: '%' })}${bound('note', t('common.notes'))}</div>`
     : `<div class="grid cols-2">${bound('startDate', t('sick.from'), { type: 'date', required: true })}${bound('endDate', t('sick.to'), { type: 'date', required: true })}${bound('absencePercent', t('sick.degreePercent'), { type: 'number', required: true, help: '%' })}${bound('note', t('common.notes'))}</div>`
-  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p>${anchorSection}${scopeSection}${periodFields}${docSection}${costSection}${overlapWarning}${summarySection}${preview}`
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee.name)}</p>${anchorSection}${existingSection}${scopeSection}${periodFields}${docSection}${costSection}${overlapWarning}${summarySection}${preview}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-sick-leave">${t('sick.register')}</button></div>`
   return modalShell(t('sick.register'), escapeHtml(employee.name), 'bell', body, footer, 'medium')
 }
@@ -15606,7 +15689,9 @@ function actionHandlers(target = null) {
         }
       }
       // Overlappende aktivt fravær krever eksplisitt bekreftelse (§55, §81).
-      if (overlappingSickLeaves(employee.id, startDate, endDate).length && !state.draft.confirmOverlap) {
+      // Med presise tidspunkter brukes intervallregelen: kant-i-kant-segmenter
+      // (forrige slutt === ny start) er ALDRI overlapp.
+      if (overlappingSickLeaves(employee.id, startDate, endDate, null, sickStartAt, sickEndAt).length && !state.draft.confirmOverlap) {
         state.formError = 'sick.overlapBlocked'; render(); return
       }
       // Alle konsekvensene prevalideres/vises i forhåndsvisningen; registreringen
@@ -15668,19 +15753,27 @@ function actionHandlers(target = null) {
           continue
         }
         logAssignmentEvent(item.assignment, { type: 'employee_sick', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, absencePercent: percent })
-        // DELVIS VAKT I TID (100 %): den opprinnelige plassen beholder den
-        // ansatte og den arbeidede delen (workedUntil) - historikken slettes
-        // ALDRI. En egen erstatterplass opprettes for resten av intervallet.
-        if (anchor && item.assignment.id === anchor.id && absenceScope === 'partial_shift' && percent >= 100 && sickStartAt > anchorWindow.from) {
-          item.slot.workedUntil = sickStartAt
-          const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: anchor.date, functionId: item.slot.functionId ?? null, replacementForSlotId: item.slot.id, coverageFrom: sickStartAt, coverageTo: anchorWindow.to }
-          item.assignment.staffingSlots.push(replacementSlot)
-          item.assignment.slots = staffingSlotsFor(item.assignment).length
-          syncAssignmentStaffing(item.assignment)
+        // DELVIS VAKT I TID (100 %): sykefraværet frigjør KUN det registrerte
+        // intervallet. Originalplassen beholder den ansatte (hun er fortsatt
+        // planlagt utenfor segmentene), og erstatterplassen dekker NØYAKTIG
+        // sickStartAt -> sickEndAt - aldri automatisk til vaktslutt. Flere
+        // tilstøtende segmenter kan registreres på samme lange vakt.
+        if (anchor && item.assignment.id === anchor.id && absenceScope === 'partial_shift' && percent >= 100 && (sickStartAt > anchorWindow.from || sickEndAt < anchorWindow.to)) {
+          if (!item.slot.workedUntil && sickStartAt > anchorWindow.from) item.slot.workedUntil = sickStartAt
+          // Ingen duplikate erstatterbehov for samme intervall (§11).
+          const duplicate = staffingSlotsFor(item.assignment).some(existing => String(existing.replacementForSlotId) === String(item.slot.id) && existing.coverageFrom === sickStartAt && existing.coverageTo === sickEndAt)
+          if (!duplicate) {
+            const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: anchor.date, functionId: item.slot.functionId ?? null, replacementForSlotId: item.slot.id, replacementForSickLeaveId: record_.id, coverageFrom: sickStartAt, coverageTo: sickEndAt }
+            item.assignment.staffingSlots.push(replacementSlot)
+            item.assignment.slots = staffingSlotsFor(item.assignment).length
+            syncAssignmentStaffing(item.assignment)
+            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'partial_release', replacementSlotId: replacementSlot.id })
+            logAssignmentEvent(item.assignment, { type: 'employee_sick_partial', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, sickStartAt, sickEndAt, replacementSlotId: replacementSlot.id, replacementRequiredFrom: sickStartAt })
+          } else {
+            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'partial_release' })
+          }
           record_.replacementRequired = true
           record_.replacementRequiredFrom = sickStartAt
-          record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'partial_release', replacementSlotId: replacementSlot.id })
-          logAssignmentEvent(item.assignment, { type: 'employee_sick_partial', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, sickStartAt, sickEndAt, replacementSlotId: replacementSlot.id, replacementRequiredFrom: sickStartAt })
           continue
         }
         if (percent >= 100) {
@@ -15706,6 +15799,28 @@ function actionHandlers(target = null) {
       sickLeavesCollection().push(record_)
       state.slotAction = null
       persist(); closeDialog(); showToast('sick.registered', { name: employee.name })
+    },
+    // Medlever-snarvei: neste udekkede medleverdøgn etter siste registrerte
+    // segment - grensene kommer fra betalingsplanens egne segmenter (§15).
+    'sick-next-live-in-day': () => {
+      const anchor = state.slotAction?.assignmentId ? record('assignments', state.slotAction.assignmentId) : null
+      const employee = record('employees', state.slotAction?.employeeId)
+      const snapshot = anchor?.liveInSnapshot
+      if (!anchor || !employee || !snapshot) return
+      const anchorEnd = shiftEndTimestamp(anchor) ?? `${anchor.date}T${anchor.endTime}`
+      const lastEnd = sickLeavesCollection()
+        .filter(item => item.employeeId === employee.id && item.validityStatus !== 'invalid' && item.sickEndAt && item.sickStartAt < anchorEnd && item.sickEndAt > `${anchor.date}T${anchor.startTime}`)
+        .reduce((max, item) => item.sickEndAt > max ? item.sickEndAt : max, '')
+      const floor = lastEnd || `${anchor.date}T${anchor.startTime}`
+      const segment = (snapshot.segments ?? []).find(entry => `${isoAddDays(anchor.date, entry.dayOffsetStart)}T${entry.startTime}` >= floor)
+      if (!segment) { showToast('sick.noNextLiveInDay', {}); return }
+      const from = `${isoAddDays(anchor.date, segment.dayOffsetStart)}T${segment.startTime}`
+      const to = `${isoAddDays(anchor.date, segment.dayOffsetEnd)}T${segment.endTime}`
+      state.draft.sickStartDate = from.slice(0, 10)
+      state.draft.sickStartTime = from.slice(11, 16)
+      state.draft.sickEndDate = to.slice(0, 10)
+      state.draft.sickEndTime = to.slice(11, 16)
+      render()
     },
     'open-sick-leave-detail': () => {
       const item = sickLeaveById(target?.dataset?.id)
