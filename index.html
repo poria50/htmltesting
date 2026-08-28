@@ -3131,6 +3131,7 @@ const copy = {
     'sick.reasonRequired': 'Begrunnelse er obligatorisk',
     'sick.replacementNeeded': 'Erstatter må finnes',
     'sick.needsReview': 'Sykefravær må avklares',
+    'sick.medleverPartial': 'Delvis sykefravær i Medleverperioden må avklares',
     'sick.documentation': 'Fraværsgrunnlag',
     'sick.documentationRequired': 'Fraværsgrunnlag er obligatorisk',
     'sick.medicalFrom': 'Sykemelding fra dato',
@@ -4507,6 +4508,7 @@ copy.en = {
   'sick.reasonRequired': 'A reason is required',
   'sick.replacementNeeded': 'Replacement needed',
   'sick.needsReview': 'Sick leave needs review',
+  'sick.medleverPartial': 'Partial sick leave inside the live-in period needs review',
   'sick.documentation': 'Absence basis', 'sick.documentationRequired': 'The absence basis is required', 'sick.medicalFrom': 'Medical certificate from date', 'sick.medicalFromInvalid': 'The medical certificate date must fall within the absence period',
   'sick.doc.self_certified': 'Self-certification', 'sick.doc.medical_certificate': 'Medical certificate', 'sick.doc.self_certified_then_medical': 'Self-certification + medical certificate', 'sick.doc.medical_certificate_rejected': 'Medical certificate rejected', 'sick.doc.no_medical_certificate_required': 'No medical certificate required',
   'sick.doc.rejectedHelp': 'Medical certificate rejected - coverage must be assessed. No automatic coverage or fallback.',
@@ -10165,10 +10167,37 @@ function activeSickLeaveFor(employeeId, iso) {
 // automatisk i grunnlaget (§88, dokumentert valg). Medlever: grunnlaget er
 // uavklart semantikk og BLOKKERES for gjennomgang i stedet for å gjettes (§87).
 function sickEligibleBasis(sickLeave, assignment) {
-  if (assignment.liveInSnapshot) return { ok: false, reason: 'sick.medleverReview' }
   const employee = record('employees', sickLeave.employeeId)
   const resolution = employee && assignment ? resolveCompensation(employee, assignment, assignment.date) : { ok: false, reason: 'missing_context' }
   if (!resolution.ok) return { ok: false, reason: blockingMessageKey(resolution.reason) }
+  // MEDLEVER: aldri en generell review-grunn. Den FRYSTE betalingsplanen er
+  // det kanoniske grunnlaget: hvert HELT sykt medleverdøgn bidrar med
+  // segmentets paidMinutes (933 vanlig / 1053 overlapp - minutter, aldri
+  // t.mm-desimaler), pause trekkes ALDRI, og dekningen (egenmelding maks 3
+  // døgn osv.) vurderes per segmentdøgn. Kun to reelt tvetydige tilfeller
+  // krever manuell avklaring: legacy-fravær uten presist tidsintervall, og
+  // delvis fravær inne i ett segment (ingen definert fordelingsregel).
+  if (assignment.liveInSnapshot) {
+    const segments = assignment.liveInSnapshot.segments ?? []
+    if (!sickLeave.sickStartAt || !sickLeave.sickEndAt || !segments.length) return { ok: false, reason: 'sick.medleverReview' }
+    let plannedMinutes = 0
+    let partial = false
+    for (const segment of segments) {
+      const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+      const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+      if (segmentFrom >= sickLeave.sickEndAt || segmentTo <= sickLeave.sickStartAt) continue
+      if (segmentFrom >= sickLeave.sickStartAt && segmentTo <= sickLeave.sickEndAt) {
+        // Helt sykt segment: dekningen avgjøres per segmentdøgn.
+        const coverage = sickCoverageForDate(sickLeave, segmentFrom.slice(0, 10))
+        if (coverage && !coverage.covered) continue
+        plannedMinutes += Number(segment.paidMinutes) || 0
+      } else {
+        partial = true
+      }
+    }
+    if (partial) return { ok: false, reason: 'sick.medleverPartial' }
+    return { ok: true, rate: resolution.baseRate, plannedHours: round2(plannedMinutes / 60), plannedMinutes, resolution, liveIn: true }
+  }
   const spanMinutes = timeSpanMinutes(assignment.startTime, assignment.endTime, assignment.endNextDay)
   const plannedHours = Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(assignment.breakMinutes) || 0)) / 60
   return { ok: true, rate: resolution.baseRate, plannedHours, resolution }
@@ -10209,7 +10238,15 @@ function sickLeaveCompensationLines(period = null, workedLines = []) {
     if (sickRecord.validityStatus === 'invalid') continue
     lines.push(...computeSickLines(sickRecord, workedLines, blocked))
   }
-  return { lines, blocked }
+  // Én logisk blokkering vises ÉN gang: dedupe på fravær + vakt + årsak.
+  const seen = new Set()
+  const deduped = blocked.filter(entry => {
+    const key = `${entry.sickLeaveId}|${entry.assignmentId ?? entry.date ?? ''}|${entry.reasonKey}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { lines, blocked: deduped }
 }
 
 function computeSickLines(record, workedLines, blocked) {
@@ -10233,13 +10270,19 @@ function computeSickLines(record, workedLines, blocked) {
     // Fraværsgrunnlaget styrer dekningen per døgn: avvist sykemelding krever
     // vurdering (synlig blokkering); et udekket egenmeldingsdøgn (dag 4+)
     // gir ingen kompensasjonslinje - aldri en stille full utbetaling.
-    const coverage = sickCoverageForDate(record, assignment.date)
-    if (coverage && !coverage.covered) {
-      if (coverage.coverageReason === 'medical_certificate_rejected') blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: 'sick.coverageRejected' })
+    // Medlever vurderer dekningen PER SEGMENTDØGN i sickEligibleBasis - kun
+    // avvist sykemelding (uniform for hele recorden) sjekkes her.
+    const coverage = sickCoverageForDate(record, record.sickStartAt ? record.sickStartAt.slice(0, 10) : assignment.date)
+    if (coverage && !coverage.covered && coverage.coverageReason === 'medical_certificate_rejected') {
+      blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: 'sick.coverageRejected' })
       continue
     }
+    if (!assignment.liveInSnapshot) {
+      const dayCoverage = sickCoverageForDate(record, assignment.date)
+      if (dayCoverage && !dayCoverage.covered) continue
+    }
     const basis = sickEligibleBasis(record, assignment)
-    if (!basis.ok) { blocked.push({ sickLeaveId: record.id, employee, date: assignment.date, reasonKey: basis.reason }); continue }
+    if (!basis.ok) { blocked.push({ sickLeaveId: record.id, assignmentId: assignment.id, employee, date: assignment.date, reasonKey: basis.reason }); continue }
     // Arbeidet del på samme vakt/plass trekkes fra det berettigede grunnlaget.
     const worked = workedLines.find(line => line.assignmentId === assignment.id && String(line.slotId) === String(item.slotId))
     const compensableHours = Math.max(0, round2(basis.plannedHours - (worked?.hours ?? 0)))
