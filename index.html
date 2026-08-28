@@ -9743,12 +9743,12 @@ function blockingDetail(employee, assignment, result) {
 
 // Økonomikortet for én tildelt ansatt. Samme vakt, to visninger: administrator
 // ser også kundesiden, den ansatte ser bare sin egen lønn.
-function shiftEconomyCard(assignment, employee) {
+function shiftEconomyCard(assignment, employee, slot = null) {
   const date = assignment.date || '2026-08-20'
   // Vakten om den finnes, ellers oppdragets egne tider som estimat.
   const shift = collection('shifts').find(item => item.employeeId === employee.id && (item.assignmentId === assignment.id || record('jobs', item.jobId)?.assignmentId === assignment.id))
     ?? { employeeId: employee.id, assignmentId: assignment.id, date, start: assignment.startTime, end: assignment.endTime, breakMinutes: assignment.breakMinutes }
-  const economy = shiftEconomy(shift, assignment)
+  const economy = shiftEconomy(shift, assignment, slot)
   const asEmployee = state.economyView === 'employee'
   const toggle = `<button type="button" class="button ghost small" data-action="toggle-economy-view">${t(asEmployee ? 'staffing.viewAsAdmin' : 'staffing.viewAsEmployee')}</button>`
   const heading = asEmployee ? t('staffing.employeeShiftPay') : t('staffing.shiftCalculation')
@@ -9756,7 +9756,9 @@ function shiftEconomyCard(assignment, employee) {
     return `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${heading}</h3>${toggle}</div><div class="banner warning">${icon('bell')}${t('staffing.cannotCalculate')}: ${escapeHtml(blockingDetail(employee, assignment, { reason: economy.reason }))}</div></article>`
   }
   // Godkjent arbeid leser sitt eget snapshot; ellers er tallene et estimat.
-  const stamp = economy.historical ? t('staffing.actualPay') : t('staffing.estimatedPay')
+  // Erstatterplasser identifiseres med sitt eksakte dekningintervall.
+  const slotStamp = slot?.coverageFrom ? ` · ${t('staffing.replacementSlot')}: ${escapeHtml(String(slot.coverageFrom).replace('T', ' kl. '))} → ${escapeHtml(String(slot.coverageTo ?? '').replace('T', ' kl. '))}` : ''
+  const stamp = (economy.historical ? t('staffing.actualPay') : t('staffing.estimatedPay')) + slotStamp
   const line = (labelText, value, extra = '') => `<div class="summary-line"><span>${labelText}${extra ? ` <span class="muted">${extra}</span>` : ''}</span><strong>${value}</strong></div>`
   // Medlever bruker ALDRI standard «Vaktlengde/pause»-raden: perioden, den
   // tariffmessige betalte tiden (t + min fra den kanoniske planen) og pausen
@@ -9814,7 +9816,13 @@ function assignedEmployeesCard(assignment) {
     return `<tr><td>${relationLink('employee-detail', employee.id, employee.name)}</td><td><span class="tag success">${t('staffing.qualified')}</span></td><td><strong>${formatMoney(result.baseRate, 2)}/${t('comp.ui.hoursShort')}</strong></td><td><div class="file-name"><strong>${escapeHtml(basis)}</strong><span>${escapeHtml(`${label(tariff?.name ?? '')} ${version?.name ?? ''}`.trim())} · ${t(result.tariffSource === 'department' ? 'staffing.inheritedFromDepartment' : 'staffing.inheritedFromClient')}</span></div></td><td class="row-actions"><button class="button ghost small" data-action="explain-rate" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}" data-date="${assignment.date || '2026-08-20'}">${t('staffing.explainRate')}</button>${workerActionMenu(assignment, employee)}</td></tr>`
   })
   const heading = team.length === 1 ? t('staffing.assignedEmployee') : t('staffing.team')
-  const economy = team.map(employee => shiftEconomyCard(assignment, employee)).join('')
+  // Ett økonomikort per BEMANNINGSPLASS (aldri per ansatt): samme ansatt kan
+  // dekke flere kant-i-kant erstatterplasser med hver sin økonomi.
+  const economy = staffingSlotsFor(assignment)
+    .filter(slotEntry => slotEntry.employeeId && slotEntry.status !== 'cancelled')
+    .map(slotEntry => shiftEconomyCard(assignment, record('employees', slotEntry.employeeId), slotEntry))
+    .filter(Boolean)
+    .join('')
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${heading}</h2><span class="tag info">${t('staffing.assignedOf', { assigned: team.length, total: assignment.slots })}</span></div>${table(['common.name', 'common.status', 'staffing.resolvedBasePay', 'staffing.basis', 'common.actions'], rows)}</article>${economy}`
 }
 
@@ -10828,7 +10836,7 @@ function shiftTemplateHours(template) {
   return { grossHours, workingHours: Math.max(0, minutes - Math.max(0, Number(template.breakMinutes) || 0)) / 60 }
 }
 
-function shiftCompensation(shiftInput) {
+function shiftCompensation(shiftInput, slotContext = null) {
   const shift = typeof shiftInput === 'string' ? record('shifts', shiftInput) : shiftInput
   if (!shift) return { ok: false, reason: 'missing_context', trace: [] }
   if (shift.calculationSnapshot) return { ok: true, historical: true, ...shift.calculationSnapshot }
@@ -10837,17 +10845,45 @@ function shiftCompensation(shiftInput) {
   const employee = record('employees', shift.employeeId)
   const resolution = resolveCompensation(employee, assignment, shift.date)
   if (!resolution.ok) return resolution
+  // ØKONOMIEN BEREGNER DEN KONKRETE PLASSEN - aldri automatisk hele vakten.
+  // En ansatt kan stå på flere (erstatter)plasser i samme vakt, så employee-id
+  // alene er ikke nok kontekst: kallere med slot sender den eksplisitt.
+  const effectiveSlot = slotContext ?? (assignment ? slotForEmployee(assignment, shift.employeeId) : null)
   // Medlever (§26, §37): betalte timer kommer fra den fryste betalingsplanen -
-  // ALDRI fra fysisk varighet. Hvilke tilleggsregler som gjelder medleverdøgn
-  // er regelkonfigurasjon (appliesToLiveIn) - overtid hopper fortsatt over
-  // medlever i lønnsgrunnlaget (eget, dokumentert unntak).
-  const liveIn = assignment?.liveInSnapshot ?? null
+  // ALDRI fra fysisk varighet. Erstatterplasser avgrenses til sitt eget
+  // coverage-vindu; originalplassen med aktive sykesegmenter får kun de
+  // FRISKE hele segmentene (samme regel som godkjenningsfrysingen).
+  let liveIn = assignment?.liveInSnapshot ?? null
+  if (liveIn && assignment) {
+    const window = slotCoverageWindowIso(assignment, effectiveSlot)
+    if (window) {
+      const resolved = resolveLiveInPaidMinutesForWindow(assignment, window.from, window.to)
+      if (resolved && !resolved.partial) {
+        liveIn = { ...liveIn, segments: resolved.segments, totalPaidMinutes: resolved.paidMinutes, totalPaidHours: round2(resolved.paidMinutes / 60), days: resolved.segments.length }
+      }
+    } else if (effectiveSlot?.employeeId) {
+      const sickIntervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === effectiveSlot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(effectiveSlot.id)))
+      if (sickIntervals.length) {
+        let paidMinutes = 0
+        let partial = false
+        const healthy = []
+        for (const segment of liveIn.segments ?? []) {
+          const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+          const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+          const overlapping = sickIntervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)
+          const fullyCovered = sickIntervals.some(item => item.sickStartAt <= segmentFrom && item.sickEndAt >= segmentTo)
+          if (!overlapping) { paidMinutes += Number(segment.paidMinutes) || 0; healthy.push(segment) }
+          else if (!fullyCovered) partial = true
+        }
+        if (!partial) liveIn = { ...liveIn, segments: healthy, totalPaidMinutes: paidMinutes, totalPaidHours: round2(paidMinutes / 60), days: healthy.length }
+      }
+    }
+  }
   const hours = liveIn ? liveIn.totalPaidHours : Math.max(0, shiftDuration(shift) - Math.max(0, Number(shift.breakMinutes) || 0) / 60)
   // Tillegg og overtid kommer fra reglene på lønnssystemet avdelingen har valgt.
-  // Funksjonen leses fra bemanningsplassen (aldri fra den ansatte), slik at
-  // også prognosen viser et eventuelt funksjonstillegg (§28, §39).
-  const slotFunctionId = assignment ? (slotForEmployee(assignment, shift.employeeId)?.functionId ?? null) : null
-  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate, slotFunctionId, liveIn ? (Number(assignment.liveInSnapshot?.days) || true) : false)
+  // Funksjonen leses fra DEN KONKRETE plassen - aldri første treff for ansatt.
+  const slotFunctionId = effectiveSlot?.functionId ?? null
+  const premium = premiumsFor(resolution.tariffId, shift.date, shift.start, hours, resolution.baseRate, slotFunctionId, liveIn ? (Number(liveIn.days) || true) : false)
   const overtimeRule = overtimeFor(resolution.tariffId, 'daily', shift.date)
   const overtimeHours = overtimeRule ? Math.max(0, hours - (Number(overtimeRule.threshold) || 0)) : 0
   const overtimeAmount = overtimeRule && overtimeHours
@@ -10861,6 +10897,7 @@ function shiftCompensation(shiftInput) {
     ...resolution,
     shiftId: shift.id,
     hours,
+    liveIn,
     ordinaryAmount,
     premiumLines: premium.applied,
     premiumBlocked: premium.blocked,
@@ -12187,8 +12224,8 @@ function premiumDisplaySection(premiumLines, premiumAmount) {
   return `<div class="premium-section"><div class="summary-line"><span><strong>${t('comp.invoicing.premiums')}</strong></span></div>${rows}<div class="summary-line"><span class="muted">${t('premiumDisplay.total')}</span><strong>${formatMoney(total)}</strong></div></div>`
 }
 
-function shiftEconomy(shiftInput, assignmentInput = null) {
-  const pay = shiftCompensation(shiftInput)
+function shiftEconomy(shiftInput, assignmentInput = null, slot = null) {
+  const pay = shiftCompensation(shiftInput, slot)
   const shift = typeof shiftInput === 'string' ? record('shifts', shiftInput) : shiftInput
   const assignment = assignmentInput ?? record('assignments', shift?.assignmentId || record('jobs', shift?.jobId)?.assignmentId)
   const client = record('clients', assignment?.clientId)
@@ -12206,8 +12243,9 @@ function shiftEconomy(shiftInput, assignmentInput = null) {
     historical: Boolean(pay.historical),
     grossHours,
     breakMinutes,
-    // Autoritativt medleversignal - samme kanoniske plan som økonomien bruker.
-    liveIn: assignment?.liveInSnapshot ?? null,
+    // Autoritativt medleversignal: det SLOT-RESOLVEDE vinduet fra
+    // beregningen - aldri automatisk hele assignmentens plan.
+    liveIn: pay.liveIn ?? assignment?.liveInSnapshot ?? null,
     hours: pay.hours,
     baseRate: pay.baseRate,
     ordinaryAmount: pay.ordinaryAmount,
