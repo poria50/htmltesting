@@ -2778,6 +2778,8 @@ const state = {
   invoiceReportView: null,
   timesheetEmployee: null,
   timesheetMonthStatusFilter: '',
+  // Generelt fravær: behandlingskøens statusfilter - default pending (§13).
+  absenceStatusFilter: 'pending',
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -3107,6 +3109,40 @@ const copy = {
     'timesheets.event.medlever_override': 'Medlevergrunnlag overstyrt',
     'page.absence.desc': 'Sykefravær med gyldighet, kompensasjon og kostnadsansvar',
     'sick.title': 'Sykefravær',
+    'absence.register': 'Registrer fravær',
+    'absence.title': 'Fravær',
+    'absence.scope': 'Fraværet gjelder',
+    'absence.scope.full': 'Hele vakten',
+    'absence.scope.partial': 'Deler av vakten',
+    'absence.from': 'Fravær fra',
+    'absence.to': 'Fravær til',
+    'absence.comment': 'Kommentar',
+    'absence.status.pending': 'Venter på vurdering',
+    'absence.status.valid': 'Gyldig',
+    'absence.status.invalid': 'Ugyldig',
+    'absence.queue': 'Fravær til behandling',
+    'absence.assess': 'Vurder',
+    'absence.assessTitle': 'Vurder fravær',
+    'absence.markValid': 'Godkjenn som gyldig',
+    'absence.markInvalid': 'Marker som ugyldig',
+    'absence.invalidReason': 'Begrunnelse',
+    'absence.invalidReasonRequired': 'Begrunnelse er obligatorisk for ugyldig fravær',
+    'absence.notPayable': 'Ikke betalbart',
+    'absence.invalidLabel': 'Ugyldig fravær',
+    'absence.decidedBy': 'Vurdert av',
+    'absence.openReview': 'Åpne vurdering',
+    'absence.intervalRequired': 'Angi fra- og til-tidspunkt for fraværet',
+    'absence.intervalOutsideSlot': 'Fraværet må ligge innenfor plassens tidsvindu',
+    'absence.registered': 'Fraværet er registrert og venter på vurdering',
+    'absence.markedValid': 'Fraværet er godkjent som gyldig',
+    'absence.markedInvalid': 'Fraværet er markert som ugyldig',
+    'absence.deleteAction': 'Slett fravær',
+    'absence.deleteReason': 'Begrunnelse for sletting',
+    'absence.deleteReasonRequired': 'Begrunnelse er obligatorisk ved sletting av fravær',
+    'absence.deleted': 'Fraværet er slettet',
+    'absence.deleteLocked': 'Fraværet inngår i godkjent historikk og kan ikke slettes direkte. Bruk korrigering.',
+    'absence.replacementKept': 'Erstatteren ({names}) er allerede tildelt og beholdes - vurder bemanningen manuelt.',
+    'absence.emptyQueue': 'Ingen fravær i valgt status',
     'sick.register': 'Registrer sykefravær',
     'sick.registered': 'Sykefravær registrert for {name}',
     'sick.sickTag': 'Syk',
@@ -3254,6 +3290,8 @@ const copy = {
     'sick.event.sick_leave_finalized': 'Beregningen frosset',
     'sick.event.sick_leave_reopened': 'Beslutningen gjenåpnet',
     'staffing.event.employee_sick': 'Ansatt meldt syk',
+    'staffing.event.employee_absent': 'Fravær registrert',
+    'staffing.event.absence_deleted': 'Fravær slettet',
     'notif.type.sick_replacement_needed': 'Sykdom: erstatter må finnes',
     'audit.module.sickLeave': 'Sykefravær',
     'dashboard.card.sickLeave': 'Sykefravær som må avklares',
@@ -4492,7 +4530,7 @@ copy.en = {
   'medlever.daysShort': 'periods',
   'timesheets.event.medlever_override': 'Live-in pay basis overridden',
   'page.absence.desc': 'Sick leave with validity, compensation and cost responsibility',
-  'sick.title': 'Sick leave',
+  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status',
   'sick.register': 'Register sick leave',
   'sick.registered': 'Sick leave registered for {name}',
   'sick.sickTag': 'Sick',
@@ -4564,7 +4602,7 @@ copy.en = {
   'sick.event.cost_responsibility_decided': 'Cost responsibility decided',
   'sick.event.sick_leave_finalized': 'Calculation frozen',
   'sick.event.sick_leave_reopened': 'Decision reopened',
-  'staffing.event.employee_sick': 'Employee reported sick',
+  'staffing.event.employee_sick': 'Employee reported sick', 'staffing.event.employee_absent': 'Absence registered', 'staffing.event.absence_deleted': 'Absence deleted',
   'notif.type.sick_replacement_needed': 'Sickness: replacement needed',
   'audit.module.sickLeave': 'Sick leave',
   'dashboard.card.sickLeave': 'Sick leave needing review',
@@ -9473,7 +9511,9 @@ function renderJobDetail() {
       if (slot.status === 'assigned' && employee) {
         // «Fjern fra vakt» er en synlig førstehåndshandling på plassen -
         // aldri gjemt bak forespørselsflyten.
-        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button><button type="button" class="button ghost small" data-action="open-sick-leave" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}">${t('sick.register')}</button><button type="button" class="button ghost small danger" data-action="remove-worker" data-id="${assignment.id}" data-employee-id="${employee.id}" data-slot-id="${slot.id}">${t('staffing.removeFromAssignment')}</button>`
+        // «Registrer fravær» (generelt fravær, §3-§4) finnes på ALLE bemannede
+        // plasser - original som erstatter - og bærer employee+assignment+slot.
+        slotActions = `<button type="button" class="button ghost small" data-action="open-slot-timesheet" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('timesheets.open')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.replaceViaRequest')}</button><button type="button" class="button ghost small" data-action="open-sick-leave" data-employee-id="${employee.id}" data-assignment-id="${assignment.id}">${t('sick.register')}</button><button type="button" class="button ghost small" data-action="open-absence" data-id="${assignment.id}" data-slot-id="${slot.id}" data-employee-id="${employee.id}">${t('absence.register')}</button><button type="button" class="button ghost small danger" data-action="remove-worker" data-id="${assignment.id}" data-employee-id="${employee.id}" data-slot-id="${slot.id}">${t('staffing.removeFromAssignment')}</button>`
       }
       // Delvis sykefravær: originalplassen er fortsatt PLANLAGT utenfor
       // segmentene - den lister segmentene med eventuell erstatter, og
@@ -9486,6 +9526,18 @@ function renderJobDetail() {
           const replacementName = replacementSlot?.employeeId ? record('employees', replacementSlot.employeeId)?.name : null
           // Slett direkte fra vaktkortet - ingen ny godkjenningsprosess.
           detail += `<div class="muted" style="font-size:11px">${t('sick.sickTag')}: ${stamp(segment.sickStartAt)} → ${stamp(segment.sickEndAt)}${segment.documentationType ? ` · ${t(`sick.doc.${segment.documentationType}`)}` : ''}${replacementName ? ` · ${t('staffing.replace')}: ${escapeHtml(replacementName)}` : ''} <button type="button" class="button ghost small danger" data-action="open-delete-sick-leave" data-id="${segment.id}">${t('common.delete')}</button></div>`
+        }
+      }
+      // Generelt fravær vises på plassen det tilhører (§20-§22): intervall,
+      // status og beslutning - med direkte vei til vurderingen for pending.
+      if (slot.employeeId) {
+        const stampAbs = iso => escapeHtml(String(iso ?? '').replace('T', ' kl. '))
+        for (const absence of absencesForSlot(assignment.id, slot.id).filter(item => item.employeeId === slot.employeeId)) {
+          const statusTone = absence.status === 'valid' ? 'success' : absence.status === 'invalid' ? 'danger' : 'warning'
+          const decision = absence.status === 'invalid'
+            ? ` · ${t('absence.notPayable')}${absence.decisionComment ? ` · ${escapeHtml(absence.decisionComment)}` : ''}`
+            : absence.status === 'valid' && absence.decidedBy ? ` · ${t('absence.decidedBy')}: ${escapeHtml(absence.decidedBy)}` : ''
+          detail += `<div class="muted" style="font-size:11px">${t('absence.title')}: ${stampAbs(absence.absenceStartAt)} → ${stampAbs(absence.absenceEndAt)} <span class="tag ${statusTone}">${t(`absence.status.${absence.status}`)}</span>${absence.comment ? ` · ${escapeHtml(absence.comment)}` : ''}${decision}${absence.status === 'pending' ? ` <button type="button" class="button ghost small" data-action="open-absence-review" data-id="${absence.id}">${t('absence.openReview')}</button>` : ''} <button type="button" class="button ghost small danger" data-action="open-delete-absence" data-id="${absence.id}">${t('common.delete')}</button></div>`
         }
       }
       if (slot.coverageFrom && slot.status === 'open') {
@@ -11393,9 +11445,61 @@ function timesheetSickMinutes(timesheet) {
   return minutes
 }
 
-// Totalt betalbart for én timeliste: frisk plan + sykekomponent (§10-§11).
+// === Generelt fravær (IKKE sykefravær): egen kanonisk collection ===
+// To adskilte konsekvenser (§1): operasjonelt hull (umiddelbart) og økonomisk
+// vurdering (pending -> valid/invalid). Ugyldig fravær er ALLTID ubetalt (§17).
+function absencesCollection() {
+  return collection('absences')
+}
+
+function absenceIsActive(item) {
+  return Boolean(item) && !item.deletedAt
+}
+
+function absenceById(id) {
+  return absencesCollection().find(item => String(item.id) === String(id)) ?? null
+}
+
+function absencesForSlot(assignmentId, slotId) {
+  return absencesCollection().filter(item => absenceIsActive(item) && String(item.assignmentId) === String(assignmentId) && String(item.slotId) === String(slotId))
+}
+
+// Minutter mellom to ISO-minutt-tidsstempler (YYYY-MM-DDTHH:MM).
+function isoMinutesBetween(fromIso, toIso) {
+  if (!fromIso || !toIso || toIso <= fromIso) return 0
+  return Math.round((new Date(`${toIso}:00`) - new Date(`${fromIso}:00`)) / 60000)
+}
+
+// Fraværsminutter innenfor plassens eget vindu (§6-§7): medlever leser den
+// fryste planen (hele segmenter), vanlige vakter klokkeoverlapp mot
+// slot-vinduet - aldri parent-vinduet for en erstatterplass.
+function absenceMinutesFor(absence) {
+  const assignment = record('assignments', absence.assignmentId)
+  if (!assignment) return 0
+  if (assignment.liveInSnapshot) {
+    const resolved = resolveLiveInPaidMinutesForWindow(assignment, absence.absenceStartAt, absence.absenceEndAt)
+    return resolved && !resolved.partial ? resolved.paidMinutes : 0
+  }
+  const slot = slotById(assignment, absence.slotId)
+  const window = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
+  if (!window) return 0
+  const from = absence.absenceStartAt > window.from ? absence.absenceStartAt : window.from
+  const to = absence.absenceEndAt < window.to ? absence.absenceEndAt : window.to
+  return isoMinutesBetween(from, to)
+}
+
+// LÅST PRODUKTREGEL (§17): invalid = alltid ubetalt. Pending/valid endrer
+// ingen økonomi i V1 (§18-§19) - gyldighet og betaling er designet adskilt.
+function timesheetInvalidAbsenceMinutes(timesheet) {
+  return absencesForSlot(timesheet.assignmentId, timesheet.slotId)
+    .filter(item => item.status === 'invalid' && item.employeeId === timesheet.employeeId)
+    .reduce((sum, item) => sum + absenceMinutesFor(item), 0)
+}
+
+// Totalt betalbart for én timeliste: frisk plan + sykekomponent (§10-§11),
+// minus ugyldig generelt fravær (§17) - planen selv røres aldri (§23).
 function timesheetPayableMinutes(timesheet) {
-  return timesheetPlannedMinutes(timesheet) + timesheetSickMinutes(timesheet)
+  return Math.max(0, timesheetPlannedMinutes(timesheet) + timesheetSickMinutes(timesheet) - timesheetInvalidAbsenceMinutes(timesheet))
 }
 
 // §25: en helt syk originalvakt har ingen frisk del å registrere - den
@@ -11755,13 +11859,14 @@ function employeeTimesheetDetail(employee) {
         : item.plannedDate ? formatDate(item.plannedDate) : ''
     const plannedMinutes = timesheetPlannedMinutes(item)
     const sickMinutes = timesheetSickMinutes(item)
-    const payableMinutes = plannedMinutes + sickMinutes
+    const invalidAbsenceMinutes = timesheetInvalidAbsenceMinutes(item)
+    const payableMinutes = timesheetPayableMinutes(item)
     const actualMinutes = timesheetActualMinutes(item)
     const ready = timesheetReadyToSubmit(item)
-    // Betalbart-cellen viser work + sick-splitten når sykefravær finnes (§23):
-    // totalen er alltid den opprinnelige planen - aldri bare den friske resten.
-    const payableCell = sickMinutes
-      ? `${formatHoursMinutes(payableMinutes)}<div class="muted" style="font-size:11px">${t('sick.worked')} ${formatHoursMinutes(plannedMinutes)} · ${t('sick.title')} ${formatHoursMinutes(sickMinutes)}</div>`
+    // Betalbart-cellen viser komponentsplitten når syk/ugyldig fravær finnes:
+    // planen forsvinner aldri (§23) - ugyldig fravær trekkes synlig fra (§17).
+    const payableCell = sickMinutes || invalidAbsenceMinutes
+      ? `${formatHoursMinutes(payableMinutes)}<div class="muted" style="font-size:11px">${[`${t('sick.worked')} ${formatHoursMinutes(plannedMinutes)}`, sickMinutes ? `${t('sick.title')} ${formatHoursMinutes(sickMinutes)}` : '', invalidAbsenceMinutes ? `${t('absence.invalidLabel')} -${formatHoursMinutes(invalidAbsenceMinutes)}` : ''].filter(Boolean).join(' · ')}</div>`
       : formatHoursMinutes(payableMinutes)
     return `<tr><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span>${replacement}</div></td><td>${period}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${payableCell}</td><td>${actualMinutes ? formatHoursMinutes(actualMinutes) : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`}</td><td>${sickMinutes ? formatHoursMinutes(sickMinutes) : '0'}</td><td>${actualMinutes && actualMinutes !== plannedMinutes ? formatHoursMinutes(actualMinutes - plannedMinutes) : '0'}</td><td>${timesheetRowStatusLabel(item)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button>${ready ? `<button class="button small" data-action="submit-timesheet-row" data-id="${item.id}">${t('timesheets.submitOne')}</button>` : ''}</td></tr>`
   })
@@ -11827,6 +11932,47 @@ function employeeTimesheetOverview() {
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.perEmployee')}</h2><span class="tag info">${t('timesheets.employeeCount', { count: rows.length })}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'timesheets.shiftCount', 'timesheets.payable', 'timesheets.actual', 'sick.title', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
 }
 
+// === Fravær til behandling (§11-§13): hovedstedet for vurdering av pending ===
+// Køen deler Timelister-filtrene (virksomhet/avdeling/ansatt/måned) og har eget
+// statusfilter med default pending. Badgen teller alltid pending i scope.
+function absenceQueueRows(status) {
+  const { clientId, departmentId, employeeId, month } = state.timesheetFilters
+  return absencesCollection().filter(item => {
+    if (!absenceIsActive(item)) return false
+    if (status && item.status !== status) return false
+    if (employeeId && item.employeeId !== employeeId) return false
+    const assignment = record('assignments', item.assignmentId)
+    if (!assignment) return false
+    if (month && (!assignment.date || isoMonthKey(assignment.date) !== month)) return false
+    if (clientId && assignment.clientId !== clientId) return false
+    if (departmentId && assignment.departmentId !== departmentId) return false
+    return true
+  })
+}
+
+function absenceQueueSection() {
+  const statusFilter = state.absenceStatusFilter
+  const pendingCount = absenceQueueRows('pending').length
+  const rows = absenceQueueRows(statusFilter)
+  const stamp = iso => escapeHtml(String(iso ?? '').replace('T', ' kl. '))
+  const body = rows.map(item => {
+    const assignment = record('assignments', item.assignmentId)
+    const employee = record('employees', item.employeeId)
+    const decision = item.status === 'invalid'
+      ? `<div class="muted" style="font-size:11px">${escapeHtml(item.decisionComment ?? '')}</div>`
+      : item.status === 'valid' && item.decidedBy ? `<div class="muted" style="font-size:11px">${t('absence.decidedBy')}: ${escapeHtml(item.decidedBy)}</div>` : ''
+    return `<tr><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td><div class="file-name"><strong>${escapeHtml(assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : '')}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span></div></td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${stamp(item.absenceStartAt)} → ${stamp(item.absenceEndAt)}</td><td>${t(item.scope === 'full_slot' ? 'absence.scope.full' : 'absence.scope.partial')}</td><td>${item.comment ? escapeHtml(item.comment) : '—'}</td><td><span class="tag ${item.status === 'valid' ? 'success' : item.status === 'invalid' ? 'danger' : 'warning'}">${t(`absence.status.${item.status}`)}</span>${decision}</td><td class="row-actions">${item.status === 'pending' ? `<button class="button small" data-action="open-absence-review" data-id="${item.id}">${t('absence.assess')}</button>` : `<button class="button ghost small" data-action="open-absence-review" data-id="${item.id}">${t('common.view')}</button>`}</td></tr>`
+  })
+  const statusChoices = ['pending', 'valid', 'invalid'].map(value => `<option value="${value}"${statusFilter === value ? ' selected' : ''}>${t(`absence.status.${value}`)}</option>`).join('')
+  const statusSelect = `<select data-absence-status aria-label="${t('common.status')}"><option value=""${statusFilter ? '' : ' selected'}>${t('shifts.range.all')}</option>${statusChoices}</select>`
+  // Uten treff og uten pending er køen stille - flaten skal ikke rope tomt.
+  if (!rows.length && !pendingCount && statusFilter === 'pending') return ''
+  const table_ = rows.length
+    ? `<div class="table-scroller"><table><thead><tr>${['jobs.employee', 'shifts.name', 'rel.client', 'rel.department', 'absence.title', 'absence.scope', 'absence.comment', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div>`
+    : `<p class="muted">${t('absence.emptyQueue')}</p>`
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('absence.queue')}</h2><span class="tag ${pendingCount ? 'warning' : 'info'}">${pendingCount}</span><div class="toolbar-group" style="margin-left:auto">${statusSelect}</div></div>${table_}</article>`
+}
+
 function renderTimesheets() {
   // Defaultvisningen er inneværende måned - satt første gang flaten åpnes,
   // slik at et senere, eksplisitt «Alle» ('' ) respekteres.
@@ -11863,7 +12009,7 @@ function renderTimesheets() {
   // Eldre uketimelister vises nederst som historisk kort - aldri som en
   // konkurrerende hovedvisning.
   const legacyCard = `<details style="margin-top:16px"><summary class="muted">${t('timesheets.legacyWeekly')}</summary>${legacyList}</details>`
-  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${statusFiltered}${employeeTimesheetOverview()}${legacyCard}</section>`
+  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${absenceQueueSection()}${statusFiltered}${employeeTimesheetOverview()}${legacyCard}</section>`
 }
 
 function renderTimesheetReview() {
@@ -15740,6 +15886,61 @@ function invoiceLineDetailDialog() {
   return modalShell(t('invoiceReport.lineDetail'), escapeHtml(row.employeeName), 'file', body, footer)
 }
 
+// === Generelt fravær (§5): registrering forankret i ansatt + vakt + PLASS ===
+// «Hele vakten» er alltid PLASSENS eget dekningsvindu (§6) - en erstatterplass
+// bruker sitt coverage-vindu, aldri parent-vaktens fulle varighet.
+function absenceDialog() {
+  const employee = record('employees', state.slotAction?.employeeId)
+  const assignment = record('assignments', state.slotAction?.assignmentId)
+  const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+  if (!employee || !assignment || !slot) return ''
+  const window = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
+  if (!window) return ''
+  const humanStamp = iso => iso ? `${formatDate(String(iso).slice(0, 10))} kl. ${String(iso).slice(11, 16)}` : ''
+  const scope = String(draftValue('generalAbsenceScope', 'full_slot'))
+  const partialFields = scope === 'partial'
+    ? `<div class="grid cols-2">${bound('generalAbsenceStartDate', `${t('absence.from')} *`, { type: 'date', value: window.from.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceStartTime', t('shifts.time'), { type: 'time', value: window.from.slice(11, 16) })}${bound('generalAbsenceEndDate', `${t('absence.to')} *`, { type: 'date', value: window.to.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceEndTime', t('shifts.time'), { type: 'time', value: window.to.slice(11, 16) })}</div>`
+    : ''
+  const body = `<article class="card" style="margin-bottom:8px"><h3>${escapeHtml(employee.name)}</h3><p class="field-help">${escapeHtml(shiftDisplayName(assignment) || t('shifts.unnamed'))} · ${humanStamp(window.from)} → ${humanStamp(window.to)}</p></article><div class="form-section"><h3>${t('absence.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="full_slot"${scope === 'full_slot' ? ' checked' : ''}>${t('absence.scope.full')}</label><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="partial"${scope === 'partial' ? ' checked' : ''}>${t('absence.scope.partial')}</label></div>${partialFields}</div>${bound('generalAbsenceComment', t('absence.comment'), { type: 'text' })}<p class="field-help">${t('common.status')}: ${t('absence.status.pending')}</p>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-absence">${t('absence.register')}</button></div>`
+  return modalShell(t('absence.register'), escapeHtml(employee.name), 'bell', body, footer)
+}
+
+// Vurderingen (§14-§16): gyldig med valgfri kommentar, ugyldig med
+// OBLIGATORISK begrunnelse. En avgjort vurdering vises lesbart.
+function absenceReviewDialog() {
+  const absence = absenceById(state.slotAction?.absenceId)
+  if (!absence) return ''
+  const employee = record('employees', absence.employeeId)
+  const assignment = record('assignments', absence.assignmentId)
+  const humanStamp = iso => iso ? `${formatDate(String(iso).slice(0, 10))} kl. ${String(iso).slice(11, 16)}` : ''
+  const info = `<dl class="detail-list"><div><dt>${t('jobs.employee')}</dt><dd>${escapeHtml(employee?.name ?? '')}</dd></div><div><dt>${t('shifts.name')}</dt><dd>${escapeHtml(assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : '')} · ${t('staffing.assignmentId')} ${escapeHtml(String(absence.assignmentId))}</dd></div><div><dt>${t('absence.title')}</dt><dd>${humanStamp(absence.absenceStartAt)} → ${humanStamp(absence.absenceEndAt)}</dd></div><div><dt>${t('absence.comment')}</dt><dd>${absence.comment ? escapeHtml(absence.comment) : t('common.none')}</dd></div><div><dt>${t('common.status')}</dt><dd><span class="tag ${absence.status === 'valid' ? 'success' : absence.status === 'invalid' ? 'danger' : 'warning'}">${t(`absence.status.${absence.status}`)}</span>${absence.status === 'invalid' ? ` · ${t('absence.notPayable')}` : ''}</dd></div>${absence.decidedBy ? `<div><dt>${t('absence.decidedBy')}</dt><dd>${escapeHtml(absence.decidedBy)}${absence.decisionComment ? ` · ${escapeHtml(absence.decisionComment)}` : ''}</dd></div>` : ''}</dl>`
+  const pending = absence.status === 'pending'
+  const decisionFields = pending
+    ? `${bound('generalAbsenceDecisionComment', t('absence.invalidReason'), { type: 'text' })}<p class="field-help">${t('absence.invalidReasonRequired')}</p>`
+    : ''
+  const footer = pending
+    ? `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="absence-mark-invalid">${t('absence.markInvalid')}</button><button class="button" data-action="absence-mark-valid">${t('absence.markValid')}</button></div>`
+    : `<button class="button ghost" data-action="close-dialog">${t('common.close')}</button>`
+  return modalShell(t('absence.assessTitle'), escapeHtml(employee?.name ?? ''), 'bell', `${info}${decisionFields}`, footer)
+}
+
+// Sletting (§30): soft delete med obligatorisk begrunnelse - aldri fysisk.
+function confirmAbsenceDeleteDialog() {
+  const absence = absenceById(state.slotAction?.absenceId)
+  if (!absence) return ''
+  const employee = record('employees', absence.employeeId)
+  const assignment = record('assignments', absence.assignmentId)
+  // En allerede TILDELT erstatter beholdes bevisst (§32) - varsle før bekreft.
+  const assigned = assignment ? staffingSlotsFor(assignment).filter(slot => String(slot.replacementForAbsenceId) === String(absence.id) && slot.employeeId) : []
+  const warning = assigned.length
+    ? `<div class="banner warning">${icon('bell')}<span>${t('absence.replacementKept', { names: assigned.map(slot => record('employees', slot.employeeId)?.name ?? '').join(', ') })}</span></div>`
+    : ''
+  const body = `<p>${escapeHtml(employee?.name ?? '')} · ${escapeHtml(String(absence.absenceStartAt).replace('T', ' kl. '))} → ${escapeHtml(String(absence.absenceEndAt).replace('T', ' kl. '))}</p>${warning}${bound('generalAbsenceDeleteReason', `${t('absence.deleteReason')} *`, { type: 'text' })}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-delete-absence">${icon('trash')}${t('absence.deleteAction')}</button></div>`
+  return modalShell(t('absence.deleteAction'), escapeHtml(employee?.name ?? ''), 'trash', body, footer)
+}
+
 // Månedsinnsending: klare sendes, blokkerte står - aldri alt-eller-ingenting.
 function monthSubmitDialog() {
   const employee = record('employees', state.slotAction?.employeeId)
@@ -15788,6 +15989,9 @@ const dialogs = {
   'live-in-profile': liveInProfileDialog,
   'department-contacts': departmentContactsDialog,
   'confirm-sick-delete': confirmSickDeleteDialog,
+  absence: absenceDialog,
+  'absence-review': absenceReviewDialog,
+  'absence-delete': confirmAbsenceDeleteDialog,
   'invoice-line-detail': invoiceLineDetailDialog,
   'month-submit': monthSubmitDialog,
   'contact-import': contactImportDialog,
@@ -16811,6 +17015,140 @@ function actionHandlers(target = null) {
       logSickLeaveEvent(item, { type: 'sick_leave_deleted', reason: item.deleteReason })
       state.slotAction = null
       persist(); closeDialog(); showToast('sick.deleted', {})
+    },
+    // === Generelt fravær (IKKE sykefravær): pending -> valid/invalid ===
+    // To adskilte konsekvenser (§1): bemanningshullet oppstår UMIDDELBART ved
+    // registrering (§9), den økonomiske vurderingen skjer separat i køen.
+    'open-absence': () => {
+      const assignment = record('assignments', target?.dataset?.id)
+      const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
+      const employee = record('employees', target?.dataset?.employeeId)
+      if (!assignment || !slot || !employee || slot.employeeId !== employee.id) return
+      state.slotAction = { assignmentId: assignment.id, slotId: slot.id, employeeId: employee.id }
+      openDialog('absence', 'create', { generalAbsenceScope: 'full_slot' })
+    },
+    'confirm-absence': () => {
+      const assignment = record('assignments', state.slotAction?.assignmentId)
+      const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
+      const employee = record('employees', state.slotAction?.employeeId)
+      if (!assignment || !slot || !employee) return
+      // «Hele vakten» = PLASSENS eget dekningsvindu (§6) - aldri parent-vinduet.
+      const window = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
+      if (!window) return
+      const scope = String(state.draft.generalAbsenceScope ?? 'full_slot')
+      let absenceStartAt = window.from
+      let absenceEndAt = window.to
+      if (scope === 'partial') {
+        absenceStartAt = `${String(state.draft.generalAbsenceStartDate || window.from.slice(0, 10)).trim()}T${String(state.draft.generalAbsenceStartTime || window.from.slice(11, 16)).trim()}`
+        absenceEndAt = `${String(state.draft.generalAbsenceEndDate || window.to.slice(0, 10)).trim()}T${String(state.draft.generalAbsenceEndTime || window.to.slice(11, 16)).trim()}`
+        if (absenceStartAt.length < 16 || absenceEndAt.length < 16 || absenceStartAt >= absenceEndAt) { state.formError = 'absence.intervalRequired'; render(); return }
+        if (absenceStartAt < window.from || absenceEndAt > window.to) { state.formError = 'absence.intervalOutsideSlot'; render(); return }
+      }
+      const now = new Date().toISOString()
+      const created = {
+        id: nextNumericSlotId(),
+        employeeId: employee.id,
+        assignmentId: assignment.id,
+        slotId: slot.id,
+        absenceStartAt,
+        absenceEndAt,
+        scope: scope === 'partial' ? 'partial' : 'full_slot',
+        status: 'pending',
+        comment: String(state.draft.generalAbsenceComment ?? '').trim() || null,
+        decisionComment: null,
+        decidedAt: null,
+        decidedBy: null,
+        createdAt: now,
+        createdBy: 'demo-admin',
+        deletedAt: null,
+        deletedBy: null,
+        deleteReason: null,
+        events: [{ id: nextNumericSlotId(), at: now, type: 'absence_created', actor: 'demo-admin', employeeId: employee.id, assignmentId: assignment.id, slotId: slot.id, previousStatus: null, newStatus: 'pending' }]
+      }
+      // §9-§10: erstatterbehovet opprettes MED EN GANG med det eksakte
+      // intervallet og plassens funksjon (§28) - pending blokkerer aldri.
+      const duplicate = staffingSlotsFor(assignment).some(existing => String(existing.replacementForSlotId) === String(slot.id) && existing.coverageFrom === absenceStartAt && existing.coverageTo === absenceEndAt && existing.status !== 'cancelled')
+      if (!duplicate) {
+        const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: assignment.date, functionId: slot.functionId ?? null, replacementForSlotId: slot.id, replacementForAbsenceId: created.id, coverageFrom: absenceStartAt, coverageTo: absenceEndAt }
+        assignment.staffingSlots.push(replacementSlot)
+        assignment.slots = staffingSlotsFor(assignment).length
+        syncAssignmentStaffing(assignment)
+        created.events.push({ id: nextNumericSlotId(), at: now, type: 'absence_replacement_created', actor: 'demo-admin', replacementSlotId: replacementSlot.id, coverageFrom: absenceStartAt, coverageTo: absenceEndAt })
+        logAssignmentEvent(assignment, { type: 'employee_absent', slotId: slot.id, employeeId: employee.id, absenceId: created.id, absenceStartAt, absenceEndAt, replacementSlotId: replacementSlot.id })
+      } else {
+        logAssignmentEvent(assignment, { type: 'employee_absent', slotId: slot.id, employeeId: employee.id, absenceId: created.id, absenceStartAt, absenceEndAt })
+      }
+      db.absences = [...(db.absences ?? []), created]
+      state.slotAction = null
+      persist(); closeDialog(); showToast('absence.registered', {})
+    },
+    'open-absence-review': () => {
+      const item = absenceById(target?.dataset?.id)
+      if (!item || item.deletedAt) return
+      state.slotAction = { absenceId: item.id }
+      openDialog('absence-review', 'edit', {})
+    },
+    'absence-mark-valid': () => {
+      const item = absenceById(state.slotAction?.absenceId)
+      if (!item || item.deletedAt || item.status !== 'pending') return
+      item.status = 'valid'
+      item.decidedAt = new Date().toISOString()
+      item.decidedBy = 'demo-admin'
+      // Valgfri beslutningskommentar (§15) - gyldighet endrer ingen bemanning.
+      item.decisionComment = String(state.draft.generalAbsenceDecisionComment ?? '').trim() || null
+      item.events = [...(item.events ?? []), { id: nextNumericSlotId(), at: item.decidedAt, type: 'absence_marked_valid', actor: 'demo-admin', employeeId: item.employeeId, assignmentId: item.assignmentId, slotId: item.slotId, previousStatus: 'pending', newStatus: 'valid' }]
+      state.slotAction = null
+      persist(); closeDialog(); showToast('absence.markedValid', {})
+    },
+    'absence-mark-invalid': () => {
+      const item = absenceById(state.slotAction?.absenceId)
+      if (!item || item.deletedAt || item.status !== 'pending') return
+      // §16: begrunnelse er OBLIGATORISK for ugyldig - blokker synlig ellers.
+      const reason = String(state.draft.generalAbsenceDecisionComment ?? '').trim()
+      if (!reason) { state.formError = 'absence.invalidReasonRequired'; render(); return }
+      item.status = 'invalid'
+      item.decisionComment = reason
+      item.decidedAt = new Date().toISOString()
+      item.decidedBy = 'demo-admin'
+      item.events = [...(item.events ?? []), { id: nextNumericSlotId(), at: item.decidedAt, type: 'absence_marked_invalid', actor: 'demo-admin', employeeId: item.employeeId, assignmentId: item.assignmentId, slotId: item.slotId, previousStatus: 'pending', newStatus: 'invalid' }]
+      state.slotAction = null
+      persist(); closeDialog(); showToast('absence.markedInvalid', {})
+    },
+    'open-delete-absence': () => {
+      const item = absenceById(target?.dataset?.id)
+      if (!item || item.deletedAt) return
+      // §33: godkjent/fullført historikk låser direkte sletting - korrigering.
+      const assignment = record('assignments', item.assignmentId)
+      const timesheet = assignment ? timesheetForSlot(assignment.id, item.slotId) : null
+      if (timesheet?.status === 'approved' || (assignment && shiftOperationalStatus(assignment) === 'completed')) { showToast('absence.deleteLocked', {}); return }
+      state.slotAction = { absenceId: item.id }
+      openDialog('absence-delete', 'create', {})
+    },
+    'confirm-delete-absence': () => {
+      const item = absenceById(state.slotAction?.absenceId)
+      if (!item || item.deletedAt) return
+      const reason = String(state.draft.generalAbsenceDeleteReason ?? '').trim()
+      if (!reason) { state.formError = 'absence.deleteReasonRequired'; render(); return }
+      const assignment = record('assignments', item.assignmentId)
+      if (assignment) {
+        // §31-§32: ubemannet erstatterbehov ryddes; en TILDELT erstatter
+        // beholdes ALLTID (bekreftet i dialogen) - aldri stille fjerning.
+        const slots = staffingSlotsFor(assignment)
+        const kept = slots.filter(slot => String(slot.replacementForAbsenceId) === String(item.id) && slot.employeeId)
+        assignment.staffingSlots = slots.filter(slot => !(String(slot.replacementForAbsenceId) === String(item.id) && !slot.employeeId))
+        for (const replacement of kept) {
+          logAssignmentEvent(assignment, { type: 'replacement_kept_after_delete', slotId: replacement.id, employeeId: replacement.employeeId, absenceId: item.id })
+        }
+        assignment.slots = staffingSlotsFor(assignment).length
+        syncAssignmentStaffing(assignment)
+        logAssignmentEvent(assignment, { type: 'absence_deleted', slotId: item.slotId, employeeId: item.employeeId, absenceId: item.id })
+      }
+      item.deletedAt = new Date().toISOString()
+      item.deletedBy = 'demo-admin'
+      item.deleteReason = reason
+      item.events = [...(item.events ?? []), { id: nextNumericSlotId(), at: item.deletedAt, type: 'absence_deleted', actor: 'demo-admin', employeeId: item.employeeId, assignmentId: item.assignmentId, slotId: item.slotId, previousStatus: item.status, newStatus: item.status, reason }]
+      state.slotAction = null
+      persist(); closeDialog(); showToast('absence.deleted', {})
     },
     // === Forleng erstatter kant-i-kant over nytt sykefraværssegment ===
     'extend-replacement': () => {
@@ -18829,6 +19167,12 @@ document.addEventListener('change', event => {
     render()
     return
   }
+  // Fravær til behandling: statusfilteret (default pending, §13).
+  if (event.target.dataset?.absenceStatus !== undefined) {
+    state.absenceStatusFilter = String(event.target.value)
+    render()
+    return
+  }
   if (event.target.dataset?.timesheetFilter) {
     setTimesheetFilter(event.target.dataset.timesheetFilter, event.target.value)
     return
@@ -19121,12 +19465,14 @@ window.__workmaticPreview = {
   timesheetComponents: id => {
     const item = collection('slotTimesheets').find(row => String(row.id) === String(id))
     if (!item) return null
-    const plannedMinutes = timesheetPlannedMinutes(item)
-    const sickMinutes = timesheetSickMinutes(item)
-    return { plannedMinutes, sickMinutes, actualMinutes: timesheetActualMinutes(item), payableMinutes: plannedMinutes + sickMinutes }
+    return { plannedMinutes: timesheetPlannedMinutes(item), sickMinutes: timesheetSickMinutes(item), invalidAbsenceMinutes: timesheetInvalidAbsenceMinutes(item), actualMinutes: timesheetActualMinutes(item), payableMinutes: timesheetPayableMinutes(item) }
   },
   // Owner-aware sick-only-poster (§7): helt syke vakter uten aktiv timeliste.
   timesheetSickOnlyEntries: employeeId => JSON.parse(JSON.stringify(employeeSickOnlyEntries(employeeId ?? null).map(entry => ({ assignmentId: entry.assignment.id, slotId: entry.slotId, sickLeaveId: entry.sickRecord.id, minutes: entry.minutes })))),
+  // Generelt fravær: kanonisk collection + minutter i plassens eget vindu.
+  absences: () => JSON.parse(JSON.stringify(absencesCollection())),
+  absenceMinutes: id => { const item = absenceById(id); return item ? absenceMinutesFor(item) : null },
+  setAbsenceStatusFilter: value => { state.absenceStatusFilter = String(value ?? ''); render() },
   setAuditFilter: (name, value) => { state.auditFilters[name] = value; render() },
   slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
   slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
