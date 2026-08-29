@@ -3449,7 +3449,6 @@ const copy = {
     'perm.shifts.create': 'Opprette og bestille vakter',
     'perm.shifts.edit': 'Endre vakter',
     'perm.shifts.cancel': 'Kansellere vakter',
-    'perm.shifts.staffing': 'Se bemanning',
     'perm.timesheets.view': 'Se timelister',
     'perm.timesheets.approve': 'Godkjenne timelister',
     'perm.timesheets.correction': 'Be om korrigering',
@@ -4711,7 +4710,7 @@ copy.en = {
   'perm.group.employees': 'Employees', 'perm.group.economy': 'Finance',
   'perm.group.business': 'Business', 'perm.group.departments': 'Departments', 'perm.group.users': 'Users',
   'perm.shifts.view': 'View shifts', 'perm.shifts.create': 'Create and order shifts',
-  'perm.shifts.edit': 'Edit shifts', 'perm.shifts.cancel': 'Cancel shifts', 'perm.shifts.staffing': 'View staffing',
+  'perm.shifts.edit': 'Edit shifts', 'perm.shifts.cancel': 'Cancel shifts',
   'perm.timesheets.view': 'View timesheets', 'perm.timesheets.approve': 'Approve timesheets',
   'perm.timesheets.correction': 'Request correction',
   'perm.employees.view': 'View assigned employees', 'perm.employees.qualifications': 'View qualifications and documents',
@@ -8593,7 +8592,7 @@ function linkList(items) {
 // malene under er kun UX-forhåndsvalg. Dette er prototypens autorisasjonslag:
 // produksjon må håndheve det samme i backend.
 const WORKMATIC_PERMISSION_GROUPS = [
-  ['shifts', ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing']],
+  ['shifts', ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel']],
   ['timesheets', ['timesheets.view', 'timesheets.approve', 'timesheets.correction']],
   ['employees', ['employees.view', 'employees.qualifications']],
   ['economy', ['economy.prices', 'economy.invoiceBasis']],
@@ -8603,8 +8602,8 @@ const WORKMATIC_PERMISSION_GROUPS = [
 ]
 const WORKMATIC_PERMISSION_IDS = WORKMATIC_PERMISSION_GROUPS.flatMap(([, ids]) => ids)
 const ACCESS_PRESETS = {
-  orderer: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing'],
-  shiftManager: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'shifts.staffing', 'timesheets.view', 'employees.view'],
+  orderer: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel'],
+  shiftManager: ['shifts.view', 'shifts.create', 'shifts.edit', 'shifts.cancel', 'timesheets.view', 'employees.view'],
   timesheetApprover: ['timesheets.view', 'timesheets.approve', 'timesheets.correction'],
   economy: ['economy.prices', 'economy.invoiceBasis', 'business.view'],
   businessAdmin: ['business.view', 'business.edit', 'departments.view', 'departments.manage', 'users.view', 'users.manage']
