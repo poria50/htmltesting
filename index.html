@@ -3146,7 +3146,7 @@ const copy = {
     'absence.emptyQueue': 'Ingen fravær i valgt status',
     'absence.section': 'Fravær og justeringer',
     'absence.history': 'Vurderingshistorikk',
-    'absence.reassess': 'Revurder fravær',
+    'absence.reassess': 'Revurder fraværet',
     'absence.backToPending': 'Sett tilbake til vurdering',
     'absence.reassessReason': 'Begrunnelse for endring',
     'absence.reassessReasonRequired': 'Begrunnelse er obligatorisk ved revurdering',
@@ -15535,11 +15535,14 @@ function slotTimesheetDialog() {
   const absenceSection = absences.length
     ? `<article class="card" style="margin-top:8px"><h3>${t('absence.section')}</h3>${absences.map(item => {
         const locked = absenceReassessLocked(item)
+        // Revurdering er en TYDELIG sekundærknapp (border + bakgrunn, hover/
+        // focus fra buttonkomponenten) - aldri en tekstlignende ghost-handling.
+        // Samme eksisterende action; kun presentasjonen er endret.
         const action = item.status === 'pending'
           ? `<button type="button" class="button small" data-action="open-absence-review" data-id="${item.id}">${t('absence.assess')}</button>`
           : locked
             ? `<span class="muted" style="font-size:11px">${t('absence.reassessLocked')}</span>`
-            : `<button type="button" class="button ghost small" data-action="open-absence-reassess" data-id="${item.id}">${t('absence.reassess')}</button>`
+            : `<button type="button" class="button secondary small" data-action="open-absence-reassess" data-id="${item.id}">${t('absence.reassess')}</button>`
         return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border, #e2e8f0)"><dl class="detail-list">
           <div><dt>${t('absence.title')}</dt><dd>${humanStamp(item.absenceStartAt)} → ${humanStamp(item.absenceEndAt)}</dd></div>
           <div><dt>${t('absence.scope')}</dt><dd>${t(item.scope === 'full_slot' ? 'absence.scope.full' : 'absence.scope.partial')}</dd></div>
@@ -15548,7 +15551,7 @@ function slotTimesheetDialog() {
           ${item.comment ? `<div><dt>${t('absence.comment')}</dt><dd>${escapeHtml(item.comment)}</dd></div>` : ''}
           ${item.decidedBy ? `<div><dt>${t('absence.decidedBy')}</dt><dd>${escapeHtml(item.decidedBy)}</dd></div><div><dt>${t('absence.decidedAt')}</dt><dd>${humanStamp(item.decidedAt)}</dd></div>` : ''}
           ${item.decisionComment ? `<div><dt>${t('absence.invalidReason')}</dt><dd>${escapeHtml(item.decisionComment)}</dd></div>` : ''}
-        </dl>${absenceHistoryList(item)}<div class="row-actions" style="margin-top:8px">${action}</div></div>`
+        </dl>${absenceHistoryList(item)}<div class="row-actions" style="margin-top:12px">${action}</div></div>`
       }).join('')}</article>`
     : ''
   const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${escapeHtml(assignment?.assignmentNumber ?? '')} · ${lab(record('departments', assignment?.departmentId)?.name ?? '')}</p>${lockBanner}${correctionBanner}${liveInInfo}${coverageLine}${summarySection}${absenceSection}${approverLine}<div class="grid cols-2">${planned}${actual}</div>${deviationRow}${liveInReview}${history}`
