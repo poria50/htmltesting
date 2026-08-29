@@ -3160,6 +3160,10 @@ const copy = {
     'absence.payment': 'Betaling',
     'absence.decidedAt': 'Vurdert',
     'absence.coverage': 'Erstatterdekning',
+    'absence.replacementForLabel': 'Erstatter for',
+    'absence.cause': 'Årsak',
+    'absence.causeGeneral': 'Generelt fravær',
+    'absence.original': 'Originalt fravær',
     'absence.newStatusRequired': 'Velg ny vurdering',
     'absence.sameStatus': 'Den nye vurderingen er lik nåværende status',
     'sick.register': 'Registrer sykefravær',
@@ -4549,7 +4553,7 @@ copy.en = {
   'medlever.daysShort': 'periods',
   'timesheets.event.medlever_override': 'Live-in pay basis overridden',
   'page.absence.desc': 'Sick leave with validity, compensation and cost responsibility',
-  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.shift': 'Shift', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status', 'absence.section': 'Absence and adjustments', 'absence.history': 'Decision history', 'absence.reassess': 'Reassess absence', 'absence.backToPending': 'Return to review', 'absence.reassessReason': 'Reason for the change', 'absence.reassessReasonRequired': 'A reason is required to reassess', 'absence.newStatus': 'New decision', 'absence.currentStatus': 'Current status', 'absence.currentReason': 'Current reason', 'absence.saveReassess': 'Save new decision', 'absence.reassessed': 'The new decision was saved', 'absence.reassessLocked': 'This timesheet is approved and must be reopened for correction before the absence can be changed.', 'absence.payableAfter': 'Payable after absence', 'absence.payment': 'Payment', 'absence.decidedAt': 'Reviewed', 'absence.coverage': 'Replacement coverage', 'absence.newStatusRequired': 'Choose a new decision', 'absence.sameStatus': 'The new decision equals the current status',
+  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.shift': 'Shift', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status', 'absence.section': 'Absence and adjustments', 'absence.history': 'Decision history', 'absence.reassess': 'Reassess absence', 'absence.backToPending': 'Return to review', 'absence.reassessReason': 'Reason for the change', 'absence.reassessReasonRequired': 'A reason is required to reassess', 'absence.newStatus': 'New decision', 'absence.currentStatus': 'Current status', 'absence.currentReason': 'Current reason', 'absence.saveReassess': 'Save new decision', 'absence.reassessed': 'The new decision was saved', 'absence.reassessLocked': 'This timesheet is approved and must be reopened for correction before the absence can be changed.', 'absence.payableAfter': 'Payable after absence', 'absence.payment': 'Payment', 'absence.decidedAt': 'Reviewed', 'absence.coverage': 'Replacement coverage', 'absence.replacementForLabel': 'Replacement for', 'absence.cause': 'Cause', 'absence.causeGeneral': 'General absence', 'absence.original': 'Original absence', 'absence.newStatusRequired': 'Choose a new decision', 'absence.sameStatus': 'The new decision equals the current status',
   'sick.register': 'Register sick leave',
   'sick.registered': 'Sick leave registered for {name}',
   'sick.sickTag': 'Sick',
@@ -11509,6 +11513,27 @@ function absenceMinutesFor(absence) {
   return isoMinutesBetween(from, to)
 }
 
+// Kanonisk erstatterkontekst for én plass (§14): HVEM erstattes, HVORFOR
+// (generelt fravær eller sykefravær) og det eksakte kildeintervallet.
+// Immediate slot-relasjon er source of truth (§10) - aldri parent-vinduet.
+// Ren visningskontekst: eierskap, økonomi og motor røres ALDRI (§2, §12-§13).
+function replacementContextForSlot(assignment, slot) {
+  if (!assignment || !slot?.replacementForSlotId) return null
+  const originalSlot = slotById(assignment, slot.replacementForSlotId)
+  const sourceAbsence = slot.replacementForAbsenceId ? absenceById(slot.replacementForAbsenceId) : null
+  const sourceSickLeave = slot.replacementForSickLeaveId ? sickLeaveById(slot.replacementForSickLeaveId) : null
+  const originalEmployee = record('employees', sourceAbsence?.employeeId ?? sourceSickLeave?.employeeId ?? originalSlot?.employeeId ?? null)
+  return {
+    replacementSlot: slot,
+    originalSlot,
+    originalEmployee,
+    sourceType: sourceAbsence ? 'absence' : sourceSickLeave ? 'sick' : originalSlot ? 'staffing' : null,
+    sourceAbsence,
+    sourceSickLeave,
+    coverageWindow: slotCoverageWindowIso(assignment, slot)
+  }
+}
+
 // Append-only beslutningshistorikk (§10, §24): decisions[] er kanonisk. Eldre
 // records uten decisions normaliseres LESENDE fra de flate feltene
 // (decisionComment/decidedAt/decidedBy) - gamle data ødelegges aldri.
@@ -15526,10 +15551,39 @@ function slotTimesheetDialog() {
         <div><dt>${t('absence.payableAfter')}</dt><dd><strong>${formatHoursMinutes(timesheetPayableMinutes(timesheet))}</strong></dd></div>
       </dl></article>`
     : ''
-  // §29: en erstatterplass viser SITT dekningsvindu som kontekst.
+  // §29: en erstatterplass viser SITT dekningsvindu - og HVEM/HVORFOR hun
+  // erstatter (§3-§7): originalansatt, årsak og det eksakte kildeintervallet.
+  // Kun informativt: originalfraværet forblir originalens (§2), og ingen
+  // revurderingshandling vises for et fravær som ikke tilhører denne (§8).
   const humanStamp = iso => iso ? `${formatDate(String(iso).slice(0, 10))} kl. ${String(iso).slice(11, 16)}` : ''
+  const replacementContext = timesheetSlot?.replacementForSlotId ? replacementContextForSlot(assignment, timesheetSlot) : null
   const coverageLine = timesheetSlot?.coverageFrom
-    ? `<div class="banner info">${icon('calendar')}<span>${t('absence.coverage')}: ${humanStamp(timesheetSlot.coverageFrom)} → ${humanStamp(timesheetSlot.coverageTo)}</span></div>`
+    ? (() => {
+        const coverage = `<div><dt>${t('absence.coverage')}</dt><dd>${humanStamp(timesheetSlot.coverageFrom)} → ${humanStamp(timesheetSlot.coverageTo)}</dd></div>`
+        if (!replacementContext || !replacementContext.sourceType) {
+          return `<div class="banner info">${icon('calendar')}<span>${t('absence.coverage')}: ${humanStamp(timesheetSlot.coverageFrom)} → ${humanStamp(timesheetSlot.coverageTo)}</span></div>`
+        }
+        const source = replacementContext.sourceAbsence
+        const sick = replacementContext.sourceSickLeave
+        const causeLabel = source ? t('absence.causeGeneral') : sick ? t('sick.title') : t('staffing.replacementSlot')
+        const interval = source
+          ? `${humanStamp(source.absenceStartAt)} → ${humanStamp(source.absenceEndAt)}`
+          : sick?.sickStartAt ? `${humanStamp(sick.sickStartAt)} → ${humanStamp(sick.sickEndAt)}` : ''
+        // Statusfeltene gjelder KUN generelt fravær (§7, §20) - sykefravær
+        // beholder sin egen modul og viser bare årsaken her.
+        const statusRow = source
+          ? `<div><dt>${t('common.status')}</dt><dd><span class="tag ${source.status === 'valid' ? 'success' : source.status === 'invalid' ? 'danger' : 'warning'}">${t(`absence.status.${source.status}`)}</span>${source.status === 'invalid' ? ` · ${t('absence.notPayable')}` : ''}</dd></div>`
+          : ''
+        return `<article class="card" style="margin-top:8px"><dl class="detail-list">
+          ${coverage}
+          <div><dt>${t('absence.replacementForLabel')}</dt><dd>${escapeHtml(replacementContext.originalEmployee?.name ?? '')}</dd></div>
+          <div><dt>${t('absence.cause')}</dt><dd>${causeLabel}</dd></div>
+          ${interval ? `<div><dt>${source ? t('absence.original') : t('sick.title')}</dt><dd>${interval}</dd></div>` : ''}
+          ${statusRow}
+          ${source?.comment ? `<div><dt>${t('absence.comment')}</dt><dd>${escapeHtml(source.comment)}</dd></div>` : ''}
+          ${source?.decisionComment ? `<div><dt>${t('absence.invalidReason')}</dt><dd>${escapeHtml(source.decisionComment)}</dd></div>` : ''}
+        </dl></article>`
+      })()
     : ''
   // §3-§4: hvert fravær vises SEPARAT med status, beslutning og historikk.
   const absenceSection = absences.length
