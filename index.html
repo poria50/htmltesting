@@ -3181,7 +3181,7 @@ const copy = {
     'sick.period': 'Periode',
     'sick.none': 'Ingen sykefravær registrert',
     'sick.affectedShifts': 'Berørte vakter',
-    'sick.willReopen': 'Plassen åpnes for erstatter',
+    'sick.willReopen': 'Beholder plassen · erstatterbehov opprettes',
     'sick.keepsSlot': 'Beholder plassen (delvis fravær)',
     'sick.manualReview': 'Utført/godkjent vakt: krever manuell gjennomgang',
     'sick.overlapWarning': 'Overlapper eksisterende aktivt sykefravær',
@@ -4568,7 +4568,7 @@ copy.en = {
   'sick.period': 'Period',
   'sick.none': 'No sick leave registered',
   'sick.affectedShifts': 'Affected shifts',
-  'sick.willReopen': 'The slot opens for a replacement',
+  'sick.willReopen': 'Keeps the slot · replacement need is created',
   'sick.keepsSlot': 'Keeps the slot (partial absence)',
   'sick.manualReview': 'Completed/approved shift: requires manual review',
   'sick.overlapWarning': 'Overlaps an existing active sick leave',
@@ -10075,6 +10075,26 @@ function openStaffingSlots(assignment) {
   return staffingSlotsFor(assignment).filter(slot => slot.status === 'open')
 }
 
+// §5: GRUNNBEMANNING vs. ERSTATTERDEKNING er to forskjellige begreper avledet
+// av det kanoniske relasjonsfeltet replacementForSlotId - aldri en parallell
+// modell. Erstatterplasser øker ALDRI vaktens påkrevde antall ansatte.
+function baseStaffingSlots(assignment) {
+  return staffingSlotsFor(assignment).filter(slot => !slot.replacementForSlotId)
+}
+
+function replacementStaffingSlots(assignment) {
+  return staffingSlotsFor(assignment).filter(slot => slot.replacementForSlotId)
+}
+
+// En grunnplass er DEKKET når den selv er endelig bemannet og ingen av dens
+// erstatterbehov står åpne - en bemannet erstatter dekker basens plass (§6).
+// «1 av 1» betyr dermed dekket behov, aldri «2 av 2» for original + erstatter.
+function slotCoverageStaffed(assignment, slot) {
+  const replacements = staffingSlotsFor(assignment).filter(entry => String(entry.replacementForSlotId) === String(slot.id) && entry.status !== 'cancelled')
+  if (replacements.some(entry => entry.status === 'open')) return false
+  return slotIsStaffed(slot) || replacements.some(slotIsStaffed)
+}
+
 // === Derivert vaktstatus ===
 // Vaktstatus er ALDRI et manuelt valg: den beregnes deterministisk fra
 // kansellering, tid og bemanningsplassene (§2-§3). Lagret assignment.status
@@ -10100,19 +10120,22 @@ function slotIsStaffed(slot) {
   return Boolean(slot.employeeId) && (slot.status === 'assigned' || slot.status === 'pending_reconfirmation')
 }
 
+// §6: telleren måler DEKNING av grunnbemanningen: en grunnplass teller når
+// den er dekket (selv bemannet uten åpne erstatterbehov, eller dekket av en
+// bemannet erstatter). Original + erstatter blir aldri «2 av 2».
 function staffedSlotCount(assignment) {
-  return staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled' && slotIsStaffed(slot)).length
+  return baseStaffingSlots(assignment).filter(slot => slot.status !== 'cancelled' && slotCoverageStaffed(assignment, slot)).length
 }
 
 // Presedens (§3): kansellert vinner alltid; passert sluttid gir Utført;
-// ellers Åpen når minst én aktiv plass mangler endelig ansatt, Bemannet når
-// alle har det. Utført endrer ALDRI timelister eller økonomi (§6).
+// ellers Åpen når minst én aktiv GRUNNPLASS mangler dekning, Bemannet når
+// alle er dekket. Utført endrer ALDRI timelister eller økonomi (§6).
 function shiftOperationalStatus(assignment, now = new Date()) {
   if (assignment.status === 'cancelled') return 'cancelled'
   const end = shiftEndTimestamp(assignment)
   if (end && localTimestamp(now) > end) return 'completed'
-  const active = staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled')
-  return active.length && active.every(slotIsStaffed) ? 'staffed' : 'open'
+  const active = baseStaffingSlots(assignment).filter(slot => slot.status !== 'cancelled')
+  return active.length && active.every(slot => slotCoverageStaffed(assignment, slot)) ? 'staffed' : 'open'
 }
 
 function shiftStatusTag(assignment, now = new Date()) {
@@ -10121,9 +10144,10 @@ function shiftStatusTag(assignment, now = new Date()) {
   return `<span class="tag ${tones[status]}">${t(`shifts.opStatus.${status}`)}</span>`
 }
 
-// «X av Y bemannet» vises alltid adskilt fra vaktstatusen (§28).
+// «X av Y bemannet» vises alltid adskilt fra vaktstatusen (§28). Y er
+// GRUNNBEMANNINGEN - erstatterplasser blåser aldri opp behovet (§5-§6).
 function staffedOfLabel(assignment) {
-  return t('staffing.staffedOf', { count: staffedSlotCount(assignment), total: staffingSlotsFor(assignment).filter(slot => slot.status !== 'cancelled').length })
+  return t('staffing.staffedOf', { count: staffedSlotCount(assignment), total: baseStaffingSlots(assignment).filter(slot => slot.status !== 'cancelled').length })
 }
 
 // === Vaktserie: kun grupperingsmetadata ===
@@ -14045,8 +14069,10 @@ function assignmentAttention(assignment) {
   else if (open) reasons.push({ key: 'attention.openSlots', count: open })
   if (slots.some(slot => Boolean(activeSlotRequest(slot)))) reasons.push({ key: 'attention.requestWaiting' })
   if (slots.some(slot => ['awaiting_confirmation', 'pending_reconfirmation'].includes(slot.status))) reasons.push({ key: 'attention.confirmation' })
-  // Sykefravær der plassen ble gjenåpnet og fortsatt står ledig.
-  if (sickLeavesCollection().some(leave => (leave.affected ?? []).some(entry => entry.handling === 'reopened' && String(entry.assignmentId) === String(assignment.id) && slots.some(slot => String(slot.id) === String(entry.slotId) && slot.status === 'open')))) {
+  // Sykefravær uten erstatter: et ÅPENT erstatterbehov fra et aktivt
+  // sykefravær (ny modell), eller en legacy-gjenåpnet plass som står ledig.
+  if (slots.some(slot => slot.status === 'open' && slot.replacementForSickLeaveId && sickLeaveIsActive(sickLeaveById(slot.replacementForSickLeaveId)))
+    || sickLeavesCollection().some(leave => (leave.affected ?? []).some(entry => entry.handling === 'reopened' && String(entry.assignmentId) === String(assignment.id) && slots.some(slot => String(slot.id) === String(entry.slotId) && slot.status === 'open')))) {
     reasons.push({ key: 'attention.sickReplacement' })
   }
   const sheets = collection('slotTimesheets').filter(item => !item.voided && !item.superseded && String(item.assignmentId) === String(assignment.id))
@@ -17099,39 +17125,35 @@ function actionHandlers(target = null) {
           continue
         }
         logAssignmentEvent(item.assignment, { type: 'employee_sick', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, absencePercent: percent })
-        // DELVIS VAKT I TID (100 %): sykefraværet frigjør KUN det registrerte
-        // intervallet. Originalplassen beholder den ansatte (hun er fortsatt
-        // planlagt utenfor segmentene), og erstatterplassen dekker NØYAKTIG
-        // sickStartAt -> sickEndAt - aldri automatisk til vaktslutt. Flere
-        // tilstøtende segmenter kan registreres på samme lange vakt.
-        if (anchor && item.assignment.id === anchor.id && absenceScope === 'partial_shift' && percent >= 100 && (sickStartAt > anchorWindow.from || sickEndAt < anchorWindow.to)) {
-          if (!item.slot.workedUntil && sickStartAt > anchorWindow.from) item.slot.workedUntil = sickStartAt
+        // ÉN KONSEPTUELL MODELL for hel og delvis sykdom (§1-§3): originalen
+        // beholder ALLTID plassen sin - sykdom sletter aldri relasjonen - og
+        // erstatterbehovet er en egen dekningsplass med eksakt intervall.
+        // Forskjellen mellom hel og delvis er KUN dekningsintervallet:
+        // delvis = sickStartAt -> sickEndAt, hel = vaktens fulle vindu.
+        if (percent >= 100) {
+          const window = anchor && item.assignment.id === anchor.id && sickStartAt && sickEndAt
+            ? { from: sickStartAt, to: sickEndAt }
+            : assignmentTimeWindowIso(item.assignment)
+          const fullWindow = assignmentTimeWindowIso(item.assignment)
+          const wholeShift = !window || !fullWindow || (window.from <= fullWindow.from && window.to >= fullWindow.to)
+          const coverFrom = window?.from ?? `${item.assignment.date}T${item.assignment.startTime}`
+          const coverTo = window?.to ?? shiftEndTimestamp(item.assignment) ?? coverFrom
+          if (!item.slot.workedUntil && !wholeShift && coverFrom > (fullWindow?.from ?? coverFrom)) item.slot.workedUntil = coverFrom
           // Ingen duplikate erstatterbehov for samme intervall (§11).
-          const duplicate = staffingSlotsFor(item.assignment).some(existing => String(existing.replacementForSlotId) === String(item.slot.id) && existing.coverageFrom === sickStartAt && existing.coverageTo === sickEndAt)
+          const duplicate = staffingSlotsFor(item.assignment).some(existing => String(existing.replacementForSlotId) === String(item.slot.id) && existing.coverageFrom === coverFrom && existing.coverageTo === coverTo)
           if (!duplicate) {
-            const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: anchor.date, functionId: item.slot.functionId ?? null, replacementForSlotId: item.slot.id, replacementForSickLeaveId: record_.id, coverageFrom: sickStartAt, coverageTo: sickEndAt }
+            const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: item.assignment.date, functionId: item.slot.functionId ?? null, replacementForSlotId: item.slot.id, replacementForSickLeaveId: record_.id, coverageFrom: coverFrom, coverageTo: coverTo }
             item.assignment.staffingSlots.push(replacementSlot)
-            item.assignment.slots = staffingSlotsFor(item.assignment).length
+            // §5: erstatterplasser øker ALDRI grunnbemanningen.
+            item.assignment.slots = baseStaffingSlots(item.assignment).length
             syncAssignmentStaffing(item.assignment)
-            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'partial_release', replacementSlotId: replacementSlot.id })
-            logAssignmentEvent(item.assignment, { type: 'employee_sick_partial', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, sickStartAt, sickEndAt, replacementSlotId: replacementSlot.id, replacementRequiredFrom: sickStartAt })
+            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: wholeShift ? 'full_release' : 'partial_release', replacementSlotId: replacementSlot.id })
+            logAssignmentEvent(item.assignment, { type: 'employee_sick_partial', slotId: item.slot.id, employeeId: employee.id, sickLeaveId: record_.id, sickStartAt: coverFrom, sickEndAt: coverTo, replacementSlotId: replacementSlot.id, replacementRequiredFrom: coverFrom })
           } else {
-            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'partial_release' })
+            record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: wholeShift ? 'full_release' : 'partial_release' })
           }
           record_.replacementRequired = true
-          record_.replacementRequiredFrom = sickStartAt
-          continue
-        }
-        if (percent >= 100) {
-          // Full sykdom: samme plass gjenåpnes for erstatter - identiteten og
-          // historikken består, ingen ny plass opprettes (§8-§10, §50).
-          releaseSlotTimesheet(item.assignment, item.slot)
-          item.slot.employeeId = null
-          item.slot.status = 'open'
-          syncAssignmentStaffing(item.assignment)
-          record_.replacementRequired = true
-          record_.replacementRequiredFrom = record_.replacementRequiredFrom ?? `${item.assignment.date}T${item.assignment.startTime}`
-          record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'reopened' })
+          record_.replacementRequiredFrom = record_.replacementRequiredFrom ?? coverFrom
         } else {
           // Delvis sykdom: den ansatte beholder plassen og kan jobbe delvis (§27).
           record_.affected.push({ assignmentId: item.assignment.id, slotId: item.slot.id, handling: 'kept' })
@@ -17202,7 +17224,8 @@ function actionHandlers(target = null) {
             delete original.workedUntil
           }
         }
-        assignment.slots = staffingSlotsFor(assignment).length
+        // §5: grunnbemanningen røres aldri av erstatterplasser.
+        assignment.slots = baseStaffingSlots(assignment).length
         syncAssignmentStaffing(assignment)
         logAssignmentEvent(assignment, { type: 'sick_leave_deleted', slotId: entry.slotId, employeeId: item.employeeId, sickLeaveId: item.id })
       }
@@ -17271,7 +17294,8 @@ function actionHandlers(target = null) {
       if (!duplicate) {
         const replacementSlot = { id: nextNumericSlotId(), status: 'open', employeeId: null, createdAt: assignment.date, functionId: slot.functionId ?? null, replacementForSlotId: slot.id, replacementForAbsenceId: created.id, coverageFrom: absenceStartAt, coverageTo: absenceEndAt }
         assignment.staffingSlots.push(replacementSlot)
-        assignment.slots = staffingSlotsFor(assignment).length
+        // §5: grunnbemanningen røres aldri av erstatterplasser.
+        assignment.slots = baseStaffingSlots(assignment).length
         syncAssignmentStaffing(assignment)
         created.events.push({ id: nextNumericSlotId(), at: now, type: 'absence_replacement_created', actor: 'demo-admin', replacementSlotId: replacementSlot.id, coverageFrom: absenceStartAt, coverageTo: absenceEndAt })
         logAssignmentEvent(assignment, { type: 'employee_absent', slotId: slot.id, employeeId: employee.id, absenceId: created.id, absenceStartAt, absenceEndAt, replacementSlotId: replacementSlot.id })
@@ -17356,7 +17380,8 @@ function actionHandlers(target = null) {
         for (const replacement of kept) {
           logAssignmentEvent(assignment, { type: 'replacement_kept_after_delete', slotId: replacement.id, employeeId: replacement.employeeId, absenceId: item.id })
         }
-        assignment.slots = staffingSlotsFor(assignment).length
+        // §5: grunnbemanningen røres aldri av erstatterplasser.
+        assignment.slots = baseStaffingSlots(assignment).length
         syncAssignmentStaffing(assignment)
         logAssignmentEvent(assignment, { type: 'absence_deleted', slotId: item.slotId, employeeId: item.employeeId, absenceId: item.id })
       }
