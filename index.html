@@ -3110,6 +3110,7 @@ const copy = {
     'page.absence.desc': 'Sykefravær med gyldighet, kompensasjon og kostnadsansvar',
     'sick.title': 'Sykefravær',
     'absence.register': 'Registrer fravær',
+    'absence.shift': 'Vakt',
     'absence.title': 'Fravær',
     'absence.scope': 'Fraværet gjelder',
     'absence.scope.full': 'Hele vakten',
@@ -4530,7 +4531,7 @@ copy.en = {
   'medlever.daysShort': 'periods',
   'timesheets.event.medlever_override': 'Live-in pay basis overridden',
   'page.absence.desc': 'Sick leave with validity, compensation and cost responsibility',
-  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status',
+  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.shift': 'Shift', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status',
   'sick.register': 'Register sick leave',
   'sick.registered': 'Sick leave registered for {name}',
   'sick.sickTag': 'Sick',
@@ -11488,6 +11489,18 @@ function absenceMinutesFor(absence) {
   return isoMinutesBetween(from, to)
 }
 
+// Delvis-fraværets default-slutt: medlever foreslår FØRSTE døgngrense etter
+// vindustart (ett medleverdøgn) - vanlige vakter hele vinduet. Dialogen og
+// confirm-fallbacken deler denne, så det som vises alltid er det som lagres.
+function absenceDefaultPartialTo(assignment, window) {
+  if (!assignment?.liveInSnapshot) return window.to
+  for (const segment of assignment.liveInSnapshot.segments ?? []) {
+    const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+    if (segmentTo > window.from && segmentTo <= window.to) return segmentTo
+  }
+  return window.to
+}
+
 // LÅST PRODUKTREGEL (§17): invalid = alltid ubetalt. Pending/valid endrer
 // ingen økonomi i V1 (§18-§19) - gyldighet og betaling er designet adskilt.
 function timesheetInvalidAbsenceMinutes(timesheet) {
@@ -15898,10 +15911,14 @@ function absenceDialog() {
   if (!window) return ''
   const humanStamp = iso => iso ? `${formatDate(String(iso).slice(0, 10))} kl. ${String(iso).slice(11, 16)}` : ''
   const scope = String(draftValue('generalAbsenceScope', 'full_slot'))
+  // Delvis-default: medlever foreslår FØRSTE døgngrense etter vindustart -
+  // ett medleverdøgn, ikke hele vaktslutten. Delt helper med confirm-fallbacken.
+  const defaultPartialTo = absenceDefaultPartialTo(assignment, window)
   const partialFields = scope === 'partial'
-    ? `<div class="grid cols-2">${bound('generalAbsenceStartDate', `${t('absence.from')} *`, { type: 'date', value: window.from.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceStartTime', t('shifts.time'), { type: 'time', value: window.from.slice(11, 16) })}${bound('generalAbsenceEndDate', `${t('absence.to')} *`, { type: 'date', value: window.to.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceEndTime', t('shifts.time'), { type: 'time', value: window.to.slice(11, 16) })}</div>`
+    ? `<div class="grid cols-2">${bound('generalAbsenceStartDate', `${t('absence.from')} *`, { type: 'date', value: window.from.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceStartTime', t('shifts.time'), { type: 'time', value: window.from.slice(11, 16) })}${bound('generalAbsenceEndDate', `${t('absence.to')} *`, { type: 'date', value: defaultPartialTo.slice(0, 10), min: window.from.slice(0, 10), max: window.to.slice(0, 10) })}${bound('generalAbsenceEndTime', t('shifts.time'), { type: 'time', value: defaultPartialTo.slice(11, 16) })}</div>`
     : ''
-  const body = `<article class="card" style="margin-bottom:8px"><h3>${escapeHtml(employee.name)}</h3><p class="field-help">${escapeHtml(shiftDisplayName(assignment) || t('shifts.unnamed'))} · ${humanStamp(window.from)} → ${humanStamp(window.to)}</p></article><div class="form-section"><h3>${t('absence.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="full_slot"${scope === 'full_slot' ? ' checked' : ''}>${t('absence.scope.full')}</label><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="partial"${scope === 'partial' ? ' checked' : ''}>${t('absence.scope.partial')}</label></div>${partialFields}</div>${bound('generalAbsenceComment', t('absence.comment'), { type: 'text' })}<p class="field-help">${t('common.status')}: ${t('absence.status.pending')}</p>`
+  // Toppen speiler registreringsmockupen: Ansatt og Vakt som lesbare felter.
+  const body = `<dl class="detail-list" style="margin-bottom:8px"><div><dt>${t('jobs.employee')}</dt><dd>${escapeHtml(employee.name)}</dd></div><div><dt>${t('absence.shift')}</dt><dd>${humanStamp(window.from)} → ${humanStamp(window.to)}</dd></div></dl><div class="form-section"><h3>${t('absence.scope')} *</h3><div class="form-actions"><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="full_slot"${scope === 'full_slot' ? ' checked' : ''}>${t('absence.scope.full')}</label><label class="checkbox-row"><input type="radio" name="general-absence-scope" data-field="generalAbsenceScope" value="partial"${scope === 'partial' ? ' checked' : ''}>${t('absence.scope.partial')}</label></div>${partialFields}</div>${bound('generalAbsenceComment', t('absence.comment'), { type: 'text' })}<p class="field-help">${t('common.status')}: ${t('absence.status.pending')}</p>`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-absence">${t('absence.register')}</button></div>`
   return modalShell(t('absence.register'), escapeHtml(employee.name), 'bell', body, footer)
 }
@@ -17039,8 +17056,11 @@ function actionHandlers(target = null) {
       let absenceStartAt = window.from
       let absenceEndAt = window.to
       if (scope === 'partial') {
+        // Fallback = det dialogen faktisk viser: medlever-default er første
+        // døgngrense (delt helper) - aldri stille noe annet enn skjermbildet.
+        const defaultTo = absenceDefaultPartialTo(assignment, window)
         absenceStartAt = `${String(state.draft.generalAbsenceStartDate || window.from.slice(0, 10)).trim()}T${String(state.draft.generalAbsenceStartTime || window.from.slice(11, 16)).trim()}`
-        absenceEndAt = `${String(state.draft.generalAbsenceEndDate || window.to.slice(0, 10)).trim()}T${String(state.draft.generalAbsenceEndTime || window.to.slice(11, 16)).trim()}`
+        absenceEndAt = `${String(state.draft.generalAbsenceEndDate || defaultTo.slice(0, 10)).trim()}T${String(state.draft.generalAbsenceEndTime || defaultTo.slice(11, 16)).trim()}`
         if (absenceStartAt.length < 16 || absenceEndAt.length < 16 || absenceStartAt >= absenceEndAt) { state.formError = 'absence.intervalRequired'; render(); return }
         if (absenceStartAt < window.from || absenceEndAt > window.to) { state.formError = 'absence.intervalOutsideSlot'; render(); return }
       }
@@ -19100,7 +19120,7 @@ function captureReportField(element) {
 // utløse det: et datofelt fyrer change per utfylt segment i Chrome, og en full
 // re-rendring midt i skrivingen river noden ut under markøren. Verdifelter
 // oppdaterer derfor bare kladden; feltet beholder sin egen verdi og fokus.
-const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees', 'contact', 'client'])
+const dialogsRerenderOnChange = new Set(['shift', 'assignment', 'shift-template', 'department', 'sick-leave', 'sick-leave-detail', 'match-employees', 'contact', 'client', 'absence'])
 const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit', 'payMode', 'type', 'stackingGroup', 'stackingMode'])
 
 function handleDraftFieldChange(name, value) {
