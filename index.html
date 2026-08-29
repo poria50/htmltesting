@@ -3016,6 +3016,7 @@ const copy = {
     'timesheets.employeeCount': '{count} ansatte',
     'timesheets.shiftCount': 'Vakter',
     'timesheets.registered': 'Registrert',
+    'timesheets.payable': 'Planlagt / betalbart',
     'timesheets.viewTimesheets': 'Se timelister',
     'timesheets.shiftsInMonth': 'Vakter i {month}',
     'timesheets.submitOne': 'Send inn',
@@ -4420,7 +4421,7 @@ copy.en = {
   'attention.timesheetCorrect': 'Timesheet needs correction',
   'timesheets.allEmployees': 'All employees',
   'timesheets.thisWeek': 'This week', 'timesheets.thisMonth': 'This month', 'timesheets.month': 'Month', 'timesheets.noneForMonth': 'No timesheets in {month}.', 'page.timesheets.desc': 'Monthly overview of registered and approved timesheets.',
-  'timesheets.perEmployee': 'Timesheets per employee', 'timesheets.employeeCount': '{count} employees', 'timesheets.shiftCount': 'Shifts', 'timesheets.registered': 'Registered', 'timesheets.viewTimesheets': 'View timesheets', 'timesheets.shiftsInMonth': 'Shifts in {month}', 'timesheets.submitOne': 'Submit', 'timesheets.submitMonth': 'Submit {month}', 'timesheets.batchReady': '{count} timesheets are ready for submission.', 'timesheets.batchBlocked': '{count} timesheets need review and are not sent.', 'timesheets.batchSubmit': 'Submit {count} ready', 'timesheets.batchResult': '{submitted} timesheets submitted. {remaining} remaining.', 'timesheets.legacyWeekly': 'Legacy weekly timesheets',
+  'timesheets.perEmployee': 'Timesheets per employee', 'timesheets.employeeCount': '{count} employees', 'timesheets.shiftCount': 'Shifts', 'timesheets.registered': 'Registered', 'timesheets.payable': 'Planned / payable', 'timesheets.viewTimesheets': 'View timesheets', 'timesheets.shiftsInMonth': 'Shifts in {month}', 'timesheets.submitOne': 'Submit', 'timesheets.submitMonth': 'Submit {month}', 'timesheets.batchReady': '{count} timesheets are ready for submission.', 'timesheets.batchBlocked': '{count} timesheets need review and are not sent.', 'timesheets.batchSubmit': 'Submit {count} ready', 'timesheets.batchResult': '{submitted} timesheets submitted. {remaining} remaining.', 'timesheets.legacyWeekly': 'Legacy weekly timesheets',
   'timesheets.monthStatus.not_submitted': 'Not submitted', 'timesheets.monthStatus.needs_review': 'Needs review', 'timesheets.monthStatus.ready': 'Ready for submission', 'timesheets.monthStatus.partially_submitted': 'Partially submitted', 'timesheets.monthStatus.submitted': 'Submitted', 'timesheets.monthStatus.approved': 'Approved', 'common.for': 'for',
   'shifts.emptyFiltered': 'No shifts in the selected period and filters.',
   'series.enable': 'Multiple dates / Repeat shift',
@@ -11372,6 +11373,37 @@ function timesheetPlannedMinutes(timesheet) {
   return Math.max(0, (span ?? 0) - Math.max(0, Number(timesheet.plannedBreakMinutes) || 0))
 }
 
+// Sykekomponenten for én timeliste: original eiers FRYSTE segmenter som aktive
+// sykefravær dekker - eksakt komplementet til det friske plangrunnlaget over,
+// slik at frisk + syk alltid er lik den opprinnelige betalingsplanen (§2, §10).
+// Erstatterplasser har ALDRI en sykekomponent (§8), og syketid gjøres aldri om
+// til arbeidet tid (§5) - dette er en egen betalbar komponent, ikke en timeliste.
+function timesheetSickMinutes(timesheet) {
+  const assignment = record('assignments', timesheet.assignmentId)
+  const slot = assignment ? slotById(assignment, timesheet.slotId) : null
+  if (!assignment?.liveInSnapshot || !slot || slot.coverageFrom || !slot.employeeId) return 0
+  const intervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+  if (!intervals.length) return 0
+  let minutes = 0
+  for (const segment of assignment.liveInSnapshot.segments ?? []) {
+    const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+    const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+    if (intervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)) minutes += Number(segment.paidMinutes) || 0
+  }
+  return minutes
+}
+
+// Totalt betalbart for én timeliste: frisk plan + sykekomponent (§10-§11).
+function timesheetPayableMinutes(timesheet) {
+  return timesheetPlannedMinutes(timesheet) + timesheetSickMinutes(timesheet)
+}
+
+// §25: en helt syk originalvakt har ingen frisk del å registrere - den
+// automatiske sykekomponenten skal aldri kreve en falsk arbeidsregistrering.
+function timesheetRequiresRegistration(timesheet) {
+  return !(timesheetSickMinutes(timesheet) > 0 && timesheetPlannedMinutes(timesheet) === 0)
+}
+
 // Registrerte minutter: godkjent medlever leser sitt fryste snapshot; ellers
 // faktiske tider når de er registrert - aldri en stille plan-som-faktisk.
 function timesheetActualMinutes(timesheet) {
@@ -11398,12 +11430,15 @@ function timesheetReadyToSubmit(timesheet) {
 }
 
 // Én kanonisk månedsstatus per ansatt, avledet av per-timeliste-statusene.
-function employeeMonthTimesheetStatus(rows) {
-  if (!rows.length) return 'not_submitted'
-  const done = rows.filter(item => item.status === 'submitted' || item.status === 'approved')
-  if (done.length === rows.length) return rows.every(item => item.status === 'approved') ? 'approved' : 'submitted'
+// Statusen skiller faktisk arbeidsregistrering fra den automatiske
+// sykekomponenten (§25): helt syke originalvakter holder aldri måneden tilbake.
+function employeeMonthTimesheetStatus(rows, sickOnlyCount = 0) {
+  const relevant = rows.filter(timesheetRequiresRegistration)
+  if (!relevant.length) return rows.length || sickOnlyCount ? 'submitted' : 'not_submitted'
+  const done = relevant.filter(item => item.status === 'submitted' || item.status === 'approved')
+  if (done.length === relevant.length) return relevant.every(item => item.status === 'approved') ? 'approved' : 'submitted'
   if (done.length > 0) return 'partially_submitted'
-  if (rows.some(item => !timesheetReadyToSubmit(item))) return rows.some(item => timesheetReadyToSubmit(item)) || rows.some(item => item.actualStart) ? 'needs_review' : 'not_submitted'
+  if (relevant.some(item => !timesheetReadyToSubmit(item))) return relevant.some(item => timesheetReadyToSubmit(item)) || relevant.some(item => item.actualStart) ? 'needs_review' : 'not_submitted'
   return 'ready'
 }
 
@@ -11640,6 +11675,49 @@ function employeeTimesheetRows(employeeId) {
   return visibleSlotTimesheets().filter(item => item.employeeId === employeeId)
 }
 
+// Sykeminutter for én berørt vakt, fra de kanoniske kildene: medlever leser den
+// fryste planens segmenter i sykevinduet (aldri veggklokke), vanlige vakter det
+// planlagte grunnlaget - samme grunnlag som sickEligibleBasis (§43-§44).
+function sickMinutesForAffectedShift(sickRecord, assignment) {
+  if (!assignment) return 0
+  if (assignment.liveInSnapshot) {
+    if (!sickRecord.sickStartAt || !sickRecord.sickEndAt) return 0
+    const resolved = resolveLiveInPaidMinutesForWindow(assignment, sickRecord.sickStartAt, sickRecord.sickEndAt)
+    return resolved && !resolved.partial ? resolved.paidMinutes : 0
+  }
+  const span = timeSpanMinutes(assignment.startTime, assignment.endTime, assignment.endNextDay)
+  return Math.max(0, (span ?? 0) - Math.max(0, Number(assignment.breakMinutes) || 0))
+}
+
+// Owner-aware sykekomponent (§7): ved HELT sykefravær gjenåpnes plassen og den
+// urørte timelisten voides - men originaleieren beholder sykepengeretten (§2).
+// Kilden er sykefraværspostens egne affected-koblinger (kanonisk eierrelasjon),
+// aldri dagens bemannede plass-state. Poster som allerede telles via en aktiv
+// timeliste (timesheetSickMinutes) hoppes over, så ingenting dobbelttelles.
+function employeeSickOnlyEntries(employeeId = null) {
+  const { clientId, departmentId, month, employeeId: filterEmployee } = state.timesheetFilters
+  const entries = []
+  for (const sickRecord of sickLeavesCollection()) {
+    if (!sickLeaveIsActive(sickRecord)) continue
+    if (sickRecord.compensationStatus === 'none' || sickRecord.compensationStatus === 'pending' || sickRecord.validityStatus === 'pending') continue
+    if (employeeId && sickRecord.employeeId !== employeeId) continue
+    if (filterEmployee && sickRecord.employeeId !== filterEmployee) continue
+    for (const entry of sickRecord.affected ?? []) {
+      if (entry.handling === 'manual_review') continue
+      const assignment = record('assignments', entry.assignmentId)
+      if (!assignment) continue
+      if (month && (!assignment.date || isoMonthKey(assignment.date) !== month)) continue
+      if (clientId && assignment.clientId !== clientId) continue
+      if (departmentId && assignment.departmentId !== departmentId) continue
+      const owned = activeSlotTimesheets().some(item => String(item.assignmentId) === String(entry.assignmentId) && String(item.slotId) === String(entry.slotId) && item.employeeId === sickRecord.employeeId)
+      if (owned) continue
+      const minutes = sickMinutesForAffectedShift(sickRecord, assignment)
+      if (minutes > 0) entries.push({ sickRecord, assignment, slotId: entry.slotId, minutes })
+    }
+  }
+  return entries
+}
+
 function timesheetRowStatusLabel(timesheet) {
   if (timesheet.status === 'submitted' || timesheet.status === 'approved' || timesheet.status === 'needs_correction') return t(`timesheets.status.${timesheet.status}`)
   return timesheetReadyToSubmit(timesheet) ? t('timesheets.monthStatus.ready') : t(`timesheets.status.${timesheet.status}`)
@@ -11648,14 +11726,21 @@ function timesheetRowStatusLabel(timesheet) {
 // Ansattens månedsdetalj: oppsummering, batch-innsending og vakttabellen.
 function employeeTimesheetDetail(employee) {
   const rows = employeeTimesheetRows(employee.id)
-  const planned = rows.reduce((sum, item) => sum + timesheetPlannedMinutes(item), 0)
+  // Betalbart grunnlag = frisk plan + sykekomponent (§10-§11, §17) - syketid
+  // vises som EGEN komponent og gjøres aldri om til registrert arbeid (§5-§6).
+  // Sick-only-poster: helt syke vakter der plassen er gjenåpnet (§7).
+  const sickOnly = employeeSickOnlyEntries(employee.id)
+  const sickOnlyMinutes = sickOnly.reduce((sum, entry) => sum + entry.minutes, 0)
+  const sick = rows.reduce((sum, item) => sum + timesheetSickMinutes(item), 0) + sickOnlyMinutes
+  const payable = rows.reduce((sum, item) => sum + timesheetPayableMinutes(item), 0) + sickOnlyMinutes
   const actual = rows.reduce((sum, item) => sum + timesheetActualMinutes(item), 0)
   // Avvik beregnes kun over registrerte rader - urapporterte vakter er ikke
-  // et negativt avvik, de er bare ikke levert ennå.
+  // et negativt avvik, de er bare ikke levert ennå. Avviket måles alltid mot
+  // den friske plandelen - sykekomponenten er ikke et arbeidsavvik.
   const deviationMinutes = rows.filter(item => timesheetActualMinutes(item) > 0).reduce((sum, item) => sum + (timesheetActualMinutes(item) - timesheetPlannedMinutes(item)), 0)
   const signed = minutes => minutes < 0 ? `-${formatHoursMinutes(-minutes)}` : formatHoursMinutes(minutes)
-  const status = employeeMonthTimesheetStatus(rows)
-  const summary = `<div class="stats-grid" style="margin-top:12px">${[[t('timesheets.shiftCount'), String(rows.length)], [t('timesheets.planned'), formatHoursMinutes(planned)], [t('timesheets.registered'), formatHoursMinutes(actual)], [t('timesheets.deviation'), signed(deviationMinutes)], [t('common.status'), timesheetMonthStatusLabel(status)]].map(([labelText, value]) => `<article class="stat-card"><span class="stat-label">${labelText}</span><strong class="stat-value compact">${value}</strong></article>`).join('')}</div>`
+  const status = employeeMonthTimesheetStatus(rows, sickOnly.length)
+  const summary = `<div class="stats-grid" style="margin-top:12px">${[[t('timesheets.shiftCount'), String(rows.length + sickOnly.length)], [t('timesheets.payable'), formatHoursMinutes(payable)], [t('timesheets.registered'), formatHoursMinutes(actual)], [t('sick.title'), sick ? formatHoursMinutes(sick) : '0'], [t('timesheets.deviation'), signed(deviationMinutes)], [t('common.status'), timesheetMonthStatusLabel(status)]].map(([labelText, value]) => `<article class="stat-card"><span class="stat-label">${labelText}</span><strong class="stat-value compact">${value}</strong></article>`).join('')}</div>`
   const body = rows.map(item => {
     const assignment = record('assignments', item.assignmentId)
     const slot = assignment ? slotById(assignment, item.slotId) : null
@@ -11669,14 +11754,32 @@ function employeeTimesheetDetail(employee) {
         ? `${formatDate(assignment.date)}–${formatDate((shiftEndTimestamp(assignment) ?? '').slice(0, 10))}`
         : item.plannedDate ? formatDate(item.plannedDate) : ''
     const plannedMinutes = timesheetPlannedMinutes(item)
+    const sickMinutes = timesheetSickMinutes(item)
+    const payableMinutes = plannedMinutes + sickMinutes
     const actualMinutes = timesheetActualMinutes(item)
     const ready = timesheetReadyToSubmit(item)
-    return `<tr><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span>${replacement}</div></td><td>${period}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${formatHoursMinutes(plannedMinutes)}</td><td>${actualMinutes ? formatHoursMinutes(actualMinutes) : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`}</td><td>${actualMinutes && actualMinutes !== plannedMinutes ? formatHoursMinutes(actualMinutes - plannedMinutes) : '0'}</td><td>${timesheetRowStatusLabel(item)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button>${ready ? `<button class="button small" data-action="submit-timesheet-row" data-id="${item.id}">${t('timesheets.submitOne')}</button>` : ''}</td></tr>`
+    // Betalbart-cellen viser work + sick-splitten når sykefravær finnes (§23):
+    // totalen er alltid den opprinnelige planen - aldri bare den friske resten.
+    const payableCell = sickMinutes
+      ? `${formatHoursMinutes(payableMinutes)}<div class="muted" style="font-size:11px">${t('sick.worked')} ${formatHoursMinutes(plannedMinutes)} · ${t('sick.title')} ${formatHoursMinutes(sickMinutes)}</div>`
+      : formatHoursMinutes(payableMinutes)
+    return `<tr><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span>${replacement}</div></td><td>${period}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${payableCell}</td><td>${actualMinutes ? formatHoursMinutes(actualMinutes) : `<span class="muted">${t('timesheets.status.not_submitted')}</span>`}</td><td>${sickMinutes ? formatHoursMinutes(sickMinutes) : '0'}</td><td>${actualMinutes && actualMinutes !== plannedMinutes ? formatHoursMinutes(actualMinutes - plannedMinutes) : '0'}</td><td>${timesheetRowStatusLabel(item)}</td><td class="row-actions"><button class="button ghost small" data-action="open-slot-timesheet" data-id="${item.assignmentId}" data-slot-id="${item.slotId}">${t('timesheets.open')}</button>${ready ? `<button class="button small" data-action="submit-timesheet-row" data-id="${item.id}">${t('timesheets.submitOne')}</button>` : ''}</td></tr>`
+  })
+  // Sick-only-rader (§7, §24): hele vakten er sykefravær og plassen er
+  // gjenåpnet - vises som egen betalbar komponent, aldri som en timeliste
+  // som må «leveres» som arbeid.
+  const sickRows = sickOnly.map(entry => {
+    const assignment = entry.assignment
+    const shiftName = shiftDisplayName(assignment) || t('shifts.unnamed')
+    const period = assignment.liveInSnapshot
+      ? `${formatDate(assignment.date)}–${formatDate((shiftEndTimestamp(assignment) ?? '').slice(0, 10))}`
+      : formatDate(assignment.date)
+    return `<tr><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(assignment.id))}</span></div></td><td>${period}</td><td>${escapeHtml(record('clients', assignment.clientId)?.name ?? '')}</td><td>${assignment.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${formatHoursMinutes(entry.minutes)}</td><td><span class="muted">—</span></td><td>${formatHoursMinutes(entry.minutes)}</td><td>0</td><td><span class="tag warning">${t('sick.title')}</span></td><td class="row-actions"><button class="button ghost small" data-route="job-detail" data-id="${assignment.id}">${t('common.view')}</button></td></tr>`
   })
   const readyCount = rows.filter(timesheetReadyToSubmit).length
   const heading = `<div class="content-toolbar"><span></span><div class="page-actions"><button type="button" class="button secondary" data-action="close-employee-timesheets">${icon('arrow-left')}${t('common.back')}</button>${readyCount ? `<button type="button" class="button" data-action="open-month-submit" data-employee-id="${employee.id}">${t('timesheets.submitMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</button>` : ''}</div></div>`
-  const table_ = rows.length
-    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.shiftsInMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h2><span class="tag info">${rows.length}</span></div><div class="table-scroller"><table><thead><tr>${['shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
+  const table_ = rows.length || sickRows.length
+    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.shiftsInMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h2><span class="tag info">${rows.length + sickRows.length}</span></div><div class="table-scroller"><table><thead><tr>${['shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.payable', 'timesheets.actual', 'sick.title', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}${sickRows.join('')}</tbody></table></div></article>`
     : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3></div>`
   return `${heading}<article class="card" style="margin-top:12px"><h2>${escapeHtml(employee.name)}</h2><p class="field-help">${t('nav.timesheets')} · ${timesheetMonthLabel(state.timesheetFilters.month)}</p>${summary}</article>${table_}`
 }
@@ -11690,25 +11793,38 @@ function employeeTimesheetOverview() {
     list.push(item)
     byEmployee.set(item.employeeId, list)
   }
+  // Owner-aware (§7): helt syke originaleiere uten aktiv timeliste skal fortsatt
+  // ha sin månedsrad med den betalbare sykekomponenten - aldri en tom måned.
+  const sickOnlyByEmployee = new Map()
+  for (const entry of employeeSickOnlyEntries()) {
+    const list = sickOnlyByEmployee.get(entry.sickRecord.employeeId) ?? []
+    list.push(entry)
+    sickOnlyByEmployee.set(entry.sickRecord.employeeId, list)
+    if (!byEmployee.has(entry.sickRecord.employeeId)) byEmployee.set(entry.sickRecord.employeeId, [])
+  }
   const rows = [...byEmployee.entries()]
-    .map(([employeeId, list]) => ({ employee: record('employees', employeeId), list }))
+    .map(([employeeId, list]) => ({ employee: record('employees', employeeId), list, sickOnly: sickOnlyByEmployee.get(employeeId) ?? [] }))
     .filter(entry => entry.employee)
     .filter(entry => !query || entry.employee.name.toLocaleLowerCase().includes(query))
-    .map(entry => ({ ...entry, status: employeeMonthTimesheetStatus(entry.list) }))
+    .map(entry => ({ ...entry, status: employeeMonthTimesheetStatus(entry.list, entry.sickOnly.length) }))
     .filter(entry => !state.timesheetMonthStatusFilter || entry.status === state.timesheetMonthStatusFilter)
     .sort((a, b) => a.employee.name.localeCompare(b.employee.name))
-  const body = rows.map(({ employee, list, status }) => {
-    const planned = list.reduce((sum, item) => sum + timesheetPlannedMinutes(item), 0)
+  const body = rows.map(({ employee, list, sickOnly, status }) => {
+    // Betalbart = frisk plan + sykekomponent (§10, §22): originaleieren mister
+    // aldri betalbare døgn fordi sykefraværet dekkes av en erstatter.
+    const sickOnlyMinutes = sickOnly.reduce((sum, entry) => sum + entry.minutes, 0)
+    const sick = list.reduce((sum, item) => sum + timesheetSickMinutes(item), 0) + sickOnlyMinutes
+    const payable = list.reduce((sum, item) => sum + timesheetPayableMinutes(item), 0) + sickOnlyMinutes
     const actual = list.reduce((sum, item) => sum + timesheetActualMinutes(item), 0)
     const deviationMinutes = list.filter(item => timesheetActualMinutes(item) > 0).reduce((sum, item) => sum + (timesheetActualMinutes(item) - timesheetPlannedMinutes(item)), 0)
     const deviationLabelText = deviationMinutes < 0 ? `-${formatHoursMinutes(-deviationMinutes)}` : formatHoursMinutes(deviationMinutes)
-    return `<tr><td><button class="row-link" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${escapeHtml(employee.name)}</button></td><td>${list.length}</td><td>${formatHoursMinutes(planned)}</td><td>${actual ? formatHoursMinutes(actual) : '0'}</td><td>${deviationLabelText}</td><td>${timesheetMonthStatusLabel(status)}</td><td class="row-actions"><button class="button ghost small" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${t('timesheets.viewTimesheets')}</button></td></tr>`
+    return `<tr><td><button class="row-link" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${escapeHtml(employee.name)}</button></td><td>${list.length + sickOnly.length}</td><td>${formatHoursMinutes(payable)}</td><td>${actual ? formatHoursMinutes(actual) : '0'}</td><td>${sick ? formatHoursMinutes(sick) : '0'}</td><td>${deviationLabelText}</td><td>${timesheetMonthStatusLabel(status)}</td><td class="row-actions"><button class="button ghost small" data-action="open-employee-timesheets" data-employee-id="${employee.id}">${t('timesheets.viewTimesheets')}</button></td></tr>`
   })
   if (!rows.length) {
     const filtered = state.timesheetFilters.clientId || state.timesheetFilters.departmentId || state.timesheetFilters.employeeId || state.timesheetMonthStatusFilter || query
     return `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${filtered ? t('timesheets.emptyFiltered') : t('timesheets.noneForMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) })}</h3></div>`
   }
-  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.perEmployee')}</h2><span class="tag info">${t('timesheets.employeeCount', { count: rows.length })}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'timesheets.shiftCount', 'timesheets.planned', 'timesheets.actual', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
+  return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('timesheets.perEmployee')}</h2><span class="tag info">${t('timesheets.employeeCount', { count: rows.length })}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'timesheets.shiftCount', 'timesheets.payable', 'timesheets.actual', 'sick.title', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div></article>`
 }
 
 function renderTimesheets() {
@@ -15630,7 +15746,9 @@ function monthSubmitDialog() {
   if (!employee) return ''
   const rows = visibleSlotTimesheets().filter(item => item.employeeId === employee.id)
   const ready = rows.filter(timesheetReadyToSubmit)
-  const blocked = rows.filter(item => (item.status === 'not_submitted' || item.status === 'needs_correction') && !timesheetReadyToSubmit(item))
+  // §25: helt syke originalvakter har ingen frisk del å registrere - de telles
+  // aldri som «må kontrolleres» i månedsinnsendingen.
+  const blocked = rows.filter(item => timesheetRequiresRegistration(item) && (item.status === 'not_submitted' || item.status === 'needs_correction') && !timesheetReadyToSubmit(item))
   const body = `<p><strong>${timesheetMonthLabel(state.timesheetFilters.month)}</strong></p><p>${t('timesheets.batchReady', { count: ready.length })}</p>${blocked.length ? `<div class="banner warning">${icon('bell')}<span>${t('timesheets.batchBlocked', { count: blocked.length })}</span></div>` : ''}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-month-submit"${ready.length ? '' : ' disabled'}>${t('timesheets.batchSubmit', { count: ready.length })}</button></div>`
   return modalShell(t('timesheets.submitMonth', { month: timesheetMonthLabel(state.timesheetFilters.month) }), escapeHtml(employee.name), 'file', body, footer)
@@ -18998,6 +19116,17 @@ window.__workmaticPreview = {
   unreadNotifications: () => syncNotifications().filter(item => !item.readAt).length,
   auditEntries: () => JSON.parse(JSON.stringify(auditEntries())),
   visibleSlotTimesheets: () => JSON.parse(JSON.stringify(visibleSlotTimesheets())),
+  // Timelistens betalbare komponenter (§6, §10): frisk plan, faktisk arbeid og
+  // sykekomponent holdes adskilt - totalen er summen, aldri en fake worked-tid.
+  timesheetComponents: id => {
+    const item = collection('slotTimesheets').find(row => String(row.id) === String(id))
+    if (!item) return null
+    const plannedMinutes = timesheetPlannedMinutes(item)
+    const sickMinutes = timesheetSickMinutes(item)
+    return { plannedMinutes, sickMinutes, actualMinutes: timesheetActualMinutes(item), payableMinutes: plannedMinutes + sickMinutes }
+  },
+  // Owner-aware sick-only-poster (§7): helt syke vakter uten aktiv timeliste.
+  timesheetSickOnlyEntries: employeeId => JSON.parse(JSON.stringify(employeeSickOnlyEntries(employeeId ?? null).map(entry => ({ assignmentId: entry.assignment.id, slotId: entry.slotId, sickLeaveId: entry.sickRecord.id, minutes: entry.minutes })))),
   setAuditFilter: (name, value) => { state.auditFilters[name] = value; render() },
   slotTimesheet: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(t)) : null },
   slotTimesheets: () => JSON.parse(JSON.stringify(collection('slotTimesheets'))),
