@@ -2780,6 +2780,8 @@ const state = {
   timesheetMonthStatusFilter: '',
   // Generelt fravær: behandlingskøens statusfilter - default pending (§13).
   absenceStatusFilter: 'pending',
+  // Timelister-køens aktive fane (R2 §3): ren visningstilstand.
+  timesheetQueueTab: 'all',
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -4027,6 +4029,17 @@ const copy = {
     'timesheets.configureApprover': 'Konfigurer godkjenner',
     'timesheets.correct': 'Korriger timeliste',
     'timesheets.reviewAction': 'Kontroller',
+    'timesheets.queue.all': 'Alle',
+    'timesheets.queue.action': 'Krever handling',
+    'timesheets.queue.awaiting': 'Til godkjenning',
+    'timesheets.queue.approved': 'Godkjent',
+    'timesheets.reported': 'Rapportert',
+    'timesheets.noDeviation': 'Ingen avvik',
+    'timesheets.queueEmpty.action': 'Ingen timelister krever handling i valgt periode.',
+    'timesheets.queueEmpty.awaiting': 'Ingen timelister venter på godkjenning i valgt periode.',
+    'timesheets.queueEmpty.approved': 'Ingen godkjente timelister i valgt periode.',
+    'timesheets.queueSummary': '{action} krever handling · {awaiting} venter på godkjenning · {approved} godkjent',
+    'timesheets.reopenedStatus': 'Gjenåpnet for korrigering',
     'readiness.waiting': 'Venter',
     'readiness.action': 'Krever handling',
     'readiness.blocked': 'Blokkert',
@@ -5167,7 +5180,7 @@ copy.en = {
   'timesheets.sendBackTitle': 'Send back timesheet',
   'timesheets.comment': 'Comment',
   'timesheets.approver': 'Approver',
-  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
+  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'timesheets.queue.all': 'All', 'timesheets.queue.action': 'Action required', 'timesheets.queue.awaiting': 'Awaiting approval', 'timesheets.queue.approved': 'Approved', 'timesheets.reported': 'Reported', 'timesheets.noDeviation': 'No deviation', 'timesheets.queueEmpty.action': 'No timesheets require action in the selected period.', 'timesheets.queueEmpty.awaiting': 'No timesheets are awaiting approval in the selected period.', 'timesheets.queueEmpty.approved': 'No approved timesheets in the selected period.', 'timesheets.queueSummary': '{action} require action · {awaiting} awaiting approval · {approved} approved', 'timesheets.reopenedStatus': 'Reopened for correction', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
   'timesheets.reopen': 'Reopen timesheet',
   'timesheets.reopenTitle': 'Reopen timesheet',
   'timesheets.reopenWarning': 'This timesheet is approved and locked. Reopening preserves the previous approval and is recorded in the history.',
@@ -11981,6 +11994,64 @@ function absenceQueueSection() {
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('absence.queue')}</h2><span class="tag ${pendingCount ? 'warning' : 'info'}">${pendingCount}</span><div class="toolbar-group" style="margin-left:auto">${statusSelect}</div></div>${table_}</article>`
 }
 
+// === Timelister som handlingskø (R2 §3-§7): REN visningstilstand ===
+// Kategorien avledes per timeliste: needs_correction og manglende godkjenner
+// krever handling (§9-§10); submitted med godkjenner venter; approved er
+// ferdig. Ingen persistert køstate - fanene filtrerer det scopede utvalget.
+function timesheetQueueCategory(timesheet) {
+  if (timesheet.status === 'needs_correction') return 'action'
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (!(assignment ? timesheetApprover(assignment) : null)) return 'action'
+  if (timesheet.status === 'submitted') return 'awaiting'
+  if (timesheet.status === 'approved') return 'approved'
+  return 'other'
+}
+
+// Én handlingsorientert kørad (§6): identitet, planlagt/rapportert/avvik,
+// presis status med årsak og godkjenner, erstatterkontekst - og NESTE
+// handling, aldri en generisk «Åpne» når noe mer presist finnes (§7).
+function timesheetQueueRow(timesheet) {
+  const view = timesheetBlockerView(timesheet)
+  const assignment = view.assignment
+  const slot = assignment ? slotById(assignment, timesheet.slotId) : null
+  const shiftName = assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : t('shifts.unnamed')
+  const replacement = slot?.coverageFrom
+    ? `<div class="muted" style="font-size:11px">${(() => { const original = staffingSlotsFor(assignment).find(entry => String(entry.id) === String(slot.replacementForSlotId)); const name = record('employees', original?.employeeId ?? (slot.replacementForSickLeaveId ? sickLeaveById(slot.replacementForSickLeaveId)?.employeeId : null))?.name; return name ? t('staffing.replacementFor', { name }) : t('staffing.replacementSlot') })()}</div>`
+    : ''
+  const deviation = timesheetDeviation(timesheet)
+  const reported = timesheet.actualStart && timesheet.actualEnd ? timeRangeLabel(timesheet.actualStart, timesheet.actualEnd, timesheet.endNextDay) : `<span class="muted">—</span>`
+  // Retur/gjenåpning (§10): eksisterende metadata forklarer HVORFOR.
+  const reason = timesheet.status === 'needs_correction' ? (timesheet.correctionComment || timesheet.reopenReason || '') : ''
+  const reopened = timesheet.status === 'needs_correction' && !timesheet.correctionComment && timesheet.reopenReason
+  const statusText = timesheet.status === 'needs_correction'
+    ? `${t(reopened ? 'timesheets.reopenedStatus' : 'timesheets.status.needs_correction')}${reason ? `<div class="muted" style="font-size:11px">${t('staffing.reason')}: ${escapeHtml(reason)}</div>` : ''}`
+    : view.severity === 'blocked'
+      ? `<span class="tag warning">${t('readiness.blocked')}</span><div class="muted" style="font-size:11px">${t('timesheets.noApprover')}</div>`
+      : `${t(`timesheets.status.${timesheet.status}`)}${view.approver ? `<div class="muted" style="font-size:11px">${t('timesheets.approver')}: ${escapeHtml(view.approver.name)}</div>` : ''}`
+  const action = timesheet.status === 'approved'
+    ? `<button class="button ghost small" data-action="open-slot-timesheet" data-id="${timesheet.assignmentId}" data-slot-id="${timesheet.slotId}">${t('timesheets.open')}</button>`
+    : view.actionKey === 'timesheets.configureApprover' && assignment?.departmentId
+      ? `<button class="button small" data-route="department-detail" data-id="${assignment.departmentId}">${t('timesheets.configureApprover')}</button>`
+      : `<button class="button ${view.severity === 'waiting' ? 'ghost ' : ''}small" data-action="open-slot-timesheet" data-id="${timesheet.assignmentId}" data-slot-id="${timesheet.slotId}">${t(view.actionKey)}</button>`
+  return `<tr><td>${relationLink('employee-detail', view.employee?.id, view.employee?.name ?? '')}${replacement}</td><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(timesheet.assignmentId))}</span></div></td><td>${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${timeRangeLabel(timesheet.plannedStart, timesheet.plannedEnd, timesheet.endNextDay)}</td><td>${reported}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : t('timesheets.noDeviation')}</td><td>${statusText}</td><td class="row-actions">${action}</td></tr>`
+}
+
+function timesheetQueueSection(rows) {
+  const categories = rows.map(item => ({ item, category: timesheetQueueCategory(item) }))
+  const count = key => categories.filter(entry => entry.category === key).length
+  const counts = { all: rows.length, action: count('action'), awaiting: count('awaiting'), approved: count('approved') }
+  // Kompakt operativt sammendrag (§14) - alltid fra det SCOPEDE utvalget.
+  const summary = `<p class="field-help" style="margin:8px 0 0">${t('timesheets.queueSummary', { action: counts.action, awaiting: counts.awaiting, approved: counts.approved })}</p>`
+  const tab = ['all', 'action', 'awaiting', 'approved'].includes(state.timesheetQueueTab) ? state.timesheetQueueTab : 'all'
+  const tabs = `<div class="tabs" style="margin-top:8px">${['all', 'action', 'awaiting', 'approved'].map(key => `<button class="tab ${tab === key ? 'is-active' : ''}" data-action="timesheet-queue-tab" data-value="${key}">${t(`timesheets.queue.${key}`)} ${counts[key]}</button>`).join('')}</div>`
+  if (tab === 'all') return { header: `${summary}${tabs}`, body: null }
+  const inTab = categories.filter(entry => entry.category === tab).map(entry => entry.item)
+  const body = inTab.length
+    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t(`timesheets.queue.${tab}`)}</h2><span class="tag info">${inTab.length}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.reported', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${inTab.map(timesheetQueueRow).join('')}</tbody></table></div></article>`
+    : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t(`timesheets.queueEmpty.${tab}`)}</h3></div>`
+  return { header: `${summary}${tabs}`, body }
+}
+
 function renderTimesheets() {
   // Defaultvisningen er inneværende måned - satt første gang flaten åpnes,
   // slik at et senere, eksplisitt «Alle» ('' ) respekteres.
@@ -12017,7 +12088,10 @@ function renderTimesheets() {
   // Eldre uketimelister vises nederst som historisk kort - aldri som en
   // konkurrerende hovedvisning.
   const legacyCard = `<details style="margin-top:16px"><summary class="muted">${t('timesheets.legacyWeekly')}</summary>${legacyList}</details>`
-  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${absenceQueueSection()}${statusFiltered}${employeeTimesheetOverview()}${legacyCard}</section>`
+  // R2 §3-§5: køfanene deler NØYAKTIG samme scopede utvalg som resten av
+  // flaten (måned/ansatt/virksomhet-filtrene) - tellingene er aldri globale.
+  const queue = timesheetQueueSection(visibleSlotTimesheets())
+  return `<section class="page">${pageHeading('nav.timesheets', 'page.timesheets.desc')}${timesheetMonthNavigator()}${topFilters}${queue.header}${absenceQueueSection()}${statusFiltered}${queue.body ?? employeeTimesheetOverview()}${legacyCard}</section>`
 }
 
 function renderTimesheetReview() {
@@ -13075,7 +13149,16 @@ function invoiceReportPrintDocument(view) {
 
 // Seksjonen på Fakturagrunnlag-siden (§28-§31).
 function timesheetInvoiceSection() {
-  const basis = timesheetInvoiceBasis()
+  const raw = timesheetInvoiceBasis()
+  // R2 §17: faktureringens venteliste følger fakturagrunnlagets aktive
+  // utvalg (måned/virksomhet/avdeling fra invoiceReportForm).
+  const scope = { startDate: state.invoiceReportForm?.fromDate ?? '', endDate: state.invoiceReportForm?.toDate ?? '', clientId: state.invoiceReportForm?.clientId ?? '', departmentId: state.invoiceReportForm?.departmentId ?? '' }
+  const basis = {
+    ...raw,
+    priceBlocked: raw.priceBlocked.filter(item => blockerMatchesFinancialScope(item, scope)),
+    payBlocked: raw.payBlocked.filter(item => blockerMatchesFinancialScope(item, scope)),
+    pending: raw.pending.filter(item => timesheetMatchesFinancialScope(item, scope))
+  }
   if (!basis.lines.length && !basis.priceBlocked.length && !basis.payBlocked.length && !basis.pending.length) return ''
   // Visningskjeden (§2, §6-§8): per rad er synlig netto = synlig kost + påslag,
   // og synlig totalpris = synlig netto + mva. Kortene er summen av de synlige
@@ -13427,6 +13510,34 @@ function timesheetPayrollBasis(period = null) {
   return { lines, blocked, pending: pendingPayrollTimesheets(), totals }
 }
 
+// === Delt finansscope-match (R2 §16-§18): REN derivert filtrering ===
+// Blokker- og ventelister i Lønn/Fakturering følger flatens AKTIVE filtre
+// (periode, virksomhet, avdeling, søk) - aldri en global liste, og aldri
+// ny persistert state. Kanoniske timelister muteres ikke av filtre.
+function timesheetMatchesFinancialScope(timesheet, scope = {}) {
+  if (scope.startDate && (!timesheet.plannedDate || timesheet.plannedDate < scope.startDate)) return false
+  if (scope.endDate && (!timesheet.plannedDate || timesheet.plannedDate > scope.endDate)) return false
+  if (scope.month && (!timesheet.plannedDate || isoMonthKey(timesheet.plannedDate) !== scope.month)) return false
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (scope.clientId && assignment?.clientId !== scope.clientId) return false
+  if (scope.departmentId && assignment?.departmentId !== scope.departmentId) return false
+  if (String(scope.search ?? '').trim()) {
+    const employee = record('employees', timesheet.employeeId)
+    if (!String(employee?.name ?? '').toLocaleLowerCase().includes(String(scope.search).trim().toLocaleLowerCase())) return false
+  }
+  return true
+}
+
+function blockerMatchesFinancialScope(item, scope = {}) {
+  if (scope.startDate && (!item.date || item.date < scope.startDate)) return false
+  if (scope.endDate && (!item.date || item.date > scope.endDate)) return false
+  if (scope.month && (!item.date || isoMonthKey(item.date) !== scope.month)) return false
+  if (scope.clientId && (item.assignment?.clientId ?? item.client?.id) !== scope.clientId) return false
+  if (scope.departmentId && item.assignment?.departmentId !== scope.departmentId) return false
+  if (String(scope.search ?? '').trim() && !String(item.employee?.name ?? '').toLocaleLowerCase().includes(String(scope.search).trim().toLocaleLowerCase())) return false
+  return true
+}
+
 // === Delt blokkerbeskrivelse (§13): DERIVERT visningslogikk, aldri ny
 // workflow-state. Lønn og Fakturering beskriver samme timeliste identisk
 // (§22), og skiller VENTER (annen bruker må handle) fra KREVER HANDLING
@@ -13465,7 +13576,16 @@ function timesheetBlockerRow(timesheet) {
 // Grunnlagsseksjonen på Lønn-siden: klare linjer, blokkerte avvik og ventende
 // timelister - tydelig adskilt (§18, §28-§31).
 function timesheetPayrollSection() {
-  const basis = timesheetPayrollBasis()
+  const raw = timesheetPayrollBasis()
+  // R2 §16: hele grunnlagskortet følger Lønn-flatens aktive utvalg - periode
+  // fra payrollForm og søk/virksomhet/avdeling fra payrollFilters.
+  const scope = { ...state.payrollForm, ...state.payrollFilters }
+  const basis = {
+    ...raw,
+    lines: raw.lines.filter(line => blockerMatchesFinancialScope(line, scope)),
+    blocked: raw.blocked.filter(item => blockerMatchesFinancialScope(item, scope)),
+    pending: raw.pending.filter(item => timesheetMatchesFinancialScope(item, scope))
+  }
   if (!basis.lines.length && !basis.blocked.length && !basis.pending.length) return ''
   const chips = `<div class="stats-grid" style="margin-bottom:12px">
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.ready')}</span><strong class="stat-value">${basis.lines.length}</strong><span class="muted">${formatMoney(basis.lines.reduce((sum, line) => sum + displayNok(line.ordinaryAmount) + displayNok(line.premiumAmount) + displayNok(line.overtimeAmount), 0))}</span></article>
@@ -13615,7 +13735,9 @@ function payrollEmployeeTable(report) {
   const visible = payrollEmployeeRows(report)
   const rows = visible.flatMap(({ employee, person }) => {
     const view = person ?? { rates: [], postings: [], hours: 0, overtimeHours: 0, ordinaryAmount: 0, premiumAmount: 0, overtimeAmount: 0, total: 0, pending: 0 }
-    const status = person ? approvalTag(view.pending === 0, view.pending) : `<span class="tag">${t('comp.payroll.noEntries')}</span>`
+    // R2 §19: legacy-rapporten viser aldri en generisk «X venter»-tag uten
+    // lenkbar timelistekontekst - readiness bor i det kanoniske grunnlaget.
+    const status = person ? (view.pending === 0 ? approvalTag(true) : `<span class="muted">—</span>`) : `<span class="tag">${t('comp.payroll.noEntries')}</span>`
     const workedAt = view.postings.length > 1 ? `<span class="tag info">${view.postings.length} ${t('comp.payroll.assignments')}</span>` : escapeHtml(view.postings[0]?.clientName ?? '')
     const open = `<button class="button ghost small" data-route="payroll-employee" data-id="${employee.id}">${t('common.view')}</button>`
     return [
@@ -13666,7 +13788,7 @@ function renderPayrollEmployee() {
   const period = `${formatDate(state.payrollForm.startDate)} – ${formatDate(state.payrollForm.endDate)}`
   const actions = `${button('common.back', 'back-payroll', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-route="employee-detail" data-id="${employee.id}">${icon('id-card')}${t('employees.detail')}</button><button type="button" class="button secondary" data-route="timesheets">${icon('calendar')}${t('comp.payroll.viewTimesheets')}</button>`
 
-  const header = `<article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${escapeHtml(employee.name)}</h2><p>${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())} · ${lab(employee.profession)} · ${escapeHtml(period)}</p></div>${person ? approvalTag(view.pending === 0, view.pending) : `<span class="tag">${t('comp.payroll.noEntries')}</span>`}</div></article>`
+  const header = `<article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${escapeHtml(employee.name)}</h2><p>${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())} · ${lab(employee.profession)} · ${escapeHtml(period)}</p></div>${person ? (view.pending === 0 ? approvalTag(true) : '') : `<span class="tag">${t('comp.payroll.noEntries')}</span>`}</div></article>`
   const metrics = [
     [t('comp.payroll.registeredHours'), formatHours(view.hours)],
     [t('comp.payroll.basePay'), formatMoney(view.ordinaryAmount)],
@@ -16555,6 +16677,7 @@ function actionHandlers(target = null) {
       openDialog('access-preview')
     },
     'close-dialog': closeDialog,
+    'timesheet-queue-tab': () => { state.timesheetQueueTab = String(target?.dataset?.value ?? 'all'); render() },
     'dialog-next': () => { state.dialogStep += 1; persistEmployeeDraft(); render() },
     'dialog-back': () => { state.dialogStep = Math.max(0, state.dialogStep - 1); persistEmployeeDraft(); render() },
     'dialog-complete': () => { closeDialog(); showToast() },
