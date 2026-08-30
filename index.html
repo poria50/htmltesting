@@ -3867,6 +3867,14 @@ const copy = {
     'employees.bank': 'Bankinformasjon',
     'employees.bankCountry': 'Bankland',
     'employees.bankAccount': 'Kontonummer',
+    'employees.drafts': 'Kladder',
+    'employees.draftSaved': 'Lagret som kladd',
+    'employees.draftUnnamed': 'Uten navn',
+    'employees.draftLastSaved': 'Sist lagret {time}',
+    'employees.draftContinue': 'Fortsett',
+    'employees.draftDelete': 'Slett kladd',
+    'employees.draftDeleteBody': 'Kladden og dokumentkladdene i den slettes. Ingen ansatt påvirkes.',
+    'employees.draftDeleted': 'Kladden er slettet',
     'employees.bankInvalidNo': 'Kontonummeret må være et gyldig norsk kontonummer med 11 siffer.',
     'country.NO': 'Norge',
     'country.SE': 'Sverige',
@@ -5036,7 +5044,7 @@ copy.en = {
   'employees.sort.positionAsc': 'Position A–Z', 'employees.sort.positionDesc': 'Position Z–A',
   'employees.addressStreet': 'Street address and house number', 'employees.country': 'Country',
   'employees.bank': 'Bank information', 'employees.bankCountry': 'Bank country',
-  'employees.bankAccount': 'Bank account number',
+  'employees.bankAccount': 'Bank account number', 'employees.drafts': 'Drafts', 'employees.draftSaved': 'Saved as draft', 'employees.draftUnnamed': 'Unnamed', 'employees.draftLastSaved': 'Last saved {time}', 'employees.draftContinue': 'Continue', 'employees.draftDelete': 'Delete draft', 'employees.draftDeleteBody': 'The draft and its draft documents are deleted. No employee is affected.', 'employees.draftDeleted': 'The draft was deleted',
   'employees.bankInvalidNo': 'Enter a valid Norwegian bank account number with 11 digits.',
   'country.NO': 'Norway', 'country.SE': 'Sweden', 'country.DK': 'Denmark', 'country.other': 'Other country',
   'employees.educationName': 'Education / qualification name',
@@ -7479,6 +7487,47 @@ function liveInProfileById(profileId) {
   return liveInProfilesCollection().find(item => String(item.id) === String(profileId)) ?? null
 }
 
+// === Ansattkladder (kun opprettelsesflyten) ===
+// Workflow-state for den uferdige 4-stegs opprettelsen - ALDRI en andre
+// ansattmodell (§2). Kanoniske ansatte opprettes først når siste steg lagres.
+// Numeriske id-er (§3); kladd-id blir aldri ansatt-id.
+function employeeDraftsCollection() {
+  db.employeeDrafts = Array.isArray(db.employeeDrafts) ? db.employeeDrafts : []
+  return db.employeeDrafts
+}
+
+function employeeDraftById(draftId) {
+  if (draftId === null || draftId === undefined || draftId === '') return null
+  return employeeDraftsCollection().find(item => String(item.id) === String(draftId)) ?? null
+}
+
+// Autosave-kjernen (§4, §12): oppdaterer den ENE kladden for dette
+// opprettelsesforsøket, eller oppretter den først når noe meningsfullt er
+// lagt inn - aldri én kladd per render, steg eller gjenåpning. Gjelder KUN
+// opprettelse: redigering og konvertering kladdes aldri (§13).
+function persistEmployeeDraft() {
+  if (state.dialog !== 'employee' || state.dialogMode !== 'create') return
+  const values = JSON.parse(JSON.stringify(state.draft))
+  const meaningful = ['firstName', 'lastName', 'email', 'phone', 'employeeNumber'].some(field => String(values[field] ?? '').trim())
+    || (values.employeeDocuments ?? []).length > 0
+  let draftRecord = employeeDraftById(values.employeeDraftId)
+  if (!draftRecord) {
+    if (!meaningful) return
+    draftRecord = { id: nextNumericSlotId(), createdAt: new Date().toISOString() }
+    employeeDraftsCollection().push(draftRecord)
+    state.draft.employeeDraftId = String(draftRecord.id)
+    values.employeeDraftId = String(draftRecord.id)
+  }
+  Object.assign(draftRecord, { currentStep: Number(state.dialogStep) || 0, values, updatedAt: new Date().toISOString() })
+  persist()
+}
+
+function removeEmployeeDraft(draftId) {
+  if (!employeeDraftById(draftId)) return
+  db.employeeDrafts = employeeDraftsCollection().filter(item => String(item.id) !== String(draftId))
+  persist()
+}
+
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
@@ -8889,7 +8938,19 @@ function renderEmployees() {
   const sortChoices = [['name', 'employees.sort.nameAsc'], ['name-desc', 'employees.sort.nameDesc'], ['number', 'employees.sort.numberAsc'], ['number-desc', 'employees.sort.numberDesc'], ['position', 'employees.sort.positionAsc'], ['position-desc', 'employees.sort.positionDesc']].map(([value, key]) => `<option value="${value}"${filters.sort === value ? ' selected' : ''}>${t(key)}</option>`).join('')
   const extra = `<select data-employee-filter="position" aria-label="${t('employees.position')}"><option value=""${filters.position ? '' : ' selected'}>${t('employees.filter.allPositions')}</option>${positionChoices}</select>
     <select data-employee-filter="sort" aria-label="${t('departments.sort.label')}">${sortChoices}</select>`
-  return `<section class="page">${pageHeading('nav.employees', 'page.employees.desc', button('employees.new', 'create-employee', '', 'plus'))}${searchToolbar(extra)}${dataTable('employees', ['common.name', 'comp.payroll.employeeNumber', 'employees.position', 'common.phone', 'common.email', 'common.status', 'common.actions'], rows, collection('employees').length)}</section>`
+  // Kladdene (§6): en tydelig ADSKILT seksjon - aldri rendret som ansatte,
+  // og aldri med i tellinger, velgere eller domenelogikk (§10).
+  const drafts = employeeDraftsCollection()
+  const draftRowsHtml = drafts.map(item => {
+    const name = [item.values?.firstName, item.values?.lastName].filter(Boolean).join(' ') || t('employees.draftUnnamed')
+    const stamp = item.updatedAt ? `${formatDate(item.updatedAt.slice(0, 10))} ${item.updatedAt.slice(11, 16)}` : ''
+    const documents = (item.values?.employeeDocuments ?? []).length
+    return `<div class="file-row"><div class="file-name"><strong>${escapeHtml(name)}</strong><span>${t('employees.progress', { current: (Number(item.currentStep) || 0) + 1, total: 4 })}${stamp ? ` · ${t('employees.draftLastSaved', { time: stamp })}` : ''}${documents ? ` · ${documents} ${t('employees.files').toLocaleLowerCase()}` : ''}</span></div><div class="modal-actions"><button class="button small" data-action="resume-employee-draft" data-id="${item.id}">${t('employees.draftContinue')}</button><button class="button ghost small danger" data-action="open-delete-employee-draft" data-id="${item.id}">${t('common.delete')}</button></div></div>`
+  }).join('')
+  const draftCard = drafts.length
+    ? `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('employees.drafts')}</h2><span class="tag warning">${drafts.length}</span></div>${draftRowsHtml}</article>`
+    : ''
+  return `<section class="page">${pageHeading('nav.employees', 'page.employees.desc', button('employees.new', 'create-employee', '', 'plus'))}${draftCard}${searchToolbar(extra)}${dataTable('employees', ['common.name', 'comp.payroll.employeeNumber', 'employees.position', 'common.phone', 'common.email', 'common.status', 'common.actions'], rows, collection('employees').length)}</section>`
 }
 
 // Ansatt er personmasterdata. Historikken utledes av faktisk arbeid, så det
@@ -14568,6 +14629,9 @@ function openDialog(type, mode = null, draft = {}, editingId = null) {
 }
 
 function closeDialog() {
+  // Ansattopprettelsens kladd autolagres FØR dialogtilstanden tømmes (§4):
+  // lukking, avbryt og navigering mister aldri det som er lagt inn.
+  persistEmployeeDraft()
   state.dialog = null
   state.dialogMode = null
   state.draft = {}
@@ -14694,7 +14758,7 @@ function employeeDialog() {
   const educationChoices = EMPLOYEE_EDUCATION_TYPES.map(value => ({ value, text: t(`employees.eduType.${value}`) }))
   const employmentTypeChoices = [{ value: 'permanent', text: t('employees.permanent') }, { value: 'temporary', text: t('employees.temporary') }]
   const countryChoices = ['NO', 'SE', 'DK', 'other'].map(value => ({ value, text: t(`country.${value}`) }))
-  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'), { required: true })}${bound('email', t('common.email'), { type: 'email', required: true })}${bound('phone', t('common.phone'), { required: true })}${bound('birthDate', t('employees.birthDate'), { type: 'date', required: true })}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('common.address')}</h3><div class="grid cols-2">${bound('addressStreet', t('employees.addressStreet'), { required: true })}${bound('addressPostalCode', t('departments.postalCode'), { required: true })}${bound('addressCity', t('departments.city'), { required: true })}${boundSelect('addressCountry', `${t('employees.country')} *`, countryChoices, { placeholder: t('common.select') })}</div></div><div class="form-section"><h3>${t('employees.bank')}</h3><div class="grid cols-2">${boundSelect('bankCountry', `${t('employees.bankCountry')} *`, countryChoices, { placeholder: t('common.select') })}${bound('bankAccount', t('employees.bankAccount'), { required: true })}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'), { required: true })}${bound('kinRelation', t('employees.relationship'), { required: true })}${bound('kinPhone', t('common.phone'), { required: true })}</div></div>`
+  let body = `${formError()}<div class="form-section"><h3>${t('employees.personal')}</h3><div class="grid cols-2">${bound('firstName', t('employees.firstName'), { required: true })}${bound('lastName', t('employees.lastName'), { required: true })}${bound('email', t('common.email'), { type: 'email', required: true })}${bound('phone', t('common.phone'), { required: true })}${bound('birthDate', t('employees.birthDate'), { type: 'date', required: true })}${boundSelect('status', t('common.status'), statusOptions())}</div></div><div class="form-section"><h3>${t('common.address')}</h3><div class="grid cols-2">${bound('addressStreet', t('employees.addressStreet'), { required: true })}${bound('addressPostalCode', t('departments.postalCode'), { required: true })}${bound('addressCity', t('departments.city'), { required: true })}${boundSelect('addressCountry', `${t('employees.country')} *`, countryChoices, { placeholder: t('common.select') })}</div></div><div class="form-section"><h3>${t('employees.bank')}</h3><div class="grid cols-2">${boundSelect('bankCountry', t('employees.bankCountry'), countryChoices, { placeholder: t('common.select') })}${bound('bankAccount', t('employees.bankAccount'))}</div></div><div class="form-section"><h3>${t('employees.emergencyContact')}</h3><div class="grid cols-2">${bound('kinName', t('employees.kinName'), { required: true })}${bound('kinRelation', t('employees.relationship'), { required: true })}${bound('kinPhone', t('common.phone'), { required: true })}</div></div>`
   // Utdanning inneholder KUN utdanningsopplysningene - dokumentkobling og
   // samsvars-/verifiseringsvalg er fjernet fra seksjonen (dokumenter bor i
   // eget steg, opplastet = akseptert).
@@ -14711,7 +14775,9 @@ function employeeDialog() {
     const editingDoc = Number.isInteger(Number(state.draft.editingDocumentIndex)) && drafts[Number(state.draft.editingDocumentIndex)]
     body = `${formError()}<div class="document-card"><div class="card-header"><div><h3>${t('employees.files')}</h3><p>${t('employees.sensitive')}</p></div></div>${savedRows}${draftRows}${!saved.length && !drafts.length ? `<p class="muted">${t('docs.none')}</p>` : ''}<div class="form-section"><h3>${t(editingDoc ? 'docs.editTitle' : 'docs.upload')}</h3><div class="grid cols-2">${employeeDocumentFieldset('employee-draft-doc-file')}</div><div class="form-actions" style="margin-top:8px"><button type="button" class="button secondary" data-action="employee-draft-document-add">${icon('plus')}${t(editingDoc ? 'common.save' : 'docs.upload')}</button></div></div></div>${storageNote()}`
   }
-  const stepper = `<div class="stepper" aria-label="${t('employees.progress', { current: state.dialogStep + 1, total: 4 })}">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}"><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`employees.${step}`)}</span></button>`).join('')}</div>${body}`
+  // Diskret autosave-status (§5): vises når kladden faktisk er lagret.
+  const draftStatus = state.dialogMode === 'create' && state.draft.employeeDraftId ? `<p class="field-help" style="margin:4px 0 0">${t('employees.draftSaved')}</p>` : ''
+  const stepper = `${draftStatus}<div class="stepper" aria-label="${t('employees.progress', { current: state.dialogStep + 1, total: 4 })}">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}"><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`employees.${step}`)}</span></button>`).join('')}</div>${body}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < 3 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-employee">${t('common.save')}</button></div>`
   return modalShell(t(modeKey), t('employees.progress', { current: state.dialogStep + 1, total: 4 }), 'id-card', stepper, footer)
 }
@@ -15815,6 +15881,18 @@ function confirmAbsenceDeleteDialog() {
   return modalShell(t('absence.deleteAction'), escapeHtml(employee?.name ?? ''), 'trash', body, footer)
 }
 
+// Sletting av ansattkladd (§11): bekreftes fordi kladden bærer innhold -
+// og sletter ALDRI en allerede opprettet ansatt.
+function employeeDraftDeleteDialog() {
+  const item = employeeDraftById(state.slotAction?.employeeDraftId)
+  if (!item) return ''
+  const name = [item.values?.firstName, item.values?.lastName].filter(Boolean).join(' ') || t('employees.draftUnnamed')
+  const documents = (item.values?.employeeDocuments ?? []).length
+  const body = `<p><strong>${escapeHtml(name)}</strong> · ${t('employees.progress', { current: (Number(item.currentStep) || 0) + 1, total: 4 })}${documents ? ` · ${documents} ${t('employees.files').toLocaleLowerCase()}` : ''}</p><p class="field-help">${t('employees.draftDeleteBody')}</p>`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button danger" data-action="confirm-delete-employee-draft">${icon('trash')}${t('employees.draftDelete')}</button></div>`
+  return modalShell(t('employees.draftDelete'), escapeHtml(name), 'trash', body, footer, 'small')
+}
+
 // Månedsinnsending: klare sendes, blokkerte står - aldri alt-eller-ingenting.
 function monthSubmitDialog() {
   const employee = record('employees', state.slotAction?.employeeId)
@@ -15867,6 +15945,7 @@ const dialogs = {
   'absence-review': absenceReviewDialog,
   'absence-reassess': absenceReassessDialog,
   'absence-delete': confirmAbsenceDeleteDialog,
+  'employee-draft-delete': employeeDraftDeleteDialog,
   'invoice-line-detail': invoiceLineDetailDialog,
   'month-submit': monthSubmitDialog,
   'contact-import': contactImportDialog,
@@ -16411,8 +16490,8 @@ function actionHandlers(target = null) {
       openDialog('access-preview')
     },
     'close-dialog': closeDialog,
-    'dialog-next': () => { state.dialogStep += 1; render() },
-    'dialog-back': () => { state.dialogStep = Math.max(0, state.dialogStep - 1); render() },
+    'dialog-next': () => { state.dialogStep += 1; persistEmployeeDraft(); render() },
+    'dialog-back': () => { state.dialogStep = Math.max(0, state.dialogStep - 1); persistEmployeeDraft(); render() },
     'dialog-complete': () => { closeDialog(); showToast() },
     'import-next': () => { const stages = ['select', 'map', 'validate', 'result']; state.importStage = stages[Math.min(stages.length - 1, stages.indexOf(state.importStage) + 1)]; render() },
     'add-address': () => { if (state.clientAddresses < 4) state.clientAddresses += 1; render() },
@@ -17194,6 +17273,30 @@ function actionHandlers(target = null) {
       logSickLeaveEvent(item, { type: 'sick_leave_reopened', reason })
       state.formError = null
       persist(); render()
+    },
+    // === Ansattkladder (§6-§8, §11-§12): gjenoppta og slett ===
+    'resume-employee-draft': () => {
+      const item = employeeDraftById(target?.dataset?.id)
+      if (!item) return
+      // Gjenopptak (§7, §12): SAMME kladd fortsetter - verdier, dokumenter og
+      // steget gjenopprettes; det opprettes aldri en ny kladd.
+      openDialog('employee', 'create', { ...JSON.parse(JSON.stringify(item.values ?? {})), employeeDraftId: String(item.id) })
+      state.dialogStep = Number(item.currentStep) || 0
+      render()
+    },
+    'open-delete-employee-draft': () => {
+      const item = employeeDraftById(target?.dataset?.id)
+      if (!item) return
+      state.slotAction = { employeeDraftId: item.id }
+      openDialog('employee-draft-delete', 'create', {})
+    },
+    'confirm-delete-employee-draft': () => {
+      const item = employeeDraftById(state.slotAction?.employeeDraftId)
+      if (!item) return
+      // §11: fjerner kladden og dens dokumentkladder - aldri en ansatt.
+      removeEmployeeDraft(item.id)
+      state.slotAction = null
+      closeDialog(); showToast('employees.draftDeleted', {})
     },
     // Medleverprofiler (§8-§9, §61): konfigurerbare betalte timer per døgn.
     'create-live-in-profile': () => openDialog('live-in-profile', 'create', { standardHoursPart: 15, standardMinutesPart: 33, overlapHoursPart: 17, overlapMinutesPart: 33 }),
@@ -18264,7 +18367,8 @@ function crudHandlers(target) {
           [0, 'email', 'common.email'], [0, 'phone', 'common.phone'], [0, 'birthDate', 'employees.birthDate'],
           [0, 'addressStreet', 'employees.addressStreet'], [0, 'addressPostalCode', 'departments.postalCode'],
           [0, 'addressCity', 'departments.city'], [0, 'addressCountry', 'employees.country'],
-          [0, 'bankCountry', 'employees.bankCountry'], [0, 'bankAccount', 'employees.bankAccount'],
+          // Bank er VALGFRI ved opprettelse (§1): tomt kontonummer er gyldig;
+          // utfylte verdier formatvalideres fortsatt under (mod11 for NO).
           [0, 'kinName', 'employees.kinName'], [0, 'kinRelation', 'employees.relationship'], [0, 'kinPhone', 'common.phone'],
           [1, 'education', 'employees.educationType'], [1, 'educationName', 'employees.educationName'],
           [2, 'employeeNumber', 'employees.employeeNumber'], [2, 'profession', 'employees.position'],
@@ -18288,11 +18392,15 @@ function crudHandlers(target) {
       // kladden) og legges på den kanoniske posten - samme documents-modell
       // som ansattkortet bruker.
       const draftDocuments = [...(state.draft.employeeDocuments ?? [])]
+      const employeeDraftId = state.draft.employeeDraftId ?? null
       const saved = commit(spec.collection, spec.prefix, spec.nameField, spec.fromDraft)
       if (saved && draftDocuments.length) {
         saved.documents = [...(saved.documents ?? []), ...draftDocuments]
         persist()
       }
+      // §8: fullført opprettelse = ÉN kanonisk ansatt, kladden fjernes.
+      // Kladd-id-en blir aldri ansatt-id - commit bruker kanonisk generering.
+      if (saved && employeeDraftId) removeEmployeeDraft(employeeDraftId)
       if (saved && converting && sourceId) {
         deleteRecord('candidates', sourceId)
         showToast('crud.convertDone', { name: saved.name })
@@ -19002,6 +19110,8 @@ const structuralRuleFields = new Set(['family', 'method', 'holidayAllDay', 'unit
 
 function handleDraftFieldChange(name, value) {
   applyDraftChange(name, value)
+  // Autosave av ansattkladden på hver feltendring (§4) - self-gated.
+  persistEmployeeDraft()
   if (dialogsRerenderOnChange.has(state.dialog)) { render(); return }
   if (['premium', 'overtime'].includes(state.dialog) && structuralRuleFields.has(name)) render()
   // Avviksbanneret i timelisten følger faktisk-feltene (change = etter blur,
