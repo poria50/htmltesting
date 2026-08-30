@@ -4244,6 +4244,9 @@ const copy = {
     'financial.basisConfigured': 'Konfigurert',
     'financial.basisNotConfigured': 'Mangler',
     'financial.noRules': 'Ingen regler',
+    'financial.educationRequired': 'Utdanningsnivå er obligatorisk.',
+    'financial.annualSalaryRequired': 'Årslønn er obligatorisk.',
+    'financial.annualBasisRequiredForCell': 'Konfigurer årsverksgrunnlaget før lønnssatsen kan lagres.',
     'financial.addRules': 'Legg til regler',
     'financial.versionsHelp': 'Administrer gjeldende versjoner av lønnssystemet.',
     'financial.currentVersionTag': 'Gjeldende',
@@ -5348,7 +5351,7 @@ copy.en = {
   'financial.standardAnnualHoursBasis': 'Standard annual hours basis',
   'financial.annualBasisSection': 'Annual hours basis',
   'financial.basisConfigured': 'Configured',
-  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
+  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.educationRequired': 'Education level is required.', 'financial.annualSalaryRequired': 'Annual salary is required.', 'financial.annualBasisRequiredForCell': 'Configure the annual work basis before the pay rate can be saved.', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
   'financial.configureBasis': 'Configure annual hours basis',
   'financial.basisConfiguredAfterCreate': 'The annual hours basis is configured after creation, under Annual hours basis on the pay system.',
   'departments.paySystemNoBasis': 'The pay system has no annual hours basis. Configure the annual hours basis before connecting the system to a department.',
@@ -18565,7 +18568,11 @@ function crudHandlers(target) {
       const education = String(state.draft.education ?? '').trim()
       const annualSalary = Number(state.draft.annualSalary) || 0
       const hours = Number(version.annualHoursBasis) || 0
-      if (!education || !annualSalary || !hours) { state.formError = 'common.required'; render(); return }
+      // Feltspesifikk validering (aldri den generiske «Navn er obligatorisk.»):
+      // første handlingsbare feil vises via det eksisterende form-error-mønsteret.
+      if (!education) { state.formError = 'financial.educationRequired'; render(); return }
+      if (!annualSalary) { state.formError = 'financial.annualSalaryRequired'; render(); return }
+      if (!hours) { state.formError = 'financial.annualBasisRequiredForCell'; render(); return }
       const cell = {
         id: nextId('cell'),
         role: String(state.draft.role ?? '').trim(),
