@@ -4024,6 +4024,14 @@ const copy = {
     'timesheets.comment': 'Kommentar',
     'timesheets.approver': 'Godkjenner',
     'timesheets.noApprover': 'Ingen godkjenner konfigurert',
+    'timesheets.configureApprover': 'Konfigurer godkjenner',
+    'timesheets.correct': 'Korriger timeliste',
+    'timesheets.reviewAction': 'Kontroller',
+    'readiness.waiting': 'Venter',
+    'readiness.action': 'Krever handling',
+    'readiness.blocked': 'Blokkert',
+    'payrollBasis.oneAwaiting': '1 timeliste venter på godkjenning',
+    'payrollBasis.manyAwaiting': '{count} timelister venter på godkjenning',
     'timesheets.reopen': 'Gjenåpne timeliste',
     'timesheets.reopenTitle': 'Gjenåpne timeliste',
     'timesheets.reopenWarning': 'Denne timelisten er godkjent og låst. Gjenåpning bevarer tidligere godkjenning og registreres i historikken.',
@@ -4072,10 +4080,10 @@ const copy = {
     'timesheets.deviation': 'Avvik',
     'timesheets.deviationNote': 'Forklaring på avvik',
     'timesheets.open': 'Åpne timeliste',
-    'timesheets.status.not_submitted': 'Ikke levert',
-    'timesheets.status.submitted': 'Til godkjenning',
+    'timesheets.status.not_submitted': 'Ikke sendt inn',
+    'timesheets.status.submitted': 'Venter på godkjenning',
     'timesheets.status.approved': 'Godkjent',
-    'timesheets.status.needs_correction': 'Må korrigeres',
+    'timesheets.status.needs_correction': 'Sendt tilbake – krever korrigering',
     'timesheets.filterActive': 'Viser timelister med status',
     'timesheets.emptyFiltered': 'Ingen timelister i denne statusen',
     'staffing.slotLabel': 'Plass {number}',
@@ -5159,7 +5167,7 @@ copy.en = {
   'timesheets.sendBackTitle': 'Send back timesheet',
   'timesheets.comment': 'Comment',
   'timesheets.approver': 'Approver',
-  'timesheets.noApprover': 'No approver configured',
+  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
   'timesheets.reopen': 'Reopen timesheet',
   'timesheets.reopenTitle': 'Reopen timesheet',
   'timesheets.reopenWarning': 'This timesheet is approved and locked. Reopening preserves the previous approval and is recorded in the history.',
@@ -5209,9 +5217,9 @@ copy.en = {
   'timesheets.deviationNote': 'Deviation explanation',
   'timesheets.open': 'Open timesheet',
   'timesheets.status.not_submitted': 'Not submitted',
-  'timesheets.status.submitted': 'Pending approval',
+  'timesheets.status.submitted': 'Awaiting approval',
   'timesheets.status.approved': 'Approved',
-  'timesheets.status.needs_correction': 'Needs correction',
+  'timesheets.status.needs_correction': 'Returned – correction required',
   'timesheets.filterActive': 'Showing timesheets with status',
   'timesheets.emptyFiltered': 'No timesheets in this status',
   'staffing.slotLabel': 'Position {number}',
@@ -5822,7 +5830,7 @@ const compCopy = {
     "comp.payroll.date": "Dato",
     "comp.payroll.toPayroll": "Til lønn",
     "comp.payroll.approved": "Godkjent",
-    "comp.payroll.pending": "venter",
+    "comp.payroll.pending": "venter på godkjenning",
     "comp.payroll.exportCsv": "Eksporter timelister (CSV)",
     // Lønn er en ansattbasert kontrollflate: finn ansatt, kontroller grunnlaget.
     // Eksporten av timelister over er en egen funksjon og røres ikke.
@@ -6254,7 +6262,7 @@ const compCopy = {
     "comp.payroll.date": "Date",
     "comp.payroll.toPayroll": "To payroll",
     "comp.payroll.approved": "Approved",
-    "comp.payroll.pending": "pending",
+    "comp.payroll.pending": "awaiting approval",
     "comp.payroll.exportCsv": "Export timesheets (CSV)",
     "comp.payroll.basePay": "Base pay",
     "comp.payroll.searchEmployees": "Search employees",
@@ -13086,7 +13094,7 @@ function timesheetInvoiceSection() {
     <article class="stat-card"><span class="stat-label">${t('invoicing.vatLabel')}</span><strong class="stat-value">${formatMoney(displayTotals.vat)}</strong></article>
     <article class="stat-card"><span class="stat-label">${t('invoicing.total')}</span><strong class="stat-value">${formatMoney(displayTotals.gross)}</strong></article>
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.priceBlocked.length + basis.payBlocked.length}</strong></article>
-    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong><span class="muted">${basis.pending.length === 1 ? t('payrollBasis.oneAwaiting') : t('payrollBasis.manyAwaiting', { count: basis.pending.length })}</span></article>
   </div>`
   const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}${line.department?.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(line.department.departmentNumber))}</span>` : ''}</td><td>${line.sourceType === 'sick_leave_compensation' ? `<span class="tag warning">${t('sick.invoiceTag')}</span> <span class="muted">${formatPercent(line.sickTrace?.absencePercent ?? 0, 0)} · ${t('sick.cost.client').split(' ')[0]} ${formatPercent(line.sickTrace?.clientCoveragePercent ?? 0, 0)} / ${t('sick.cost.contractor')} ${formatPercent(line.sickTrace?.agencyCoveragePercent ?? 0, 0)}</span>` : timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${line.sourceType === 'sick_leave_compensation' ? t('sick.invoiceNote') : t('payrollBasis.source')}</span></td></tr>`)
   // To adskilte blokkeringer, hver med lenken dit den rettes (§12):
@@ -13095,8 +13103,12 @@ function timesheetInvoiceSection() {
     ...basis.priceBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('invoicing.priceMissing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${item.reasons.map(key => t(key)).join(' · ')}${item.client ? ` · ${relationLink('client-detail', item.client.id, item.client.name)}` : ''}</span></div>`),
     ...basis.payBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span></div>`)
   ].join('')
+  // Hver ventende timeliste vises KONKRET (§5, §15) med samme delte
+  // beskrivelse som Lønn (§22) og dyplenke som åpner NØYAKTIG timelisten -
+  // fakturering godkjenner ALDRI selv (§8).
+  const pendingRows = basis.pending.map(timesheetBlockerRow).join('')
   const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'comp.invoicing.payBasis', 'invoicing.markup', 'invoicing.net', 'invoicing.vatLabel', 'invoicing.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
-  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('invoicing.basisTitle')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedBanners}${table_}</article>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('invoicing.basisTitle')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedBanners}${pendingRows}${table_}</article>`
 }
 
 function economyReport(form) {
@@ -13415,6 +13427,41 @@ function timesheetPayrollBasis(period = null) {
   return { lines, blocked, pending: pendingPayrollTimesheets(), totals }
 }
 
+// === Delt blokkerbeskrivelse (§13): DERIVERT visningslogikk, aldri ny
+// workflow-state. Lønn og Fakturering beskriver samme timeliste identisk
+// (§22), og skiller VENTER (annen bruker må handle) fra KREVER HANDLING
+// (sendt tilbake) og BLOKKERT (ingen godkjenner konfigurert) (§6).
+// Godkjenning skjer ALLTID på timelisteflaten - handlingene her ÅPNER den.
+function timesheetBlockerView(timesheet) {
+  const assignment = record('assignments', timesheet.assignmentId)
+  const approver = assignment ? timesheetApprover(assignment) : null
+  const base = { timesheet, assignment, employee: record('employees', timesheet.employeeId), approver }
+  if (timesheet.status === 'needs_correction') {
+    return { ...base, severity: 'action', severityKey: 'readiness.action', titleKey: 'timesheets.status.needs_correction', actionKey: 'timesheets.correct', tone: 'warning' }
+  }
+  if (!approver) {
+    return { ...base, severity: 'blocked', severityKey: 'readiness.blocked', titleKey: 'timesheets.noApprover', actionKey: 'timesheets.configureApprover', tone: 'warning' }
+  }
+  if (timesheet.status === 'submitted') {
+    return { ...base, severity: 'waiting', severityKey: 'readiness.waiting', titleKey: 'timesheets.status.submitted', actionKey: 'timesheets.reviewAction', tone: 'info' }
+  }
+  return { ...base, severity: 'waiting', severityKey: 'readiness.waiting', titleKey: 'timesheets.status.not_submitted', actionKey: 'timesheets.open', tone: 'info' }
+}
+
+// Én konkret, navigerbar rad per ventende timeliste (§3-§5, §14-§15): full
+// identitet (ansatt, vakt-id, dato, virksomhet/avdeling), presis status,
+// godkjenner - og en dyplenke som åpner NØYAKTIG den timelisten. «Konfigurer
+// godkjenner» går til avdelingen, der godkjenneren faktisk konfigureres (§16).
+function timesheetBlockerRow(timesheet) {
+  const view = timesheetBlockerView(timesheet)
+  const assignment = view.assignment
+  const context = [record('clients', assignment?.clientId)?.name, assignment?.departmentId ? label(record('departments', assignment.departmentId)?.name) : null].filter(Boolean).join(' · ')
+  const action = view.actionKey === 'timesheets.configureApprover' && assignment?.departmentId
+    ? `<button type="button" class="button secondary small" data-route="department-detail" data-id="${assignment.departmentId}">${t('timesheets.configureApprover')}</button>`
+    : `<button type="button" class="button secondary small" data-action="open-slot-timesheet" data-id="${timesheet.assignmentId}" data-slot-id="${timesheet.slotId}">${t(view.actionKey)}</button>`
+  return `<div class="banner ${view.tone}">${icon('bell')}<span><strong>${t(view.severityKey)}:</strong> ${escapeHtml(view.employee?.name ?? '')} · ${t('staffing.assignmentId')} ${escapeHtml(String(timesheet.assignmentId))} · ${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}${context ? ` · ${escapeHtml(context)}` : ''} · ${t(view.titleKey)}${view.approver ? ` · ${t('timesheets.approver')}: ${escapeHtml(view.approver.name)}` : ''}</span>${action}</div>`
+}
+
 // Grunnlagsseksjonen på Lønn-siden: klare linjer, blokkerte avvik og ventende
 // timelister - tydelig adskilt (§18, §28-§31).
 function timesheetPayrollSection() {
@@ -13423,13 +13470,16 @@ function timesheetPayrollSection() {
   const chips = `<div class="stats-grid" style="margin-bottom:12px">
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.ready')}</span><strong class="stat-value">${basis.lines.length}</strong><span class="muted">${formatMoney(basis.lines.reduce((sum, line) => sum + displayNok(line.ordinaryAmount) + displayNok(line.premiumAmount) + displayNok(line.overtimeAmount), 0))}</span></article>
     <article class="stat-card"><span class="stat-label">${t('payrollBasis.blocked')}</span><strong class="stat-value">${basis.blocked.length}</strong><span class="muted">${t('payrollBasis.missing')}</span></article>
-    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong><span class="muted">${t('payrollBasis.waiting')}</span></article>
+    <article class="stat-card"><span class="stat-label">${t('payrollBasis.pending')}</span><strong class="stat-value">${basis.pending.length}</strong><span class="muted">${basis.pending.length === 1 ? t('payrollBasis.oneAwaiting') : t('payrollBasis.manyAwaiting', { count: basis.pending.length })}</span></article>
   </div>`
+  // Hver ventende timeliste vises KONKRET og navigerbart (§3-§4, §15) -
+  // aldri bare et anonymt antall. Godkjenning skjer på timelisten (§8).
+  const pendingRows = basis.pending.map(timesheetBlockerRow).join('')
   const rows = basis.lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}</td><td>${line.sourceType === 'sick_leave_compensation' ? `<span class="tag warning">${t('sick.title')}</span>` : timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td><strong>${formatMoney(displayNok(line.ordinaryAmount) + displayNok(line.premiumAmount) + displayNok(line.overtimeAmount))}</strong></td><td><span class="muted">${line.sourceType === 'sick_leave_compensation' ? t('sick.source') : t('payrollBasis.source')}</span></td></tr>`)
   // Blokkeringen sier hva som mangler OG hvor det rettes: avdelingen (§12).
   const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span></div>`).join('')
   const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'shifts.basePay', 'comp.tables.premium', 'comp.payroll.overtime', 'payrollBasis.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
-  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('payrollBasis.title')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedRows}${table_}</article>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('payrollBasis.title')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedRows}${pendingRows}${table_}</article>`
 }
 
 function payrollReport(form) {
