@@ -3159,6 +3159,8 @@ const copy = {
     'absence.decidedAt': 'Vurdert',
     'absence.coverage': 'Erstatterdekning',
     'absence.replacementForLabel': 'Erstatter for',
+    'staffing.registerReplacement': 'Registrer erstatter',
+    'staffing.noReplacementRegistered': 'Ingen erstatter registrert',
     'absence.cause': 'Årsak',
     'absence.causeGeneral': 'Generelt fravær',
     'absence.original': 'Originalt fravær',
@@ -4567,7 +4569,7 @@ copy.en = {
   'medlever.daysShort': 'periods',
   'timesheets.event.medlever_override': 'Live-in pay basis overridden',
   'page.absence.desc': 'Sick leave with validity, compensation and cost responsibility',
-  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.shift': 'Shift', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status', 'absence.section': 'Absence and adjustments', 'absence.history': 'Decision history', 'absence.reassess': 'Reassess absence', 'absence.backToPending': 'Return to review', 'absence.reassessReason': 'Reason for the change', 'absence.reassessReasonRequired': 'A reason is required to reassess', 'absence.newStatus': 'New decision', 'absence.currentStatus': 'Current status', 'absence.currentReason': 'Current reason', 'absence.saveReassess': 'Save new decision', 'absence.reassessed': 'The new decision was saved', 'absence.reassessLocked': 'This timesheet is approved and must be reopened for correction before the absence can be changed.', 'absence.payableAfter': 'Payable after absence', 'absence.payment': 'Payment', 'absence.decidedAt': 'Reviewed', 'absence.coverage': 'Replacement coverage', 'absence.replacementForLabel': 'Replacement for', 'absence.cause': 'Cause', 'absence.causeGeneral': 'General absence', 'absence.original': 'Original absence', 'absence.newStatusRequired': 'Choose a new decision', 'absence.sameStatus': 'The new decision equals the current status',
+  'sick.title': 'Sick leave', 'absence.register': 'Register absence', 'absence.shift': 'Shift', 'absence.title': 'Absence', 'absence.scope': 'The absence applies to', 'absence.scope.full': 'The whole slot', 'absence.scope.partial': 'Part of the slot', 'absence.from': 'Absent from', 'absence.to': 'Absent until', 'absence.comment': 'Comment', 'absence.status.pending': 'Awaiting review', 'absence.status.valid': 'Valid', 'absence.status.invalid': 'Invalid', 'absence.queue': 'Absences for review', 'absence.assess': 'Review', 'absence.assessTitle': 'Review absence', 'absence.markValid': 'Approve as valid', 'absence.markInvalid': 'Mark as invalid', 'absence.invalidReason': 'Reason', 'absence.invalidReasonRequired': 'A reason is required to mark the absence invalid', 'absence.notPayable': 'Not payable', 'absence.invalidLabel': 'Invalid absence', 'absence.decidedBy': 'Reviewed by', 'absence.openReview': 'Open review', 'absence.intervalRequired': 'Provide start and end times for the absence', 'absence.intervalOutsideSlot': 'The absence must fall within the slot window', 'absence.registered': 'The absence was registered and awaits review', 'absence.markedValid': 'The absence was approved as valid', 'absence.markedInvalid': 'The absence was marked invalid', 'absence.deleteAction': 'Delete absence', 'absence.deleteReason': 'Reason for deletion', 'absence.deleteReasonRequired': 'A reason is required to delete the absence', 'absence.deleted': 'The absence was deleted', 'absence.deleteLocked': 'The absence is part of approved history and cannot be deleted directly. Use a correction.', 'absence.replacementKept': 'The replacement ({names}) is already assigned and is kept - review the staffing manually.', 'absence.emptyQueue': 'No absences in the selected status', 'absence.section': 'Absence and adjustments', 'absence.history': 'Decision history', 'absence.reassess': 'Reassess absence', 'absence.backToPending': 'Return to review', 'absence.reassessReason': 'Reason for the change', 'absence.reassessReasonRequired': 'A reason is required to reassess', 'absence.newStatus': 'New decision', 'absence.currentStatus': 'Current status', 'absence.currentReason': 'Current reason', 'absence.saveReassess': 'Save new decision', 'absence.reassessed': 'The new decision was saved', 'absence.reassessLocked': 'This timesheet is approved and must be reopened for correction before the absence can be changed.', 'absence.payableAfter': 'Payable after absence', 'absence.payment': 'Payment', 'absence.decidedAt': 'Reviewed', 'absence.coverage': 'Replacement coverage', 'absence.replacementForLabel': 'Replacement for', 'staffing.registerReplacement': 'Register replacement', 'staffing.noReplacementRegistered': 'No replacement registered', 'absence.cause': 'Cause', 'absence.causeGeneral': 'General absence', 'absence.original': 'Original absence', 'absence.newStatusRequired': 'Choose a new decision', 'absence.sameStatus': 'The new decision equals the current status',
   'sick.register': 'Register sick leave',
   'sick.registered': 'Sick leave registered for {name}',
   'sick.sickTag': 'Sick',
@@ -9387,7 +9389,17 @@ function renderJobDetail() {
     if (assignment.status !== 'cancelled') {
       if (slot.status === 'open') {
         const matchable = shiftOperationalStatus(assignment) === 'open'
-        slotActions = `${matchable ? `<button type="button" class="button small" data-action="open-match" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('match.find')}</button>` : ''}<button type="button" class="button ghost small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.sendRequest')}</button>`
+        // UTFØRT vakt med åpen ERSTATTERPLASS (§3, §5-§6): historisk
+        // registrering av hvem som faktisk dekket fraværet - samme kanoniske
+        // tildelingsmekanikk, men uten fremtidsspråk (ingen forespørsel), og
+        // en ærlig «Ingen erstatter registrert»-tilstand. Utført skjuler
+        // ALDRI erstatterrelasjonen (§10).
+        if (slot.replacementForSlotId && shiftOperationalStatus(assignment) === 'completed') {
+          detail = `<span class="tag warning">${t('staffing.noReplacementRegistered')}</span>`
+          slotActions = `<button type="button" class="button small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.registerReplacement')}</button>`
+        } else {
+          slotActions = `${matchable ? `<button type="button" class="button small" data-action="open-match" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('match.find')}</button>` : ''}<button type="button" class="button ghost small" data-action="open-direct-assign" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.assignDirectly')}</button><button type="button" class="button ghost small" data-action="open-slot-request" data-id="${assignment.id}" data-slot-id="${slot.id}">${t('staffing.sendRequest')}</button>`
+        }
       }
       if (slot.status === 'requested' && active) {
         const candidate = record('employees', active.employeeId)
@@ -10212,7 +10224,10 @@ function sickLeaveAffectedShifts(employeeId, startDate, endDate) {
       const timesheet = timesheetForSlot(assignment.id, slot.id)
       const approved = timesheet?.status === 'approved'
       const completed = shiftOperationalStatus(assignment) === 'completed'
-      return { assignment, slot, approved, completed, manualReview: approved || completed }
+      // manual_review gjelder KUN godkjent/låst historikk (§13): en utført
+      // vakt uten godkjent timeliste får erstatterbehov som alle andre -
+      // fravær og erstatterregistrering er ikke datobegrenset (§1-§3).
+      return { assignment, slot, approved, completed, manualReview: approved }
     })
 }
 
@@ -16813,7 +16828,7 @@ function actionHandlers(target = null) {
           const timesheet = timesheetForSlot(anchor.id, anchorSlot.id)
           const approved = timesheet?.status === 'approved'
           const completed = shiftOperationalStatus(anchor) === 'completed'
-          affected.push({ assignment: anchor, slot: anchorSlot, approved, completed, manualReview: approved || completed })
+          affected.push({ assignment: anchor, slot: anchorSlot, approved, completed, manualReview: approved })
         }
       }
       const record_ = {
