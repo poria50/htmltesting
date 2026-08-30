@@ -4247,6 +4247,7 @@ const copy = {
     'financial.educationRequired': 'Utdanningsnivå er obligatorisk.',
     'financial.annualSalaryRequired': 'Årslønn er obligatorisk.',
     'financial.annualBasisRequiredForCell': 'Konfigurer årsverksgrunnlaget før lønnssatsen kan lagres.',
+    'financial.rateBasisHelp': 'Timesats beregnes ut fra årsverksgrunnlaget som gjelder for vaktens arbeidstype.',
     'financial.addRules': 'Legg til regler',
     'financial.versionsHelp': 'Administrer gjeldende versjoner av lønnssystemet.',
     'financial.currentVersionTag': 'Gjeldende',
@@ -5351,7 +5352,7 @@ copy.en = {
   'financial.standardAnnualHoursBasis': 'Standard annual hours basis',
   'financial.annualBasisSection': 'Annual hours basis',
   'financial.basisConfigured': 'Configured',
-  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.educationRequired': 'Education level is required.', 'financial.annualSalaryRequired': 'Annual salary is required.', 'financial.annualBasisRequiredForCell': 'Configure the annual work basis before the pay rate can be saved.', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
+  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.educationRequired': 'Education level is required.', 'financial.annualSalaryRequired': 'Annual salary is required.', 'financial.annualBasisRequiredForCell': 'Configure the annual work basis before the pay rate can be saved.', 'financial.rateBasisHelp': 'Hourly rate is calculated from the annual work basis applicable to the shift type.', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
   'financial.configureBasis': 'Configure annual hours basis',
   'financial.basisConfiguredAfterCreate': 'The annual hours basis is configured after creation, under Annual hours basis on the pay system.',
   'departments.paySystemNoBasis': 'The pay system has no annual hours basis. Configure the annual hours basis before connecting the system to a department.',
@@ -12074,7 +12075,9 @@ function renderTariffDetail() {
   if (tab === 'versions') body = `<div class="card-header" style="margin-top:4px"><div><h2>${t('financial.versions')}</h2><p class="field-help">${t('financial.versionsHelp')}</p></div>${button('financial.versionAdd', 'create-version', '', 'plus')}</div><div class="grid cols-3">${(tariff.versions ?? []).map(version => `<article class="card"><div class="card-header"><h3>${escapeHtml(version.name)}</h3>${version.id === activeVersion?.id ? `<span class="tag success">${t('financial.currentVersionTag')}</span>` : version.annualHoursBasis ? '' : `<span class="tag warning">${t('financial.basisMissing')}</span>`}</div><dl class="detail-list"><div><dt>${t('financial.effective')}</dt><dd><strong>${version.effective ? formatDate(version.effective) : '—'}</strong></dd></div><div><dt>${t('financial.annualHoursBasis')}</dt><dd>${version.annualHoursBasis ? `${formatNumber(version.annualHoursBasis)} ${t('financial.hoursUnit')}` : `<span class="muted">${t('financial.salaryBasisMissing')}</span>`}</dd></div></dl><div class="row-actions" style="margin-top:10px;justify-content:flex-end"><button class="button ghost small danger" data-action="delete-version" data-id="${version.id}">${t('common.delete')}</button></div></article>`).join('') || `<p class="muted">${t('rel.none')}</p>`}</div>`
   if (tab === 'premiums') body = paySystemRulesMarkup(tariff, 'premium')
   if (tab === 'overtime') body = paySystemRulesMarkup(tariff, 'overtime')
-  if (tab === 'salary') body = `${basisCard}${salaryTableMarkup(annualHoursBasis, activeVersion?.salaryCells, activeVersion?.name)}`
+  // Lønnstabellfanen bruker SAMME versjonskontekst som lagringen (§4) -
+  // aldri den effektive beregningsversjonen, og aldri en kontekstløs default.
+  if (tab === 'salary') body = `${basisCard}${salaryTableMarkup(currentVersion)}`
   const detailActions = `<button class="button secondary" data-action="back-financial">${icon('arrow-left')}${t('common.back')}</button><button type="button" class="button secondary" data-action="edit-tariff" data-id="${tariff.id}">${icon('edit')}${t('financial.editPaySystem')}</button>${button('financial.adjust', 'salary-adjust', 'secondary')}${button('financial.import', 'excel-import', 'secondary')}<button type="button" class="button secondary danger" data-action="delete-tariff" data-id="${tariff.id}">${icon('trash')}${t('common.delete')}</button>`
   return `<section class="page">${pageHeading('financial.detail', 'page.financial.desc', detailActions)}<div class="banner"><span>${t('app.previewOnly')}</span></div><article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${lab(tariff.name)}</h2><p>${lab(tariff.reference)} · ${escapeHtml(tariff.versions?.[0]?.name ?? '')}</p></div></div></article><div class="tabs"><button class="tab ${tab === 'overview' ? 'is-active' : ''}" data-tab="tariff-overview">${t('financial.overview')}</button><button class="tab ${tab === 'versions' ? 'is-active' : ''}" data-tab="tariff-versions">${t('financial.versions')}</button><button class="tab ${tab === 'premiums' ? 'is-active' : ''}" data-tab="tariff-premiums">${t('financial.premiumsTab')}</button><button class="tab ${tab === 'overtime' ? 'is-active' : ''}" data-tab="tariff-overtime">${t('financial.overtimeTab')}</button><button class="tab ${tab === 'salary' ? 'is-active' : ''}" data-tab="tariff-salary">${t('financial.salaryTable')}</button></div>${body}<details style="margin-top:16px"><summary class="muted">${t('clients.usedByClients')}</summary>${usedByCard('clients.usedByClients', tariff.id)}</details></section>`
 }
@@ -12141,12 +12144,21 @@ function paySystemRulesMarkup(tariff, kind) {
   return `${action}${sections}`
 }
 
+// ÉN kanonisk admin-versjonsregel (§4): lønnstabell-administrasjonen
+// (visning, legg til, slett), lønnssatsdialogen og årsverkskortet redigerer
+// alltid tariff.versions[0]. Den EFFEKTIVE beregningsversjonen er et annet
+// begrep (§5): den løses per vaktdato i resolveren, og historiske
+// calculationSnapshots vinner fortsatt - det røres aldri her.
+function currentAdminVersion(tariff) {
+  return (tariff?.versions ?? [])[0] ?? null
+}
+
 // Skjemaet for én lønnssats. Utdanning er lønnsaksen; rollen er valgfri og
 // trengs bare når tabellen skiller på den. Timesatsen utledes av årslønnen og
 // versjonens årsverksgrunnlag, slik resolveren leser den.
 function salaryCellDialogBody() {
   const tariff = record('tariffs', state.selected.tariff)
-  const version = tariff?.versions?.[0]
+  const version = currentAdminVersion(tariff)
   const educationChoices = EMPLOYEE_EDUCATION_TYPES.map(value => ({ value, text: educationTypeLabel(value) }))
   const roleChoices = ['environment_worker', 'healthcare_worker'].map(value => ({ value, text: taxonomy(value) }))
   const annualSalary = Number(draftValue('annualSalary', 0)) || 0
@@ -12159,9 +12171,15 @@ function salaryCellDialogBody() {
 // Lønnstabellen viser alltid det som faktisk er lagret. Ingen eksempeldata:
 // uten lønnssatser vises en ekte tom-tilstand, siden resolveren heller ikke har
 // noe å matche mot.
-function salaryTableMarkup(annualHoursBasis = 1860, salaryCells = null, versionName = '') {
-  const cells = salaryCells ?? []
-  const basis = `<div class="salary-table-basis"><strong>${t('financial.annualHoursBasis')}</strong><span>${annualHoursBasis ? `${formatNumber(annualHoursBasis)} ${t('financial.hoursUnit')}` : t('financial.salaryBasisMissing')}</span><strong>${t('financial.version')}</strong><span>${escapeHtml(versionName)}</span></div>`
+// Tabellen tar HELE versjonsobjektet (§4): navn, celler og grunnlagsstatus
+// kommer fra samme kontekst som lagringen skriver til. Mangler konteksten,
+// vises en ærlig manglende-tilstand - ALDRI et fabrikkert 1860-tall (§3).
+// Én enkelt grunnlagsverdi vises ikke lenger som universell: versjonen kan ha
+// egne grunnlag per arbeidstype (§6) - fordelingen bor i årsverkskortet.
+function salaryTableMarkup(version = null) {
+  const cells = version?.salaryCells ?? []
+  const basisReady = Number(version?.annualHoursBasis) > 0
+  const basis = `<div class="salary-table-basis"><strong>${t('financial.version')}</strong><span>${version?.name ? escapeHtml(version.name) : '—'}</span>${basisReady ? '' : `<strong>${t('financial.annualHoursBasis')}</strong><span class="muted">${t('financial.salaryBasisMissing')}</span>`}</div><p class="field-help">${t('financial.rateBasisHelp')}</p>`
   const add = `<div class="list-actions">${button('financial.addSalaryCell', 'create-salary-cell', '', 'plus')}</div>`
   if (!cells.length) {
     return `<div class="salary-table-wrap">${basis}${add}<div class="empty-state"><span class="empty-icon">${icon('wallet')}</span><h3>${t('financial.noSalaryCells')}</h3></div></div>`
@@ -14733,7 +14751,7 @@ function tariffWizardDialog() {
   const steps = ['agreementDetails', 'version', 'salaryTable', 'review']
   let body = `<div class="grid cols-2">${field(t('financial.agreementName'), t('demo.tariff.municipalHealthNext'))}${field(t('financial.area'), t('demo.area.health'))}</div>`
   if (state.dialogStep === 1) body = `<div class="grid cols-2">${field(t('financial.versionName'), 'v1.0')}${field(t('financial.effective'), '2027-01-01', 'date')}<div class="field"><label for="tariff-annual-hours">${t('financial.annualHoursBasis')}</label><input id="tariff-annual-hours" name="annualHoursBasis" type="number" min="1" value="1860" required><p class="field-help">${t('financial.hoursUnit')}</p></div></div>`
-  if (state.dialogStep === 2) body = `<div class="grid cols-2"><button class="card choice-card" type="button" data-action="demo-toast"><h3>${t('financial.manual')}</h3><p class="muted">${t('financial.salaryTable')}</p></button><button class="card choice-card" type="button" data-action="open-import"><h3>${t('financial.importExcel')}</h3><p class="muted">${t('financial.uploadHelp')}</p></button></div>${salaryTableMarkup()}`
+  if (state.dialogStep === 2) body = `<div class="grid cols-2"><button class="card choice-card" type="button" data-action="demo-toast"><h3>${t('financial.manual')}</h3><p class="muted">${t('financial.salaryTable')}</p></button><button class="card choice-card" type="button" data-action="open-import"><h3>${t('financial.importExcel')}</h3><p class="muted">${t('financial.uploadHelp')}</p></button></div>${salaryTableMarkup(null)}`
   if (state.dialogStep === 3) body = `<article class="card"><div class="summary-line"><span>${t('financial.agreementName')}</span><strong>${t('demo.tariff.municipalHealthNext')}</strong></div><div class="summary-line"><span>${t('financial.versionName')}</span><strong>v1.0</strong></div><div class="summary-line"><span>${t('financial.effective')}</span><strong>${formatDate('2027-01-01')}</strong></div><div class="summary-line"><span>${t('financial.salaryTable')}</span><strong>12 × 3</strong></div></article>`
   const stepper = `<div class="stepper">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}" ${i > state.dialogStep ? 'disabled' : ''}><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`financial.${step}`)}</span></button>`).join('')}</div>${body}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}<button class="button" data-action="${state.dialogStep === 3 ? 'dialog-complete' : 'dialog-next'}">${state.dialogStep === 3 ? t('common.finish') : `${t('common.next')}${icon('arrow-right')}`}</button></div>`
@@ -15412,7 +15430,7 @@ function tariffDialog() {
   const areaChoices = ['demo.area.health', 'demo.area.followUp', 'demo.area.office', 'demo.area.admin'].map(key => ({ value: key, text: t(key) }))
   let body = `${formError()}<div class="grid cols-2">${bound('name', t('financial.agreementName'), { required: true })}${boundSelect('area', t('financial.area'), areaChoices, { placeholder: t('common.select') })}${bound('reference', t('financial.reference'))}</div>`
   if (state.dialogStep === 1) body = `${formError()}<div class="grid cols-2">${bound('versionName', t('financial.versionName'), { value: 'v1.0' })}${bound('versionEffective', t('financial.effective'), { type: 'date' })}</div><p class="field-help">${t('financial.autoActive')}</p><p class="field-help">${t('financial.basisConfiguredAfterCreate')}</p>`
-  if (state.dialogStep === 2) body = `<div class="grid cols-2"><button class="card choice-card" type="button" data-action="demo-toast"><h3>${t('financial.manual')}</h3><p class="muted">${t('financial.salaryTable')}</p></button><button class="card choice-card" type="button" data-action="open-import"><h3>${t('financial.importExcel')}</h3><p class="muted">${t('financial.uploadHelp')}</p></button></div>${salaryTableMarkup(Number(draftValue('annualHoursBasis')) || null)}`
+  if (state.dialogStep === 2) body = `<div class="grid cols-2"><button class="card choice-card" type="button" data-action="demo-toast"><h3>${t('financial.manual')}</h3><p class="muted">${t('financial.salaryTable')}</p></button><button class="card choice-card" type="button" data-action="open-import"><h3>${t('financial.importExcel')}</h3><p class="muted">${t('financial.uploadHelp')}</p></button></div>${salaryTableMarkup(Number(draftValue('annualHoursBasis')) > 0 ? { name: String(draftValue('versionName', '')), annualHoursBasis: Number(draftValue('annualHoursBasis')) } : null)}`
   if (state.dialogStep === 3) body = `<article class="card"><div class="summary-line"><span>${t('financial.agreementName')}</span><strong>${escapeHtml(draftValue('name'))}</strong></div><div class="summary-line"><span>${t('financial.area')}</span><strong>${lab(draftValue('area'))}</strong></div><div class="summary-line"><span>${t('financial.versionName')}</span><strong>${escapeHtml(draftValue('versionName', 'v1.0'))}</strong></div><div class="summary-line"><span>${t('financial.effective')}</span><strong>${draftValue('versionEffective') ? formatDate(draftValue('versionEffective')) : ''}</strong></div></article>${storageNote()}`
   const stepper = `<div class="stepper">${steps.map((step, i) => `<button class="step ${i === state.dialogStep ? 'is-active' : ''} ${i < state.dialogStep ? 'is-complete' : ''}" data-step="${i}"><span class="step-number">${i < state.dialogStep ? icon('check') : i + 1}</span><span class="step-label">${t(`financial.${step}`)}</span></button>`).join('')}</div>${body}`
   const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions">${state.dialogStep > 0 ? `<button class="button secondary" data-action="dialog-back">${icon('arrow-left')}${t('common.back')}</button>` : ''}${state.dialogStep < 3 ? `<button class="button secondary" data-action="dialog-next">${t('common.next')}${icon('arrow-right')}</button>` : ''}<button class="button" data-action="save-tariff">${t('common.save')}</button></div>`
@@ -18563,7 +18581,7 @@ function crudHandlers(target) {
     },
     'save-salary-cell': () => {
       const tariff = record('tariffs', state.selected.tariff)
-      const version = tariff?.versions?.[0]
+      const version = currentAdminVersion(tariff)
       if (!version) return
       const education = String(state.draft.education ?? '').trim()
       const annualSalary = Number(state.draft.annualSalary) || 0
@@ -18592,7 +18610,7 @@ function crudHandlers(target) {
     // standardgrunnlag + valgfrie regler per arbeidstype (tom = standard).
     'save-annual-basis': () => {
       const tariff = record('tariffs', state.editingId ?? state.selected.tariff)
-      const version = tariff?.versions?.[0]
+      const version = currentAdminVersion(tariff)
       if (!version) return
       const standard = Number(state.draft.annualHoursBasis)
       version.annualHoursBasis = Number.isFinite(standard) && standard > 0 ? standard : null
