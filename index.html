@@ -4248,6 +4248,7 @@ const copy = {
     'financial.annualSalaryRequired': 'Årslønn er obligatorisk.',
     'financial.annualBasisRequiredForCell': 'Konfigurer årsverksgrunnlaget før lønnssatsen kan lagres.',
     'financial.rateBasisHelp': 'Timesats beregnes ut fra årsverksgrunnlaget som gjelder for vaktens arbeidstype.',
+    'financial.versionContextMissing': 'Kunne ikke finne lønnssystemversjonen. Lukk dialogen og prøv igjen.',
     'financial.addRules': 'Legg til regler',
     'financial.versionsHelp': 'Administrer gjeldende versjoner av lønnssystemet.',
     'financial.currentVersionTag': 'Gjeldende',
@@ -5352,7 +5353,7 @@ copy.en = {
   'financial.standardAnnualHoursBasis': 'Standard annual hours basis',
   'financial.annualBasisSection': 'Annual hours basis',
   'financial.basisConfigured': 'Configured',
-  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.educationRequired': 'Education level is required.', 'financial.annualSalaryRequired': 'Annual salary is required.', 'financial.annualBasisRequiredForCell': 'Configure the annual work basis before the pay rate can be saved.', 'financial.rateBasisHelp': 'Hourly rate is calculated from the annual work basis applicable to the shift type.', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
+  'financial.basisNotConfigured': 'Missing', 'financial.noRules': 'No rules', 'financial.educationRequired': 'Education level is required.', 'financial.annualSalaryRequired': 'Annual salary is required.', 'financial.annualBasisRequiredForCell': 'Configure the annual work basis before the pay rate can be saved.', 'financial.rateBasisHelp': 'Hourly rate is calculated from the annual work basis applicable to the shift type.', 'financial.versionContextMissing': 'Could not find the Pay System version. Close the dialog and try again.', 'financial.addRules': 'Add rules', 'financial.versionsHelp': 'Manage effective versions of this Pay System.', 'financial.currentVersionTag': 'Current',
   'financial.configureBasis': 'Configure annual hours basis',
   'financial.basisConfiguredAfterCreate': 'The annual hours basis is configured after creation, under Annual hours basis on the pay system.',
   'departments.paySystemNoBasis': 'The pay system has no annual hours basis. Configure the annual hours basis before connecting the system to a department.',
@@ -12180,7 +12181,9 @@ function salaryTableMarkup(version = null) {
   const cells = version?.salaryCells ?? []
   const basisReady = Number(version?.annualHoursBasis) > 0
   const basis = `<div class="salary-table-basis"><strong>${t('financial.version')}</strong><span>${version?.name ? escapeHtml(version.name) : '—'}</span>${basisReady ? '' : `<strong>${t('financial.annualHoursBasis')}</strong><span class="muted">${t('financial.salaryBasisMissing')}</span>`}</div><p class="field-help">${t('financial.rateBasisHelp')}</p>`
-  const add = `<div class="list-actions">${button('financial.addSalaryCell', 'create-salary-cell', '', 'plus')}</div>`
+  // «Legg til lønnssats» finnes KUN med en konkret versjonskontekst (§2) -
+  // aldri i wizard-/import-forhåndsvisninger eller kontekstløse ruter.
+  const add = version?.id ? `<div class="list-actions">${button('financial.addSalaryCell', 'create-salary-cell', '', 'plus')}</div>` : ''
   if (!cells.length) {
     return `<div class="salary-table-wrap">${basis}${add}<div class="empty-state"><span class="empty-icon">${icon('wallet')}</span><h3>${t('financial.noSalaryCells')}</h3></div></div>`
   }
@@ -14439,6 +14442,12 @@ function navigate(route, id = null) {
   state.route = route
   state.sidebarOpen = false
   state.rowMenu = null
+  // Lønnssatsdialogen hører til lønnssystem-detaljruten: navigering lukker
+  // den (§4) - aldri en foreldreløs dialog over en annen flate. Målrettet
+  // for akkurat denne dialogen; øvrig dialogatferd er bevisst uendret.
+  if (state.dialog === 'salary-cell') {
+    state.dialog = null; state.dialogMode = null; state.draft = {}; state.editingId = null; state.formError = null
+  }
   // Varselpanelet lukkes ved navigasjon, og dashboardets plass-/timelistefilter
   // gjelder bare så lenge man står i listen bak kortet (§13).
   state.notificationsOpen = false
@@ -16178,7 +16187,14 @@ function actionHandlers(target = null) {
       state.draft.dates = (state.draft.dates ?? []).filter(item => item.id !== target?.dataset?.id)
       render()
     },
-    'create-salary-cell': () => openDialog('salary-cell', 'create', { seniorityMin: 0, seniorityMax: 99 }),
+    'create-salary-cell': () => {
+      // Eksplisitt kontekst (§2-§3): dialogen bindes til lønnssystemet og
+      // admin-versjonen som åpnet den - aldri kun flyktig global selected-state.
+      const tariff = record('tariffs', state.selected.tariff)
+      const version = currentAdminVersion(tariff)
+      if (!tariff || !version) { showToast('financial.versionContextMissing', {}); return }
+      openDialog('salary-cell', 'create', { seniorityMin: 0, seniorityMax: 99, cellTariffId: String(tariff.id), cellVersionId: String(version.id) })
+    },
     'delete-salary-cell': () => {
       const tariff = record('tariffs', state.selected.tariff)
       const version = tariff?.versions?.[0]
@@ -18580,9 +18596,13 @@ function crudHandlers(target) {
       commit(entities.overtime.collection, entities.overtime.prefix, entities.overtime.nameField, entities.overtime.fromDraft)
     },
     'save-salary-cell': () => {
-      const tariff = record('tariffs', state.selected.tariff)
+      // Målet er den FANGEDE dialogkonteksten (§3) - validert mot kanoniske
+      // data. Uten gyldig kontekst: synlig feil, ingen mutasjon - aldri stille (§5).
+      const tariff = record('tariffs', state.draft.cellTariffId ?? state.selected.tariff)
       const version = currentAdminVersion(tariff)
-      if (!version) return
+      if (!tariff || !version || (state.draft.cellVersionId && String(version.id) !== String(state.draft.cellVersionId))) {
+        state.formError = 'financial.versionContextMissing'; render(); return
+      }
       const education = String(state.draft.education ?? '').trim()
       const annualSalary = Number(state.draft.annualSalary) || 0
       const hours = Number(version.annualHoursBasis) || 0
