@@ -2798,8 +2798,6 @@ const state = {
   economyView: 'admin',
   drawer: null,
   // Simulering og versjonssammenligning.
-  simulationForm: { employeeId: 'e1', tariffId: 't1', scenario: 'planned', startDate: '2026-08-17', endDate: '2026-08-17' },
-  lastSimulation: null,
   compareVersionId: 'sv2',
   compareAgainstId: null,
   // Varselpanelet i topplinjen: bare åpen/lukket. Lest-status bor i lageret.
@@ -6805,8 +6803,6 @@ const routes = {
   invoicing: ['comp.pages.invoicingTitle', 'comp.pages.invoicingDesc'],
   payroll: ['comp.pages.payrollTitle', 'comp.pages.payrollDesc'],
   'payroll-employee': ['comp.payroll.employeeBasis', 'comp.pages.payrollDesc'],
-  simulation: ['comp.pages.simulationTitle', 'comp.pages.simulationDesc'],
-  calculation: ['comp.calculation.title', 'comp.pages.simulationDesc'],
   versions: ['comp.pages.versionsTitle', 'comp.pages.versionsDesc'],
   'version-compare': ['comp.versions.compareTitle', 'comp.pages.versionsDesc'],
   settings: ['nav.settings', 'page.settings.desc'],
@@ -6837,7 +6833,7 @@ const menu = [
 // Demo-data holdes språknøytralt: felt som skal oversettes lagres som
 // katalognøkler, datoer som ISO og tall som tall. Poster teamet oppretter selv
 // lagrer fritekst, som label() sender uendret gjennom.
-const SEED_VERSION = 16
+const SEED_VERSION = 17
 const STORAGE_KEY = 'workmatic-preview-demo'
 
 // === Aktivt demo-datasett vs. isolert test-fixture ===
@@ -6851,222 +6847,26 @@ function seedData() {
   return globalThis.__WORKMATIC_TEST_SEED__ ? legacyTestData() : demoSeedData()
 }
 
-// Seed-hjelper (kun mock-infrastruktur, aldri produksjonsberegning):
-// genererer en ansiennitetsstige 0-20 år med compound 5 % vekst per år, for
-// alle fem utdanningsnivåene med compound x1,15 mellom nivåene. Én
-// deterministisk rundingsregel: beløpet rundes til hele kroner ETTER at både
-// ansiennitetsvekst og utdanningsmultiplikator er anvendt (aldri runding
-// mellom stegene). Timesatsen avledes av versjonens standard årsverksgrunnlag.
-// Kanoniske utdanningsnøkler gjenbrukes - ingen parallelle typer.
-const DEMO_EDUCATION_LEVELS = ['no_formal_qualification', 'trade_certificate', 'bachelor', 'bachelor_further', 'master']
-
-// Eksakt desimalaritmetikk med BigInt: base x 1,05^år x 1,15^nivå beregnes som
-// base x 105^år x 115^nivå / 100^(år+nivå) og rundes til nærmeste hele krone
-// med halve kroner OPP (ordinær kroneavrunding). Dermed er stigen aldri
-// avhengig av IEEE-754-artefakter (500 000 x 1,15³ = 760 437,50 -> 760 438).
-// Kun seed-/mock-infrastruktur - produksjonsmotoren bruker ikke helperen.
-function demoRoundedSalary(baseSalary, year, educationLevel) {
-  const numerator = BigInt(baseSalary) * (105n ** BigInt(year)) * (115n ** BigInt(educationLevel))
-  const denominator = 100n ** BigInt(year + educationLevel)
-  return Number((2n * numerator + denominator) / (2n * denominator))
-}
-
-function demoSalaryLadder({ baseSalary, seniorityStart, seniorityEnd, hours, cellPrefix }) {
-  const cells = []
-  for (let year = seniorityStart; year <= seniorityEnd; year += 1) {
-    for (const [levelIndex, education] of DEMO_EDUCATION_LEVELS.entries()) {
-      const annualSalary = demoRoundedSalary(baseSalary, year, levelIndex)
-      cells.push({
-        id: `${cellPrefix}-${year}-${education}`,
-        role: '',
-        education,
-        seniorityMin: year,
-        seniorityMax: year,
-        annualSalary,
-        rate: annualSalary / hours,
-        unit: 'hourly'
-      })
-    }
-  }
-  return cells
-}
-
-// De fire demo-lønnssystemene: System 2/3/4 kjedes fra forrige systems
-// faktiske trinnbeløp (x 1,10), slik at relasjonen er eksakt på alle 21 trinn.
-function demoPaySystems() {
-  const hours = 1950
-  const basisRules = { day: 1950, evening: 1846, night: 1695, live_in: 1667 }
-  const systems = []
-  let base = 500000
-  for (let index = 1; index <= 4; index += 1) {
-    systems.push({
-      id: `t${index}`,
-      name: `Lønnssystem ${index}`,
-      paySystemType: 'custom',
-      area: 'demo.area.health',
-      reference: 'Demoavtale 2026',
-      status: 'published',
-      premiumSchemeIds: [],
-      overtimeSchemeId: null,
-      versions: [{
-        id: `v${index}`,
-        name: '2026.1',
-        effective: '2026-01-01',
-        effectiveTo: '',
-        status: 'published',
-        annualHoursBasis: hours,
-        annualBasisRules: { ...basisRules },
-        salaryCells: demoSalaryLadder({ baseSalary: base, seniorityStart: 0, seniorityEnd: 20, hours, cellPrefix: `cell-t${index}` })
-      }]
-    })
-    // Systemkjeden x1,10 holdes også eksakt (basene er delelige på 10).
-    base = (base * 11) / 10
-  }
-  return systems
-}
-
-// Én komplett demo-ansatt: alle obligatoriske felter er gyldige etter dagens
-// regler (kun interne notater står tomt), inkl. mod11-gyldig norsk konto.
-function demoEmployee({ id, number, firstName, lastName, gender, education, educationName, seniorityBasisDate, departmentId, profession, birthDate, phone }) {
-  return {
-    id,
-    employeeNumber: number,
-    name: `${firstName} ${lastName}`,
-    firstName,
-    lastName,
-    gender,
-    email: `${firstName.toLocaleLowerCase()}.${lastName.toLocaleLowerCase()}@workmatic.demo.no`,
-    phone,
-    birthDate,
-    addressStreet: 'Demoveien 1',
-    addressPostalCode: '0180',
-    addressCity: 'Oslo',
-    addressCountry: 'NO',
-    address: 'Demoveien 1, 0180 Oslo',
-    bankCountry: 'NO',
-    bankAccount: '1234 56 78903',
-    policeCertificateDate: '',
-    kinName: 'Nær Kontakt',
-    kinRelation: 'demo.relationship.spouse',
-    kinPhone: '+47 900 00 099',
-    education,
-    educationName,
-    qualification: { no_formal_qualification: 'none', trade_certificate: 'trade_certificate', bachelor: 'bachelor', bachelor_further: 'bachelor_further', master: 'master' }[education] ?? 'none',
-    authorization: education === 'trade_certificate',
-    certifications: [],
-    competenceTags: [],
-    profession,
-    departmentId,
-    start: seniorityBasisDate,
-    employmentStatus: 'active',
-    employmentPercentage: 100,
-    employmentType: 'permanent',
-    seniorityBasisDate,
-    seniorityApproved: true,
-    seniorityApprovedBy: 'Demo Admin',
-    seniorityApprovalDate: '2026-08-01',
-    adminNotes: '',
-    availability: ['day', 'evening'],
-    status: 'active',
-    documents: [],
-    salaryHistory: []
-  }
-}
-
-// Det kontrollerte demo-datasettet: 1 virksomhet, 5 avdelinger (alle med
-// lønnssystem - hardregelen), 4 lønnssystemer med 0-20-årsstiger, og 8
-// komplette ansatte (2 kvinner med utdanning, 2 uten; 2 menn med, 2 uten)
-// fordelt på avdelingene og på ansiennitetstrinnene 0/2/5/7/10/12/15/20.
+// Demoen starter TOM etter eksplisitt beslutning (aug 2026): ingen
+// virksomheter, avdelinger, ansatte eller vakter - alt legges inn manuelt
+// for testing. KUN de fire lønnssystemene beholdes, fordi hardregelen krever
+// lønnssystem på avdeling: uten dem kan ingenting opprettes manuelt.
 function demoSeedData() {
-  const department = (id, name, paySystemId, departmentNumber) => ({
-    id,
-    name,
-    departmentNumber,
-    description: '',
-    manager: 'Kari Demo',
-    managerPhone: '+47 900 00 010',
-    departmentPhone: '+47 22 00 00 10',
-    clientId: 'c1',
-    paySystemId,
-    street: 'Demoveien',
-    houseNumber: '1',
-    postalCode: '0180',
-    city: 'Oslo',
-    county: 'demo.county.oslo',
-    status: 'active'
-  })
   return {
     meta: { version: SEED_VERSION, nextId: 100 },
-    clients: [{
-      id: 'c1',
-      name: 'Workmatic Omsorg AS',
-      org: '923 456 789',
-      tariffId: null,
-      paySystemIds: ['t1', 't2', 't3', 't4'],
-      provision: 10,
-      vat: 25,
-      email: 'post@workmatic.demo.no',
-      invoiceEmail: 'faktura@workmatic.demo.no',
-      phone: '+47 22 00 00 00',
-      address: 'Demoveien 1, 0180 Oslo',
-      county: 'demo.county.oslo',
-      created: '2026-08-01',
-      status: 'active',
-      documents: []
-    }],
-    departments: [
-      department('d1', 'Sentrum', 't1', '100'),
-      department('d2', 'Nord', 't2', '200'),
-      department('d3', 'Sør', 't3', '300'),
-      department('d4', 'Øst', 't4', '400'),
-      department('d5', 'Vest', 't1', '500')
-    ],
-    shiftTemplates: [
-      { id: 'st1', name: 'Dagvakt', clientId: 'c1', type: 'regular', startTime: '07:00', endTime: '15:00', breakMinutes: 30, endNextDay: false, annualBasisType: 'day', status: 'active' },
-      { id: 'st2', name: 'Kveldsvakt', clientId: 'c1', type: 'regular', startTime: '15:00', endTime: '22:00', breakMinutes: 30, endNextDay: false, annualBasisType: 'evening', status: 'active' },
-      { id: 'st3', name: 'Nattevakt', clientId: 'c1', type: 'regular', startTime: '22:00', endTime: '07:00', breakMinutes: 30, endNextDay: true, annualBasisType: 'night', status: 'active' }
-    ],
+    clients: [],
+    departments: [],
+    shiftTemplates: [],
     contacts: [],
     candidates: [],
-    employees: [
-      demoEmployee({ id: 'e1', number: 'A-1001', firstName: 'Maja', lastName: 'Nilsen', gender: 'form.genderFemale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2026-06-01', departmentId: 'd1', profession: 'demo.profession.healthWorker', birthDate: '1994-04-14', phone: '+47 900 00 001' }),
-      demoEmployee({ id: 'e2', number: 'A-1002', firstName: 'Ingrid', lastName: 'Berg', gender: 'form.genderFemale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2024-06-01', departmentId: 'd1', profession: 'demo.profession.healthWorker', birthDate: '1991-02-20', phone: '+47 900 00 002' }),
-      demoEmployee({ id: 'e3', number: 'A-1003', firstName: 'Sofie', lastName: 'Dahl', gender: 'form.genderFemale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2021-06-01', departmentId: 'd2', profession: 'demo.profession.assistant', birthDate: '1996-07-08', phone: '+47 900 00 003' }),
-      demoEmployee({ id: 'e4', number: 'A-1004', firstName: 'Amina', lastName: 'Ali', gender: 'form.genderFemale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2019-06-01', departmentId: 'd2', profession: 'demo.profession.assistant', birthDate: '1998-11-02', phone: '+47 900 00 004' }),
-      demoEmployee({ id: 'e5', number: 'A-1005', firstName: 'Jonas', lastName: 'Solheim', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2016-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1989-01-30', phone: '+47 900 00 005' }),
-      demoEmployee({ id: 'e6', number: 'A-1006', firstName: 'Emil', lastName: 'Haugen', gender: 'form.genderMale', education: 'trade_certificate', educationName: 'Helsefagarbeider', seniorityBasisDate: '2014-06-01', departmentId: 'd3', profession: 'demo.profession.healthWorker', birthDate: '1987-05-17', phone: '+47 900 00 006' }),
-      demoEmployee({ id: 'e7', number: 'A-1007', firstName: 'Sander', lastName: 'Lie', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2011-06-01', departmentId: 'd4', profession: 'demo.profession.assistant', birthDate: '1985-09-25', phone: '+47 900 00 007' }),
-      demoEmployee({ id: 'e8', number: 'A-1008', firstName: 'Olav', lastName: 'Strand', gender: 'form.genderMale', education: 'no_formal_qualification', educationName: 'Ingen formell utdanning', seniorityBasisDate: '2006-06-01', departmentId: 'd5', profession: 'demo.profession.assistant', birthDate: '1980-12-12', phone: '+47 900 00 008' }),
-      // Bachelor: 3 kvinner + 3 menn, spredt på avdelinger og ansiennitet.
-      demoEmployee({ id: 'e9', number: 'A-1009', firstName: 'Nora', lastName: 'Bakken', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i sykepleie', seniorityBasisDate: '2026-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1999-03-05', phone: '+47 900 00 009' }),
-      demoEmployee({ id: 'e10', number: 'A-1010', firstName: 'Thea', lastName: 'Moen', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i vernepleie', seniorityBasisDate: '2023-06-01', departmentId: 'd2', profession: 'demo.profession.socialEducator', birthDate: '1995-08-19', phone: '+47 900 00 010' }),
-      demoEmployee({ id: 'e11', number: 'A-1011', firstName: 'Ida', lastName: 'Foss', gender: 'form.genderFemale', education: 'bachelor', educationName: 'Bachelor i sosialt arbeid', seniorityBasisDate: '2019-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1992-01-27', phone: '+47 900 00 011' }),
-      demoEmployee({ id: 'e12', number: 'A-1012', firstName: 'Marius', lastName: 'Eide', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i sykepleie', seniorityBasisDate: '2025-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1997-06-14', phone: '+47 900 00 012' }),
-      demoEmployee({ id: 'e13', number: 'A-1013', firstName: 'Henrik', lastName: 'Aas', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i vernepleie', seniorityBasisDate: '2021-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1993-10-02', phone: '+47 900 00 013' }),
-      demoEmployee({ id: 'e14', number: 'A-1014', firstName: 'Adrian', lastName: 'Vik', gender: 'form.genderMale', education: 'bachelor', educationName: 'Bachelor i sosialt arbeid', seniorityBasisDate: '2014-06-01', departmentId: 'd1', profession: 'demo.profession.socialEducator', birthDate: '1988-04-23', phone: '+47 900 00 014' }),
-      // Bachelor med videreutdanning: bachelor + relevant videreutdanning i
-      // eksisterende modell (nivået bærer det; navnet beskriver begge).
-      demoEmployee({ id: 'e15', number: 'A-1015', firstName: 'Julie', lastName: 'Holm', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i psykisk helse', seniorityBasisDate: '2024-06-01', departmentId: 'd2', profession: 'demo.profession.nurse', birthDate: '1994-12-09', phone: '+47 900 00 015' }),
-      demoEmployee({ id: 'e16', number: 'A-1016', firstName: 'Camilla', lastName: 'Rønning', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i vernepleie med videreutdanning i rus og avhengighet', seniorityBasisDate: '2016-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1990-02-16', phone: '+47 900 00 016' }),
-      demoEmployee({ id: 'e17', number: 'A-1017', firstName: 'Silje', lastName: 'Nygård', gender: 'form.genderFemale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i geriatri', seniorityBasisDate: '2008-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1984-07-30', phone: '+47 900 00 017' }),
-      demoEmployee({ id: 'e18', number: 'A-1018', firstName: 'Kristoffer', lastName: 'Lund', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i sosialt arbeid med videreutdanning i miljøterapi', seniorityBasisDate: '2026-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1998-09-11', phone: '+47 900 00 018' }),
-      demoEmployee({ id: 'e19', number: 'A-1019', firstName: 'Andreas', lastName: 'Sæther', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i sykepleie med videreutdanning i akuttmedisin', seniorityBasisDate: '2019-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1991-05-06', phone: '+47 900 00 019' }),
-      demoEmployee({ id: 'e20', number: 'A-1020', firstName: 'Mats', lastName: 'Ødegård', gender: 'form.genderMale', education: 'bachelor_further', educationName: 'Bachelor i vernepleie med videreutdanning i psykisk helse', seniorityBasisDate: '2011-06-01', departmentId: 'd2', profession: 'demo.profession.socialEducator', birthDate: '1986-11-21', phone: '+47 900 00 020' }),
-      // Master: 3 kvinner + 3 menn.
-      demoEmployee({ id: 'e21', number: 'A-1021', firstName: 'Hanna', lastName: 'Bjerke', gender: 'form.genderFemale', education: 'master', educationName: 'Master i helsevitenskap', seniorityBasisDate: '2025-06-01', departmentId: 'd3', profession: 'demo.profession.nurse', birthDate: '1996-01-13', phone: '+47 900 00 021' }),
-      demoEmployee({ id: 'e22', number: 'A-1022', firstName: 'Maren', lastName: 'Skogen', gender: 'form.genderFemale', education: 'master', educationName: 'Master i avansert klinisk sykepleie', seniorityBasisDate: '2021-06-01', departmentId: 'd4', profession: 'demo.profession.nurse', birthDate: '1992-06-28', phone: '+47 900 00 022' }),
-      demoEmployee({ id: 'e23', number: 'A-1023', firstName: 'Emilie', lastName: 'Kleppe', gender: 'form.genderFemale', education: 'master', educationName: 'Master i psykisk helsearbeid', seniorityBasisDate: '2014-06-01', departmentId: 'd5', profession: 'demo.profession.socialEducator', birthDate: '1988-08-08', phone: '+47 900 00 023' }),
-      demoEmployee({ id: 'e24', number: 'A-1024', firstName: 'Oskar', lastName: 'Tangen', gender: 'form.genderMale', education: 'master', educationName: 'Master i helsevitenskap', seniorityBasisDate: '2023-06-01', departmentId: 'd1', profession: 'demo.profession.nurse', birthDate: '1994-04-04', phone: '+47 900 00 024' }),
-      demoEmployee({ id: 'e25', number: 'A-1025', firstName: 'Johan', lastName: 'Wold', gender: 'form.genderMale', education: 'master', educationName: 'Master i avansert klinisk sykepleie', seniorityBasisDate: '2016-06-01', departmentId: 'd2', profession: 'demo.profession.nurse', birthDate: '1989-12-01', phone: '+47 900 00 025' }),
-      demoEmployee({ id: 'e26', number: 'A-1026', firstName: 'Espen', lastName: 'Grimstad', gender: 'form.genderMale', education: 'master', educationName: 'Master i psykisk helsearbeid', seniorityBasisDate: '2006-06-01', departmentId: 'd3', profession: 'demo.profession.socialEducator', birthDate: '1982-03-18', phone: '+47 900 00 026' })
-    ],
+    employees: [],
     assignments: [],
     jobs: [],
     shifts: [],
     timesheets: [],
     workSessions: [],
     positions: [],
-    tariffs: demoPaySystems(),
+    tariffs: [],
     schemes: [],
     holidays: [],
     schemeVersions: [],
@@ -8456,11 +8256,10 @@ function table(headers, rows) {
 const financeMenu = [
   ['financial', 'financial.tariffs'],
   ['invoicing', 'comp.pages.invoicingTitle'],
-  ['payroll', 'comp.pages.payrollTitle'],
-  ['simulation', 'comp.pages.simulationTitle']
+  ['payroll', 'comp.pages.payrollTitle']
 ]
 
-const financeRoutes = new Set(['financial', 'tariff-detail', 'salary-table', 'premiums', 'overtime', 'invoicing', 'payroll', 'simulation', 'calculation', 'versions', 'version-compare'])
+const financeRoutes = new Set(['financial', 'tariff-detail', 'salary-table', 'premiums', 'overtime', 'invoicing', 'payroll', 'versions', 'version-compare'])
 const shiftRoutes = new Set(['shifts', 'staffing', 'shift-plan', 'job-detail', 'timesheets', 'timesheet-review', 'timesheet-day'])
 
 function renderSidebar() {
@@ -14511,205 +14310,9 @@ function requestHistoryCard(assignment) {
   return `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('staffing.requestHistory')}</h2><span class="tag info">${rows.length}</span></div>${table(['staffing.slots', 'staffing.sentTo', 'staffing.channel', 'staffing.sentAtLabel', 'common.status', 'staffing.respondedAt', 'staffing.responseDeadline'], rows)}</article>`
 }
 
-// === Test og simulering ===
-// Segmentene er våre egne, generert deterministisk av valgt ansatt, ordning og
-// scenario. Ingen tall er hentet fra kompensasjons-prototypen.
-
-// Scenariene bestemmer hvilke segmenter en vakt brytes ned i.
-const scenarioSegments = {
-  planned: [
-    { category: 'active', method: 'hourly', factor: 1, from: '07:00', to: '15:00', hours: 8 },
-    { category: 'active', method: 'hourly', factor: 1, from: '15:00', to: '21:00', hours: 6 }
-  ],
-  actual: [
-    { category: 'active', method: 'hourly', factor: 1, from: '07:00', to: '15:00', hours: 8 },
-    { category: 'active', method: 'hourly', factor: 1, from: '15:00', to: '22:00', hours: 7 },
-    { category: 'passive', method: 'factored', factor: 0.33, from: '22:00', to: '07:00', hours: 9 }
-  ],
-  holiday: [
-    { category: 'holiday', method: 'hourly', factor: 1.33, from: '08:00', to: '16:00', hours: 8 },
-    { category: 'standby', method: 'fixedSegment', factor: 0, from: '16:00', to: '23:00', hours: 7 }
-  ]
-}
-
-function simulate(form) {
-  const employee = record('employees', form.employeeId)
-  const paySystem = record('tariffs', form.tariffId)
-  if (!employee || !paySystem) return null
-
-  // Oppdraget velges via en avdeling som bruker det valgte lønnssystemet, slik
-  // at simuleringen går gjennom nøyaktig samme kjede som en ekte vakt.
-  const departmentIds = new Set(collection('departments').filter(item => (item.paySystemId || item.tariffId) === paySystem.id).map(item => item.id))
-  const assignment = collection('assignments').find(item => departmentIds.has(item.departmentId) && item.employeeIds?.includes(employee.id) && item.status !== 'draft')
-    ?? collection('assignments').find(item => departmentIds.has(item.departmentId) && item.status !== 'draft')
-  const resolution = resolveCompensation(employee, assignment, form.startDate)
-  if (!resolution.ok) return null
-  const tariff = record('tariffs', resolution.tariffId)
-  // Lønnstabellversjonen er den som gjelder på datoen, fra lønnssystemet.
-  const version = payContextFor(assignment, form.startDate).version
-  const rate = resolution.baseRate
-  const blueprint = scenarioSegments[form.scenario] ?? scenarioSegments.planned
-  // Simuleringen leser de samme tilleggs- og overtidsreglene som rapportene, slik
-  // at det bare finnes én sannhetskilde for satsene. Reglene eies av
-  // lønnssystemet avdelingen har valgt, ikke av ordningen.
-  const daily = overtimeFor(resolution.tariffId, 'daily', form.startDate)
-  const weekly = overtimeFor(resolution.tariffId, 'weekly', form.startDate)
-  const threshold = Number(daily?.threshold ?? weekly?.threshold ?? 0) || Infinity
-  const overtimeRule = daily ?? weekly
-
-  let hoursSoFar = 0
-  const lines = blueprint.map((segment, index) => {
-    // Betalt tid følger metoden: faktortid vektes, faste segmenter betales flatt.
-    const paidHours = segment.method === 'factored' ? segment.hours * segment.factor : segment.hours
-    const controlHours = segment.category === 'passive' ? 0 : segment.hours
-    const beforeSegment = hoursSoFar
-    hoursSoFar += controlHours
-    const overtimeHours = Math.max(0, Math.min(controlHours, hoursSoFar - threshold) - Math.max(0, beforeSegment - threshold))
-
-    // Passiv tid får ikke tillegg: reglene som ellers ville truffet, blokkeres.
-    const premium = premiumsFor(resolution.tariffId, form.startDate, segment.from, segment.hours, rate)
-    const applied = segment.category === 'passive' ? [] : premium.applied
-    const blocked = segment.category === 'passive' ? [...premium.applied, ...premium.blocked] : premium.blocked
-    const premiumAmount = applied.reduce((sum, item) => sum + item.amount, 0)
-
-    const ordinaryAmount = segment.method === 'fixedSegment' ? rate * 2 : paidHours * rate * (segment.method === 'hourly' ? segment.factor : 1)
-    const overtimeAmount = overtimeRule
-      ? (overtimeRule.method === 'percentage'
-          ? overtimeHours * rate * ((Number(overtimeRule.value) || 0) / 100)
-          : overtimeHours * (Number(overtimeRule.value) || 0))
-      : 0
-
-    return {
-      id: `line-${index + 1}`,
-      start: `${form.startDate}T${segment.from}`,
-      end: `${form.startDate}T${segment.to}`,
-      category: segment.category,
-      method: segment.method,
-      factor: segment.method === 'hourly' && segment.factor === 1 ? null : segment.factor,
-      rawHours: segment.hours,
-      paidHours,
-      overtimeHours,
-      controlHours,
-      allowed: applied.map(item => item.rule.name),
-      blocked: blocked.map(item => item.rule.name),
-      rate,
-      ordinaryAmount,
-      overtimeAmount,
-      premiumAmount,
-      totalAmount: ordinaryAmount + overtimeAmount + premiumAmount,
-      ruleUsed: applied[0]?.rule.name ?? t(`comp.schemeCategories.payment.${segment.method}`)
-    }
-  })
-
-  const sum = key => lines.reduce((total, line) => total + line[key], 0)
-  const fixedTotal = lines.filter(line => line.method === 'fixedSegment').reduce((total, line) => total + line.ordinaryAmount, 0)
-  const summary = {
-    rawHours: sum('rawHours'),
-    paidHours: sum('paidHours'),
-    overtimeHours: sum('overtimeHours'),
-    controlHours: sum('controlHours'),
-    ordinaryTotal: sum('ordinaryAmount') - fixedTotal,
-    premiumTotal: sum('premiumAmount'),
-    fixedTotal,
-    total: sum('totalAmount')
-  }
-
-  const warnings = []
-  if (!version) warnings.push(t('comp.ui.missingEffective'))
-  if (!premiumRulesForPaySystem(resolution.tariffId, form.startDate).length) warnings.push(t('comp.rules.noRulesForClient'))
-  if (!overtimeRule) warnings.push(t('comp.rules.overtimeDisabled'))
-  if (summary.overtimeHours > 0) warnings.push(`${t('comp.schemeCategories.overtime')}: ${formatHours(summary.overtimeHours)}`)
-
-  return {
-    input: { ...form },
-    employee,
-    paySystem,
-    tariff,
-    assignment,
-    resolution,
-    version,
-    lines,
-    summary,
-    warnings,
-    matched: lines.filter(line => line.premiumAmount > 0).map(line => ({ name: line.allowed.join(', '), amount: line.premiumAmount })),
-    blocked: lines.filter(line => line.blocked.length).map(line => ({ name: line.blocked.join(', ') })),
-    sources: {
-      [t('financial.detail')]: `${label(paySystem.name)} ${version?.name ?? ''}`.trim(),
-      [t('financial.tariffs')]: tariff ? label(tariff.name) : t('common.none'),
-      [t('comp.common.engine')]: t('comp.ui.engine')
-    }
-  }
-}
-
-function segmentTime(value) {
-  return `${formatDate(value.slice(0, 10))} ${value.slice(11)}`
-}
-
-function simulationResults(result) {
-  const metrics = [
-    ['comp.simulation.rawPresence', formatHours(result.summary.rawHours)],
-    ['comp.simulation.paidTime', formatHours(result.summary.paidHours)],
-    ['comp.simulation.overtimeBasis', formatHours(result.summary.overtimeHours)],
-    ['comp.simulation.workingControl', formatHours(result.summary.controlHours)],
-    ['comp.simulation.ordinaryCompensation', formatMoney(result.summary.ordinaryTotal)],
-    ['comp.simulation.premiumTotal', formatMoney(result.summary.premiumTotal)],
-    ['comp.simulation.fixedAmounts', formatMoney(result.summary.fixedTotal)],
-    ['comp.simulation.totalCompensation', formatMoney(result.summary.total)]
-  ]
-  const head = ['comp.tables.start', 'comp.tables.end', 'comp.drawers.rawTime', 'comp.tables.category', 'comp.tables.method', 'comp.tables.factor', 'comp.simulation.paidTime', 'comp.schemeCategories.overtime', 'comp.schemeCategories.workingTime', 'comp.simulation.allowed', 'comp.simulation.blocked', 'comp.tables.amount']
-  const rows = result.lines.map(line => `<tr><td>${segmentTime(line.start)}</td><td>${segmentTime(line.end)}</td><td>${formatHours(line.rawHours)}</td><td>${t(`comp.ui.segmentCategory.${line.category}`)}</td><td>${t(`comp.schemeCategories.payment.${line.method}`)}</td><td>${line.factor === null ? '—' : formatNumber(line.factor, 2)}</td><td>${formatHours(line.paidHours)}</td><td>${formatHours(line.overtimeHours)}</td><td>${formatHours(line.controlHours)}</td><td>${line.allowed.length ? escapeHtml(line.allowed.join(', ')) : '—'}</td><td>${line.blocked.length ? `<span class="tag danger">${escapeHtml(line.blocked.join(', '))}</span>` : '—'}</td><td><strong>${formatMoney(line.totalAmount)}</strong></td></tr>`)
-  return `<div class="stats-grid" style="margin-top:16px">${metrics.map(([key, value]) => `<article class="stat-card"><span class="stat-label">${t(key)}</span><strong class="stat-value">${value}</strong></article>`).join('')}</div>
-    <article class="card" style="margin-top:16px"><div class="card-header"><h2>${t('comp.simulation.generatedSegments')}</h2><button type="button" class="button secondary small" data-route="calculation">${t('comp.simulation.details')} →</button></div><div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></article>`
-}
-
-function renderSimulation() {
-  const form = state.simulationForm
-  const scenarios = ['planned', 'actual', 'holiday'].map(key => ({ value: key, text: t(`comp.simulation.${key}`) }))
-  const fields = `<div class="grid cols-2">
-    ${simulationSelect('employeeId', t('comp.simulation.employee'), options('employees', item => item.name))}
-    ${simulationSelect('tariffId', t('comp.simulation.template'), tariffOptions())}
-    ${simulationSelect('scenario', t('comp.simulation.scenario'), scenarios)}
-    <div class="field"><label for="s-startDate">${t('comp.simulation.startDate')}</label><input id="s-startDate" type="date" data-simulation-field="startDate" value="${escapeHtml(form.startDate)}"></div>
-    <div class="field"><label for="s-endDate">${t('comp.simulation.endDate')}</label><input id="s-endDate" type="date" data-simulation-field="endDate" value="${escapeHtml(form.endDate)}"></div>
-  </div><div class="form-actions" style="margin-top:12px">${button('comp.ui.runSimulation', 'run-simulation', '', 'chart')}</div>`
-  const result = state.lastSimulation
-  const body = result ? simulationResults(result) : `<article class="card" style="margin-top:16px"><div class="empty-state"><span class="empty-icon">${icon('chart')}</span><h3>${t('comp.simulation.empty')}</h3></div></article>`
-  return `<section class="page">${pageHeading('comp.pages.simulationTitle', 'comp.pages.simulationDesc')}<article class="card">${fields}</article>${body}</section>`
-}
-
-function simulationSelect(name, labelText, choices) {
-  const current = String(state.simulationForm[name] ?? '')
-  return `<div class="field"><label for="s-${name}">${labelText}</label><select id="s-${name}" data-simulation-field="${name}">${choices.map(option => `<option value="${escapeHtml(option.value)}"${String(option.value) === current ? ' selected' : ''}>${escapeHtml(option.text)}</option>`).join('')}</select></div>`
-}
-
-function renderCalculation() {
-  const result = state.lastSimulation
-  if (!result) {
-    return `<section class="page">${pageHeading('comp.calculation.title', 'comp.pages.simulationDesc', button('common.back', 'back-simulation', 'secondary', 'arrow-left'))}<article class="card"><div class="empty-state"><span class="empty-icon">${icon('chart')}</span><h3>${t('comp.calculation.runFirst')}</h3></div></article></section>`
-  }
-  const summary = `<div class="summary-strip">${[
-    [t('financial.detail'), label(result.paySystem.name)],
-    [t('financial.version'), result.version?.name ?? ''],
-    [t('comp.invoicing.total'), formatMoney(result.summary.total)],
-    [t('comp.common.engine'), t('comp.ui.engine')]
-  ].map(([labelText, value]) => `<div class="summary-item"><span>${labelText}</span><strong>${escapeHtml(String(value))}</strong></div>`).join('')}</div>`
-  const head = ['comp.tables.timeRange', 'comp.tables.category', 'comp.tables.quantity', 'comp.tables.unit', 'comp.tables.rate', 'comp.tables.factor', 'comp.tables.premium', 'comp.tables.amount', 'comp.tables.ruleUsed']
-  const rows = result.lines.map(line => `<tr><td>${segmentTime(line.start)} – ${line.end.slice(11)}</td><td>${t(`comp.ui.segmentCategory.${line.category}`)}</td><td>${formatHours(line.rawHours)}</td><td>${t(`comp.schemeCategories.payment.${line.method}`)}</td><td>${formatMoney(line.rate)}</td><td>${line.factor === null ? '—' : formatNumber(line.factor, 2)}</td><td>${formatMoney(line.premiumAmount)}</td><td><strong>${formatMoney(line.totalAmount)}</strong></td><td>${escapeHtml(line.ruleUsed)}</td></tr>`)
-  const panels = [
-    ['comp.calculation.rulesUsed', result.matched.map(item => `${item.name}: ${formatMoney(item.amount)}`), true],
-    ['comp.calculation.blockedRules', result.blocked.map(item => item.name), false],
-    ['comp.calculation.sourceVersions', Object.entries(result.sources).map(([key, value]) => `${key}: ${value}`), false],
-    ['comp.calculation.warnings', result.warnings.length ? result.warnings : [t('comp.ui.noWarnings')], false],
-    ['comp.calculation.auditTrail', [t('comp.calculation.localAudit')], false]
-  ]
-  const details = `<div class="grid cols-2" style="margin-top:16px">${panels.map(([key, items, open]) => `<details class="employee-accordion"${open ? ' open' : ''}><summary>${t(key)} <span class="tag info">${items.length}</span><span aria-hidden="true">${icon('chevron')}</span></summary><div class="employee-accordion-content">${items.length ? items.map(item => `<div class="file-row"><span>${escapeHtml(item)}</span></div>`).join('') : `<p class="muted">—</p>`}</div></details>`).join('')}</div>`
-  const chips = `<div class="tag-row"><span class="tag success">${t('comp.calculation.calculated')}</span><span class="tag warning">${t('comp.calculation.notApproved')}</span></div>`
-  return `<section class="page">${pageHeading('comp.calculation.title', 'comp.pages.simulationDesc', button('common.back', 'back-simulation', 'secondary', 'arrow-left'))}
-    <article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${escapeHtml(result.employee.name)}</h2><p>${formatDate(result.input.startDate)} – ${formatDate(result.input.endDate)} · ${t(`comp.simulation.${result.input.scenario}`)}</p></div>${chips}</div></article>
-    ${summary}<div class="table-shell"><div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></div>${details}</section>`
-}
-
-// === Publiserte versjoner og sammenligning ===
+// === Versjonssammenligning ===
+// Test og simulering ble fjernet fra plattformen (brukerbeslutning aug 2026):
+// kun versjonsflatene under bor igjen i denne modulen.
 
 function renderVersions() {
   const rows = collection('schemeVersions').map(version => {
@@ -14765,7 +14368,7 @@ const renderers = {
   recruitment: renderRecruitment, messages: renderMessages, financial: renderFinancial,
   'tariff-detail': renderTariffDetail, 'salary-table': renderSalaryTable, settings: renderSettings,
   premiums: renderPremiums, overtime: renderOvertime, invoicing: renderInvoicing, payroll: renderPayroll, 'payroll-employee': renderPayrollEmployee,
-  simulation: renderSimulation, calculation: renderCalculation,
+
   versions: renderVersions, 'version-compare': renderVersionCompare,
   audit: renderAudit,
   absence: renderAbsence
@@ -16414,7 +16017,6 @@ function actionHandlers(target = null) {
     },
     ...crudHandlers(target),
     'client-row-menu': () => { const row = target?.dataset?.rowIndex ?? '0'; state.rowMenu = state.rowMenu === `client-${row}` ? null : `client-${row}`; render() },
-    'run-simulation': () => { state.lastSimulation = simulate(state.simulationForm); render(); showToast(state.lastSimulation ? 'comp.calculation.calculated' : 'comp.simulation.empty') },
     'compare-version': () => { state.compareVersionId = target?.dataset?.id ?? null; state.compareAgainstId = null; navigate('version-compare') },
     'duplicate-version': () => {
       const source = record('schemeVersions', target?.dataset?.id)
@@ -16423,7 +16025,6 @@ function actionHandlers(target = null) {
       render()
       showToast('comp.ui.duplicated')
     },
-    'back-simulation': () => navigate('simulation'),
     'back-versions': () => navigate('versions'),
     'toggle-payroll-detail': () => { state.payrollDetailed = !state.payrollDetailed; render() },
     'export-payroll': () => showToast(),
@@ -19316,16 +18917,6 @@ document.addEventListener('input', event => {
   if (event.target.matches('[data-filter="search"]')) setFilter('search', event.target.value)
 })
 
-// Rapportfiltrene rendrer på nytt, siden hele rapporten avhenger av dem.
-function captureSimulationField(element) {
-  const name = element.dataset?.simulationField
-  if (!name) return false
-  state.simulationForm[name] = element.value
-  // Endres konfigurasjonen, er det gamle resultatet ikke lenger gyldig.
-  state.lastSimulation = null
-  render()
-  return true
-}
 
 function captureCompareAgainst(element) {
   if (element.dataset?.compareAgainst === undefined) return false
@@ -19377,7 +18968,6 @@ document.addEventListener('change', event => {
   if (captureAssignEmployee(event.target)) { render(); return }
   if (captureReportField(event.target)) return
   if (capturePayrollField(event.target)) return
-  if (captureSimulationField(event.target)) return
   if (captureCompareAgainst(event.target)) return
   if (event.target.dataset?.field) {
     handleDraftFieldChange(event.target.dataset.field, event.target.type === 'checkbox' ? event.target.checked : event.target.value)
@@ -19637,7 +19227,6 @@ window.__workmaticPreview = {
     }))
   },
   permissionCatalog: () => JSON.parse(JSON.stringify(WORKMATIC_PERMISSION_GROUPS)),
-  setSimulationField: (name, value) => { state.simulationForm[name] = value; state.lastSimulation = null; render() },
   compareVersions: (leftId, rightId) => compareVersionValues(record('schemeVersions', leftId), record('schemeVersions', rightId)),
   go: (route, id = null) => navigate(route, id),
   payrollReport: form => payrollReport({ startDate: '2026-08-01', endDate: '2026-08-31', ...form }),
