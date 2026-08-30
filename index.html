@@ -2782,6 +2782,8 @@ const state = {
   absenceStatusFilter: 'pending',
   // Timelister-køens aktive fane (R2 §3): ren visningstilstand.
   timesheetQueueTab: 'all',
+  // Samlegodkjenning (R3): valgte timeliste-id-er - ren visningstilstand.
+  timesheetBulkSelection: [],
   invoicingDetailed: false,
   // Lønnsgrunnlag: periode, detaljnivå og åpen skuff.
   payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
@@ -3385,6 +3387,7 @@ const copy = {
     'dashboard.card.awaitingConfirmation': 'Avventer bekreftelse',
     'dashboard.card.pendingReconfirmation': 'Avventer ny bekreftelse',
     'dashboard.card.timesheetsToApprove': 'Timelister til godkjenning',
+    'dashboard.card.absencesToReview': 'Fravær venter på vurdering',
     'dashboard.card.timesheetsToCorrect': 'Timelister som må korrigeres',
     'dashboard.card.payrollBlocked': 'Lønnsgrunnlag med blokkering',
     'dashboard.card.invoiceBlocked': 'Fakturagrunnlag med blokkering',
@@ -4040,6 +4043,12 @@ const copy = {
     'timesheets.queueEmpty.approved': 'Ingen godkjente timelister i valgt periode.',
     'timesheets.queueSummary': '{action} krever handling · {awaiting} venter på godkjenning · {approved} godkjent',
     'timesheets.reopenedStatus': 'Gjenåpnet for korrigering',
+    'timesheets.bulkApprove': 'Godkjenn valgte ({count})',
+    'timesheets.bulkConfirm': 'Godkjenne {count} timelister?',
+    'timesheets.bulkDone': '{count} timelister godkjent',
+    'timesheets.bulkAborted': 'Godkjenningen ble avbrutt: {name} er ikke lenger gyldig for samlegodkjenning. Ingen timelister ble endret.',
+    'timesheets.bulkDeviation': 'Avvik krever kontroll',
+    'timesheets.bulkIneligible': 'Kan ikke samlegodkjennes',
     'readiness.waiting': 'Venter',
     'readiness.action': 'Krever handling',
     'readiness.blocked': 'Blokkert',
@@ -4698,7 +4707,7 @@ copy.en = {
   'dashboard.card.requestsWaiting': 'Requests awaiting reply',
   'dashboard.card.awaitingConfirmation': 'Awaiting confirmation',
   'dashboard.card.pendingReconfirmation': 'Awaiting reconfirmation',
-  'dashboard.card.timesheetsToApprove': 'Timesheets to approve',
+  'dashboard.card.timesheetsToApprove': 'Timesheets to approve', 'dashboard.card.absencesToReview': 'Absences awaiting review',
   'dashboard.card.timesheetsToCorrect': 'Timesheets needing correction',
   'dashboard.card.payrollBlocked': 'Payroll basis blocked',
   'dashboard.card.invoiceBlocked': 'Invoice basis blocked',
@@ -5180,7 +5189,7 @@ copy.en = {
   'timesheets.sendBackTitle': 'Send back timesheet',
   'timesheets.comment': 'Comment',
   'timesheets.approver': 'Approver',
-  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'timesheets.queue.all': 'All', 'timesheets.queue.action': 'Action required', 'timesheets.queue.awaiting': 'Awaiting approval', 'timesheets.queue.approved': 'Approved', 'timesheets.reported': 'Reported', 'timesheets.noDeviation': 'No deviation', 'timesheets.queueEmpty.action': 'No timesheets require action in the selected period.', 'timesheets.queueEmpty.awaiting': 'No timesheets are awaiting approval in the selected period.', 'timesheets.queueEmpty.approved': 'No approved timesheets in the selected period.', 'timesheets.queueSummary': '{action} require action · {awaiting} awaiting approval · {approved} approved', 'timesheets.reopenedStatus': 'Reopened for correction', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
+  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'timesheets.queue.all': 'All', 'timesheets.queue.action': 'Action required', 'timesheets.queue.awaiting': 'Awaiting approval', 'timesheets.queue.approved': 'Approved', 'timesheets.reported': 'Reported', 'timesheets.noDeviation': 'No deviation', 'timesheets.queueEmpty.action': 'No timesheets require action in the selected period.', 'timesheets.queueEmpty.awaiting': 'No timesheets are awaiting approval in the selected period.', 'timesheets.queueEmpty.approved': 'No approved timesheets in the selected period.', 'timesheets.queueSummary': '{action} require action · {awaiting} awaiting approval · {approved} approved', 'timesheets.reopenedStatus': 'Reopened for correction', 'timesheets.bulkApprove': 'Approve selected ({count})', 'timesheets.bulkConfirm': 'Approve {count} timesheets?', 'timesheets.bulkDone': '{count} timesheets approved', 'timesheets.bulkAborted': 'The approval was aborted: {name} is no longer valid for bulk approval. No timesheets were changed.', 'timesheets.bulkDeviation': 'Deviation requires review', 'timesheets.bulkIneligible': 'Cannot be bulk approved', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
   'timesheets.reopen': 'Reopen timesheet',
   'timesheets.reopenTitle': 'Reopen timesheet',
   'timesheets.reopenWarning': 'This timesheet is approved and locked. Reopening preserves the previous approval and is recorded in the history.',
@@ -8381,6 +8390,7 @@ function renderDashboard() {
     ['dashboard.card.pendingReconfirmation', counts.pendingReconfirmation, 'dashboard-filter-slots', 'pending_reconfirmation'],
     ['dashboard.card.timesheetsToApprove', counts.timesheetsToApprove, 'dashboard-filter-timesheets', 'submitted'],
     ['dashboard.card.timesheetsToCorrect', counts.timesheetsToCorrect, 'dashboard-filter-timesheets', 'needs_correction'],
+    ['dashboard.card.absencesToReview', counts.absencesToReview, 'dashboard-open-absences', ''],
     ['dashboard.card.payrollBlocked', counts.payrollBlocked, 'dashboard-open-payroll', ''],
     ['dashboard.card.invoiceBlocked', counts.invoiceBlocked, 'dashboard-open-invoicing', ''],
     ['dashboard.card.sickLeave', unresolvedSickLeaves().length, 'dashboard-open-absence', '']
@@ -11982,7 +11992,7 @@ function absenceQueueSection() {
     const decision = item.status === 'invalid'
       ? `<div class="muted" style="font-size:11px">${escapeHtml(item.decisionComment ?? '')}</div>`
       : item.status === 'valid' && item.decidedBy ? `<div class="muted" style="font-size:11px">${t('absence.decidedBy')}: ${escapeHtml(item.decidedBy)}</div>` : ''
-    return `<tr><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td><div class="file-name"><strong>${escapeHtml(assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : '')}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))}</span></div></td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${stamp(item.absenceStartAt)} → ${stamp(item.absenceEndAt)}</td><td>${t(item.scope === 'full_slot' ? 'absence.scope.full' : 'absence.scope.partial')}</td><td>${item.comment ? escapeHtml(item.comment) : '—'}</td><td><span class="tag ${item.status === 'valid' ? 'success' : item.status === 'invalid' ? 'danger' : 'warning'}">${t(`absence.status.${item.status}`)}</span>${decision}</td><td class="row-actions">${item.status === 'pending' ? `<button class="button small" data-action="open-absence-review" data-id="${item.id}">${t('absence.assess')}</button>` : `<button class="button ghost small" data-action="open-absence-review" data-id="${item.id}">${t('common.view')}</button>`}</td></tr>`
+    return `<tr><td>${relationLink('employee-detail', employee?.id, employee?.name ?? '')}</td><td><div class="file-name"><strong>${escapeHtml(assignment ? (shiftDisplayName(assignment) || t('shifts.unnamed')) : '')}</strong><span>${t('staffing.assignmentId')} ${relationLink('job-detail', assignment?.id, String(item.assignmentId))}</span></div></td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${stamp(item.absenceStartAt)} → ${stamp(item.absenceEndAt)}</td><td>${t(item.scope === 'full_slot' ? 'absence.scope.full' : 'absence.scope.partial')}</td><td>${item.comment ? escapeHtml(item.comment) : '—'}</td><td><span class="tag ${item.status === 'valid' ? 'success' : item.status === 'invalid' ? 'danger' : 'warning'}">${t(`absence.status.${item.status}`)}</span>${decision}</td><td class="row-actions">${item.status === 'pending' ? `<button class="button small" data-action="open-absence-review" data-id="${item.id}">${t('absence.assess')}</button>` : `<button class="button ghost small" data-action="open-absence-review" data-id="${item.id}">${t('common.view')}</button>`}</td></tr>`
   })
   const statusChoices = ['pending', 'valid', 'invalid'].map(value => `<option value="${value}"${statusFilter === value ? ' selected' : ''}>${t(`absence.status.${value}`)}</option>`).join('')
   const statusSelect = `<select data-absence-status aria-label="${t('common.status')}"><option value=""${statusFilter ? '' : ' selected'}>${t('shifts.range.all')}</option>${statusChoices}</select>`
@@ -12010,7 +12020,10 @@ function timesheetQueueCategory(timesheet) {
 // Én handlingsorientert kørad (§6): identitet, planlagt/rapportert/avvik,
 // presis status med årsak og godkjenner, erstatterkontekst - og NESTE
 // handling, aldri en generisk «Åpne» når noe mer presist finnes (§7).
-function timesheetQueueRow(timesheet) {
+function timesheetQueueRow(timesheet, { selectable = false } = {}) {
+  // Samlegodkjenning (R3 §11): kun KVALIFISERTE rader kan velges - andre
+  // viser grunnen. Kvalifisering deler nøyaktig samme helpers som motoren.
+  const eligible = selectable ? timesheetBulkEligible(timesheet) : null
   const view = timesheetBlockerView(timesheet)
   const assignment = view.assignment
   const slot = assignment ? slotById(assignment, timesheet.slotId) : null
@@ -12033,7 +12046,10 @@ function timesheetQueueRow(timesheet) {
     : view.actionKey === 'timesheets.configureApprover' && assignment?.departmentId
       ? `<button class="button small" data-route="department-detail" data-id="${assignment.departmentId}">${t('timesheets.configureApprover')}</button>`
       : `<button class="button ${view.severity === 'waiting' ? 'ghost ' : ''}small" data-action="open-slot-timesheet" data-id="${timesheet.assignmentId}" data-slot-id="${timesheet.slotId}">${t(view.actionKey)}</button>`
-  return `<tr><td>${relationLink('employee-detail', view.employee?.id, view.employee?.name ?? '')}${replacement}</td><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(timesheet.assignmentId))}</span></div></td><td>${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${timeRangeLabel(timesheet.plannedStart, timesheet.plannedEnd, timesheet.endNextDay)}</td><td>${reported}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : t('timesheets.noDeviation')}</td><td>${statusText}</td><td class="row-actions">${action}</td></tr>`
+  const selectCell = selectable
+    ? `<td>${eligible.ok ? `<input type="checkbox" data-action="toggle-timesheet-selection" data-id="${timesheet.id}"${(state.timesheetBulkSelection ?? []).map(String).includes(String(timesheet.id)) ? ' checked' : ''} aria-label="${t('timesheets.bulkApprove', { count: '' })}">` : `<span class="muted" style="font-size:11px" title="${t(eligible.reasonKey)}">—</span>`}</td>`
+    : ''
+  return `<tr>${selectCell}<td>${relationLink('employee-detail', view.employee?.id, view.employee?.name ?? '')}${replacement}</td><td><div class="file-name"><strong>${escapeHtml(shiftName)}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(timesheet.assignmentId))}</span></div></td><td>${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}</td><td>${escapeHtml(record('clients', assignment?.clientId)?.name ?? '')}</td><td>${assignment?.departmentId ? lab(record('departments', assignment.departmentId)?.name) : ''}</td><td>${timeRangeLabel(timesheet.plannedStart, timesheet.plannedEnd, timesheet.endNextDay)}</td><td>${reported}</td><td>${deviation.any ? `<span class="tag warning">${deviationLabel(deviation)}</span>` : t('timesheets.noDeviation')}</td><td>${statusText}</td><td class="row-actions">${action}</td></tr>`
 }
 
 function timesheetQueueSection(rows) {
@@ -12046,8 +12062,15 @@ function timesheetQueueSection(rows) {
   const tabs = `<div class="tabs" style="margin-top:8px">${['all', 'action', 'awaiting', 'approved'].map(key => `<button class="tab ${tab === key ? 'is-active' : ''}" data-action="timesheet-queue-tab" data-value="${key}">${t(`timesheets.queue.${key}`)} ${counts[key]}</button>`).join('')}</div>`
   if (tab === 'all') return { header: `${summary}${tabs}`, body: null }
   const inTab = categories.filter(entry => entry.category === tab).map(entry => entry.item)
+  const selectable = tab === 'awaiting'
+  // Utvalget begrenses til synlige, kvalifiserte rader (R3 §11, §14).
+  const selectedCount = selectable ? (state.timesheetBulkSelection ?? []).filter(id => inTab.some(item => String(item.id) === String(id) && timesheetBulkEligible(item).ok)).length : 0
+  const bulkAction = selectable && selectedCount
+    ? `<button type="button" class="button small" data-action="open-bulk-approve">${t('timesheets.bulkApprove', { count: selectedCount })}</button>`
+    : ''
+  const headers = [...(selectable ? [''] : []), 'jobs.employee', 'shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.reported', 'timesheets.deviation', 'common.status', 'common.actions']
   const body = inTab.length
-    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t(`timesheets.queue.${tab}`)}</h2><span class="tag info">${inTab.length}</span></div><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.reported', 'timesheets.deviation', 'common.status', 'common.actions'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${inTab.map(timesheetQueueRow).join('')}</tbody></table></div></article>`
+    ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t(`timesheets.queue.${tab}`)}</h2><span class="tag info">${inTab.length}</span>${bulkAction ? `<div style="margin-left:auto">${bulkAction}</div>` : ''}</div><div class="table-scroller"><table><thead><tr>${headers.map(key => `<th scope="col">${key ? t(key) : ''}</th>`).join('')}</tr></thead><tbody>${inTab.map(item => timesheetQueueRow(item, { selectable })).join('')}</tbody></table></div></article>`
     : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t(`timesheets.queueEmpty.${tab}`)}</h3></div>`
   return { header: `${summary}${tabs}`, body }
 }
@@ -14282,6 +14305,7 @@ function dashboardActionCounts() {
     awaitingConfirmation: slots.filter(({ slot }) => slot.status === 'awaiting_confirmation').length,
     pendingReconfirmation: slots.filter(({ slot }) => slot.status === 'pending_reconfirmation').length,
     timesheetsToApprove: sheets.filter(item => item.status === 'submitted').length,
+    absencesToReview: absencesCollection().filter(item => absenceIsActive(item) && item.status === 'pending').length,
     timesheetsToCorrect: sheets.filter(item => item.status === 'needs_correction').length,
     payrollBlocked: payroll.blocked.length,
     invoiceBlocked: invoice.priceBlocked.length + invoice.payBlocked.length
@@ -16080,6 +16104,16 @@ function employeeDraftDeleteDialog() {
   return modalShell(t('employees.draftDelete'), escapeHtml(name), 'trash', body, footer, 'small')
 }
 
+// Samlegodkjenning (R3 §12): eksplisitt bekreftelse med de konkrete radene.
+function bulkApproveDialog() {
+  const chosen = (state.timesheetBulkSelection ?? []).map(id => collection('slotTimesheets').find(item => String(item.id) === String(id))).filter(Boolean)
+  if (!chosen.length) return ''
+  const rows = chosen.map(item => `<div class="file-row"><div class="file-name"><strong>${escapeHtml(record('employees', item.employeeId)?.name ?? '')}</strong><span>${t('staffing.assignmentId')} ${escapeHtml(String(item.assignmentId))} · ${item.plannedDate ? formatDate(item.plannedDate) : ''}</span></div></div>`).join('')
+  const body = `${formError()}<p><strong>${t('timesheets.bulkConfirm', { count: chosen.length })}</strong></p>${rows}`
+  const footer = `<button class="button ghost" data-action="close-dialog">${t('common.cancel')}</button><div class="modal-actions"><button class="button" data-action="confirm-bulk-approve">${t('timesheets.bulkApprove', { count: chosen.length })}</button></div>`
+  return modalShell(t('timesheets.bulkConfirm', { count: chosen.length }), '', 'file', body, footer, 'small')
+}
+
 // Månedsinnsending: klare sendes, blokkerte står - aldri alt-eller-ingenting.
 function monthSubmitDialog() {
   const employee = record('employees', state.slotAction?.employeeId)
@@ -16133,6 +16167,7 @@ const dialogs = {
   'absence-reassess': absenceReassessDialog,
   'absence-delete': confirmAbsenceDeleteDialog,
   'employee-draft-delete': employeeDraftDeleteDialog,
+  'bulk-approve': bulkApproveDialog,
   'invoice-line-detail': invoiceLineDetailDialog,
   'month-submit': monthSubmitDialog,
   'contact-import': contactImportDialog,
@@ -16161,6 +16196,137 @@ function showToast(messageKey = 'app.noPersistence', params = {}) {
   toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2800)
 }
 
+// === Kanonisk godkjenning av ÉN timeliste (R3 §10) ===
+// Brukes av BÅDE enkeltgodkjenning og samlegodkjenning: historikk,
+// godkjenningssnapshot, medlever-frysing og grunnlagsfrysing skjer alltid
+// her - aldri i en parallell motor. Returnerer false uten mutasjon når
+// forutsetningene ikke holder.
+function approveTimesheetRecord(timesheet) {
+  if (!timesheet || timesheet.status !== 'submitted' || timesheet.voided || timesheet.superseded) return false
+  const assignment = record('assignments', timesheet.assignmentId)
+
+      const approver = timesheetApprover(assignment)
+      timesheet.status = 'approved'
+      timesheet.approvedAt = new Date().toISOString()
+      timesheet.approvedBy = approver?.name ?? 'demo-admin'
+      const snapshot = {
+        plannedDate: timesheet.plannedDate,
+        plannedStart: timesheet.plannedStart,
+        plannedEnd: timesheet.plannedEnd,
+        plannedBreakMinutes: timesheet.plannedBreakMinutes,
+        actualStart: timesheet.actualStart,
+        actualEnd: timesheet.actualEnd,
+        actualBreakMinutes: timesheet.actualBreakMinutes,
+        deviationNote: timesheet.deviationNote,
+        assignmentId: timesheet.assignmentId,
+        slotId: timesheet.slotId,
+        employeeId: timesheet.employeeId,
+        clientId: assignment?.clientId ?? null,
+        departmentId: assignment?.departmentId ?? null,
+        // Funksjonen fryses i godkjenningsøyeblikket - både id og navn - slik at
+        // senere funksjons-/regelendringer aldri omskriver godkjent historikk.
+        functionId: (assignment ? slotById(assignment, timesheet.slotId)?.functionId : null) ?? null,
+        functionName: (assignment && slotById(assignment, timesheet.slotId)?.functionId) ? functionName(slotById(assignment, timesheet.slotId).functionId) : null,
+        // Medlever (§28-§32): den løste betalingsplanen fryses i godkjenningen.
+        // Matcher faktisk oppmøte planen, brukes segmentene direkte; avviker den,
+        // kreves en autorisert overstyring med årsak - ellers blokkeres grunnlaget
+        // synlig i lønn i stedet for at systemet gjetter (§29, §31).
+        liveIn: (() => {
+          const snapshot = assignment?.liveInSnapshot
+          if (!snapshot) return null
+          let matchesPlan = String(timesheet.actualStart) === String(timesheet.plannedStart) && String(timesheet.actualEnd) === String(timesheet.plannedEnd)
+          // ERSTATTERLØNN AVGRENSES TIL SLOTENS EGET COVERAGE-VINDU: en
+          // erstatter på ett døgn får aldri hele originalvaktens betalte tid.
+          // ORIGINALANSATT med aktive sykesegmenter får kun de FRISKE hele
+          // segmentene - syke segmenter betales som sykekompensasjon, aldri
+          // dobbelt som ordinær tid. Delvis truffet segment (ingen definert
+          // tariffregel) krever manuell overstyring som før.
+          const slot = slotById(assignment, timesheet.slotId)
+          let frozenSegments = JSON.parse(JSON.stringify(snapshot.segments ?? []))
+          let totalPaidMinutes = snapshot.totalPaidMinutes ?? null
+          let totalPaidHours = snapshot.totalPaidHours
+          const window = slotCoverageWindowIso(assignment, slot)
+          if (window) {
+            const resolved = resolveLiveInPaidMinutesForWindow(assignment, window.from, window.to)
+            if (resolved && !resolved.partial) {
+              frozenSegments = JSON.parse(JSON.stringify(resolved.segments))
+              totalPaidMinutes = resolved.paidMinutes
+              totalPaidHours = round2(resolved.paidMinutes / 60)
+            } else {
+              matchesPlan = false
+            }
+          } else if (slot?.employeeId) {
+            const sickIntervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
+            if (sickIntervals.length) {
+              let paidMinutes = 0
+              let partial = false
+              const healthy = []
+              for (const segment of snapshot.segments ?? []) {
+                const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
+                const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
+                const overlapping = sickIntervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)
+                const fullyCovered = sickIntervals.some(item => item.sickStartAt <= segmentFrom && item.sickEndAt >= segmentTo)
+                if (!overlapping) { paidMinutes += Number(segment.paidMinutes) || 0; healthy.push(segment) }
+                else if (!fullyCovered) partial = true
+              }
+              if (partial) {
+                matchesPlan = false
+              } else {
+                frozenSegments = JSON.parse(JSON.stringify(healthy))
+                totalPaidMinutes = paidMinutes
+                totalPaidHours = round2(paidMinutes / 60)
+              }
+            }
+          }
+          const overrideHours = Number(state.draft.medleverPaidHours)
+          const overrideReason = String(state.draft.medleverReason ?? '').trim()
+          const override = !matchesPlan && Number.isFinite(overrideHours) && overrideHours >= 0 && overrideReason
+            ? { paidHours: round2(overrideHours), reason: overrideReason, by: 'demo-admin' }
+            : null
+          if (override) logTimesheetEvent(timesheet, { type: 'medlever_override', actor: 'demo-admin', reason: overrideReason, paidHours: override.paidHours })
+          return {
+            profileId: snapshot.profileId ?? null,
+            profileName: snapshot.profileName ?? '',
+            segments: frozenSegments,
+            totalPaidMinutes,
+            totalPaidHours,
+            matchesPlan,
+            override
+          }
+        })(),
+        // Årsverksgrunnlaget fryses i godkjenningsøyeblikket: arbeidstype,
+        // løst grunnlag OG grunn-timesats - senere endringer i versjonens
+        // årsverksregler eller malens årsverkstype rører aldri godkjent
+        // historikk (samme immutability-mønster som funksjonen over).
+        ...(() => {
+          const employee = record('employees', timesheet.employeeId)
+          const resolution = assignment && employee ? resolveCompensation(employee, assignment, timesheet.plannedDate) : null
+          return resolution?.ok
+            ? { resolvedAnnualBasisType: resolution.annualBasisType ?? 'standard', resolvedAnnualHoursBasis: resolution.annualHoursBasis ?? null, resolvedBaseRate: resolution.baseRate }
+            : {}
+        })(),
+        approvedAt: timesheet.approvedAt,
+        approvedBy: timesheet.approvedBy
+      }
+      // Hver godkjenning er en egen, bevart versjon (§24-§26).
+      timesheet.approvalVersions = [...(timesheet.approvalVersions ?? []), snapshot]
+  logTimesheetEvent(timesheet, { type: 'timesheet_approved', actor: timesheet.approvedBy })
+  return true
+}
+
+// Trygg samlegodkjennings-kvalifisering (R3 §9): kun submitted med løsbar
+// godkjenner og HELT uten avvik; medlever krever alltid manuell
+// plan-vurdering i dialogen og er aldri bulk-kvalifisert.
+function timesheetBulkEligible(timesheet) {
+  if (!timesheet || timesheet.voided || timesheet.superseded) return { ok: false, reasonKey: 'timesheets.bulkIneligible' }
+  if (timesheet.status !== 'submitted') return { ok: false, reasonKey: `timesheets.status.${timesheet.status}` }
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (!(assignment ? timesheetApprover(assignment) : null)) return { ok: false, reasonKey: 'timesheets.noApprover' }
+  if (assignment?.liveInSnapshot) return { ok: false, reasonKey: 'medlever.needsReview' }
+  if (timesheetDeviation(timesheet).any) return { ok: false, reasonKey: 'timesheets.bulkDeviation' }
+  return { ok: true }
+}
+
 function actionHandlers(target = null) {
   return {
     'toggle-sidebar': () => { state.sidebarOpen = !state.sidebarOpen; render() },
@@ -16177,7 +16343,23 @@ function actionHandlers(target = null) {
     'dashboard-filter-slots': () => { state.shiftFilters.staffing = String(target?.dataset?.status ?? ''); navigate('staffing') },
     // Statusfiltrene fra dashboardet gjelder ALLE perioder: månedsfilteret
     // nullstilles eksplisitt, slik at antallet på kortet alltid stemmer.
-    'dashboard-filter-timesheets': () => { state.slotTimesheetFilter = String(target?.dataset?.status ?? ''); state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; navigate('timesheets') },
+    // R3 §2: presise statuser dyplenker til riktig KØFANE - aldri den
+    // generiske landingsflaten. Øvrige statuser beholder per-vakt-filteret.
+    'dashboard-filter-timesheets': () => {
+      const status = String(target?.dataset?.status ?? '')
+      state.timesheetFilters.month = ''
+      state.timesheetMonthTouched = true
+      state.timesheetBulkSelection = []
+      if (status === 'submitted' || status === 'needs_correction') {
+        state.slotTimesheetFilter = ''
+        state.timesheetQueueTab = status === 'submitted' ? 'awaiting' : 'action'
+      } else {
+        state.slotTimesheetFilter = status
+        state.timesheetQueueTab = 'all'
+      }
+      navigate('timesheets')
+    },
+    'dashboard-open-absences': () => { state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; state.absenceStatusFilter = 'pending'; navigate('timesheets') },
     'dashboard-open-payroll': () => navigate('payroll'),
     'dashboard-open-invoicing': () => navigate('invoicing'),
     'dashboard-open-absence': () => navigate('absence'),
@@ -16677,7 +16859,7 @@ function actionHandlers(target = null) {
       openDialog('access-preview')
     },
     'close-dialog': closeDialog,
-    'timesheet-queue-tab': () => { state.timesheetQueueTab = String(target?.dataset?.value ?? 'all'); render() },
+    'timesheet-queue-tab': () => { state.timesheetQueueTab = String(target?.dataset?.value ?? 'all'); state.timesheetBulkSelection = []; render() },
     'dialog-next': () => { state.dialogStep += 1; persistEmployeeDraft(); render() },
     'dialog-back': () => { state.dialogStep = Math.max(0, state.dialogStep - 1); persistEmployeeDraft(); render() },
     'dialog-complete': () => { closeDialog(); showToast() },
@@ -17747,115 +17929,40 @@ function actionHandlers(target = null) {
     // Lønnsberegningen røres ikke: dette er tid, ikke penger (§12, §40).
     'approve-slot-timesheet': () => {
       const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
-      if (!timesheet || timesheet.status !== 'submitted' || timesheet.voided || timesheet.superseded) return
-      const assignment = record('assignments', timesheet.assignmentId)
-      const approver = timesheetApprover(assignment)
-      timesheet.status = 'approved'
-      timesheet.approvedAt = new Date().toISOString()
-      timesheet.approvedBy = approver?.name ?? 'demo-admin'
-      const snapshot = {
-        plannedDate: timesheet.plannedDate,
-        plannedStart: timesheet.plannedStart,
-        plannedEnd: timesheet.plannedEnd,
-        plannedBreakMinutes: timesheet.plannedBreakMinutes,
-        actualStart: timesheet.actualStart,
-        actualEnd: timesheet.actualEnd,
-        actualBreakMinutes: timesheet.actualBreakMinutes,
-        deviationNote: timesheet.deviationNote,
-        assignmentId: timesheet.assignmentId,
-        slotId: timesheet.slotId,
-        employeeId: timesheet.employeeId,
-        clientId: assignment?.clientId ?? null,
-        departmentId: assignment?.departmentId ?? null,
-        // Funksjonen fryses i godkjenningsøyeblikket - både id og navn - slik at
-        // senere funksjons-/regelendringer aldri omskriver godkjent historikk.
-        functionId: (assignment ? slotById(assignment, timesheet.slotId)?.functionId : null) ?? null,
-        functionName: (assignment && slotById(assignment, timesheet.slotId)?.functionId) ? functionName(slotById(assignment, timesheet.slotId).functionId) : null,
-        // Medlever (§28-§32): den løste betalingsplanen fryses i godkjenningen.
-        // Matcher faktisk oppmøte planen, brukes segmentene direkte; avviker den,
-        // kreves en autorisert overstyring med årsak - ellers blokkeres grunnlaget
-        // synlig i lønn i stedet for at systemet gjetter (§29, §31).
-        liveIn: (() => {
-          const snapshot = assignment?.liveInSnapshot
-          if (!snapshot) return null
-          let matchesPlan = String(timesheet.actualStart) === String(timesheet.plannedStart) && String(timesheet.actualEnd) === String(timesheet.plannedEnd)
-          // ERSTATTERLØNN AVGRENSES TIL SLOTENS EGET COVERAGE-VINDU: en
-          // erstatter på ett døgn får aldri hele originalvaktens betalte tid.
-          // ORIGINALANSATT med aktive sykesegmenter får kun de FRISKE hele
-          // segmentene - syke segmenter betales som sykekompensasjon, aldri
-          // dobbelt som ordinær tid. Delvis truffet segment (ingen definert
-          // tariffregel) krever manuell overstyring som før.
-          const slot = slotById(assignment, timesheet.slotId)
-          let frozenSegments = JSON.parse(JSON.stringify(snapshot.segments ?? []))
-          let totalPaidMinutes = snapshot.totalPaidMinutes ?? null
-          let totalPaidHours = snapshot.totalPaidHours
-          const window = slotCoverageWindowIso(assignment, slot)
-          if (window) {
-            const resolved = resolveLiveInPaidMinutesForWindow(assignment, window.from, window.to)
-            if (resolved && !resolved.partial) {
-              frozenSegments = JSON.parse(JSON.stringify(resolved.segments))
-              totalPaidMinutes = resolved.paidMinutes
-              totalPaidHours = round2(resolved.paidMinutes / 60)
-            } else {
-              matchesPlan = false
-            }
-          } else if (slot?.employeeId) {
-            const sickIntervals = sickLeavesCollection().filter(item => sickLeaveIsActive(item) && item.employeeId === slot.employeeId && item.sickStartAt && item.sickEndAt && (item.affected ?? []).some(entry => String(entry.assignmentId) === String(assignment.id) && String(entry.slotId) === String(slot.id)))
-            if (sickIntervals.length) {
-              let paidMinutes = 0
-              let partial = false
-              const healthy = []
-              for (const segment of snapshot.segments ?? []) {
-                const segmentFrom = `${isoAddDays(assignment.date, segment.dayOffsetStart)}T${segment.startTime}`
-                const segmentTo = `${isoAddDays(assignment.date, segment.dayOffsetEnd)}T${segment.endTime}`
-                const overlapping = sickIntervals.some(item => item.sickStartAt < segmentTo && item.sickEndAt > segmentFrom)
-                const fullyCovered = sickIntervals.some(item => item.sickStartAt <= segmentFrom && item.sickEndAt >= segmentTo)
-                if (!overlapping) { paidMinutes += Number(segment.paidMinutes) || 0; healthy.push(segment) }
-                else if (!fullyCovered) partial = true
-              }
-              if (partial) {
-                matchesPlan = false
-              } else {
-                frozenSegments = JSON.parse(JSON.stringify(healthy))
-                totalPaidMinutes = paidMinutes
-                totalPaidHours = round2(paidMinutes / 60)
-              }
-            }
-          }
-          const overrideHours = Number(state.draft.medleverPaidHours)
-          const overrideReason = String(state.draft.medleverReason ?? '').trim()
-          const override = !matchesPlan && Number.isFinite(overrideHours) && overrideHours >= 0 && overrideReason
-            ? { paidHours: round2(overrideHours), reason: overrideReason, by: 'demo-admin' }
-            : null
-          if (override) logTimesheetEvent(timesheet, { type: 'medlever_override', actor: 'demo-admin', reason: overrideReason, paidHours: override.paidHours })
-          return {
-            profileId: snapshot.profileId ?? null,
-            profileName: snapshot.profileName ?? '',
-            segments: frozenSegments,
-            totalPaidMinutes,
-            totalPaidHours,
-            matchesPlan,
-            override
-          }
-        })(),
-        // Årsverksgrunnlaget fryses i godkjenningsøyeblikket: arbeidstype,
-        // løst grunnlag OG grunn-timesats - senere endringer i versjonens
-        // årsverksregler eller malens årsverkstype rører aldri godkjent
-        // historikk (samme immutability-mønster som funksjonen over).
-        ...(() => {
-          const employee = record('employees', timesheet.employeeId)
-          const resolution = assignment && employee ? resolveCompensation(employee, assignment, timesheet.plannedDate) : null
-          return resolution?.ok
-            ? { resolvedAnnualBasisType: resolution.annualBasisType ?? 'standard', resolvedAnnualHoursBasis: resolution.annualHoursBasis ?? null, resolvedBaseRate: resolution.baseRate }
-            : {}
-        })(),
-        approvedAt: timesheet.approvedAt,
-        approvedBy: timesheet.approvedBy
-      }
-      // Hver godkjenning er en egen, bevart versjon (§24-§26).
-      timesheet.approvalVersions = [...(timesheet.approvalVersions ?? []), snapshot]
-      logTimesheetEvent(timesheet, { type: 'timesheet_approved', actor: timesheet.approvedBy })
+      if (!approveTimesheetRecord(timesheet)) return
       persist(); closeDialog(); showToast('timesheets.approved')
+    },
+    // === Samlegodkjenning (R3 §9-§14): KUN trygge kandidater, samme
+    // kanoniske godkjenningsvei som enkeltgodkjenning - aldri en ny motor.
+    'toggle-timesheet-selection': () => {
+      const id = String(target?.dataset?.id ?? '')
+      const selected = new Set((state.timesheetBulkSelection ?? []).map(String))
+      if (selected.has(id)) selected.delete(id)
+      else selected.add(id)
+      state.timesheetBulkSelection = [...selected]
+      render()
+    },
+    'open-bulk-approve': () => {
+      if (!(state.timesheetBulkSelection ?? []).length) return
+      openDialog('bulk-approve', 'create', {})
+    },
+    'confirm-bulk-approve': () => {
+      // §13: FULL revalidering rett før mutasjon - én ugyldig avbryter ALT.
+      // Kun poster som fortsatt er synlige i det scopede utvalget (§14).
+      const visible = new Set(visibleSlotTimesheets().map(item => String(item.id)))
+      const chosen = (state.timesheetBulkSelection ?? []).map(id => collection('slotTimesheets').find(item => String(item.id) === String(id))).filter(Boolean)
+      if (!chosen.length) { closeDialog(); return }
+      for (const timesheet of chosen) {
+        const eligible = timesheetBulkEligible(timesheet)
+        if (!visible.has(String(timesheet.id)) || !eligible.ok) {
+          state.formError = { key: 'timesheets.bulkAborted', values: { name: record('employees', timesheet.employeeId)?.name ?? String(timesheet.id) } }
+          render(); return
+        }
+      }
+      for (const timesheet of chosen) approveTimesheetRecord(timesheet)
+      const count = chosen.length
+      state.timesheetBulkSelection = []
+      persist(); closeDialog(); showToast('timesheets.bulkDone', { count })
     },
     'open-return-timesheet': () => {
       const timesheet = collection('slotTimesheets').find(item => item.id === state.slotAction?.timesheetId)
@@ -19060,6 +19167,8 @@ function setPayrollFilter(name, value) {
 // Klient styrer avdeling: bytter man klient, kan den valgte avdelingen tilhøre en
 // annen klient, og da må den nullstilles i stedet for å bli stående og tømme lista.
 function setTimesheetFilter(name, value) {
+  // R3 §14: filtre endrer scope - samlegodkjenningsutvalget tømmes.
+  state.timesheetBulkSelection = []
   if (!(name in state.timesheetFilters)) return
   state.timesheetFilters[name] = String(value)
   if (name === 'clientId') {
