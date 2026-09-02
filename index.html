@@ -4244,6 +4244,9 @@ const copy = {
     'staffing.busy': 'Opptatt',
     'staffing.overlapBlocked': '{name} er allerede satt opp på en annen vakt som overlapper denne perioden ({period}).',
     'staffing.replaceBusy': 'Den valgte ansatte har en overlappende vakt og kan ikke tildeles.',
+    'staffing.slotAlreadyStaffed': 'Plassen er allerede bemannet. Oppdater vakten og prøv igjen.',
+    'staffing.integrityConflict': 'Samme ansatt står på overlappende bemanningsplasser – krever manuell korrigering før lønn',
+    'timesheets.identityConflict': 'Timelisten tilhører en annen ansatt enn plassen – integritetskonflikt, krever manuell korrigering',
     'staffing.requestBody': 'Hei,\n\nVi har en ledig vakt hos {client}.\n\nDato: {date}\nTid: {time}\nAvdeling: {department}\n\nEr du tilgjengelig og interessert?',
     'staffing.noAvailable': 'Ingen ledige ansatte passer til denne vakten.',
     'staffing.sendByMessage': 'Send forespørsel som melding',
@@ -5362,7 +5365,7 @@ copy.en = {
   'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
   'staffing.originalPeriod': 'Original live-in period', 'staffing.totalPayable': 'Total payable', 'staffing.sickCompensation': 'Sick compensation',
   'staffing.busy': 'Busy', 'staffing.overlapBlocked': '{name} is already assigned to another shift that overlaps this period ({period}).',
-  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.',
+  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.', 'staffing.slotAlreadyStaffed': 'The position is already staffed. Refresh the shift and try again.', 'staffing.integrityConflict': 'The same employee occupies overlapping staffing positions – requires manual correction before payroll', 'timesheets.identityConflict': 'The timesheet belongs to a different employee than the position – integrity conflict, requires manual correction',
   'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
   'staffing.noAvailable': 'No available employees match this shift.',
   'staffing.sendByMessage': 'Send request as message',
@@ -10687,21 +10690,15 @@ function employeeMatchForSlot(employee, assignment, slot, evidence) {
   const warnings = []
   const facts = []
   if (employee.status !== 'active') blockers.push('match.inactive')
-  const overlap = employeeOverlappingAssignment(employee.id, assignment, slot)
-  const busy = employeeBusyDuring(employee.id, assignment)
-  if (overlap || busy) blockers.push('match.overlap')
-  else facts.push('match.noOverlap')
-  // Allerede aktiv på en annen plass på SAMME vakt (§9) - men KUN når
-  // plassenes tidsvinduer faktisk overlapper: en erstatter på 14->15 er
+  // SAMME kanoniske konfliktregel som den endelige skrivesjekken
+  // (employeeSlotConflict): annen vakt -> overlapp; annen plass på SAMME vakt
+  // med overlappende tidsvindu -> sameShift (§9). En erstatter på 14->15 er
   // fullt gyldig kandidat for kant-i-kant-behovet 15->16 på samme vakt.
-  const targetWindow = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
-  if (staffingSlotsFor(assignment).some(item => {
-    if (String(item.id) === String(slot.id) || item.employeeId !== employee.id || item.status === 'cancelled') return false
-    const itemWindow = slotCoverageWindowIso(assignment, item) ?? assignmentTimeWindowIso(assignment)
-    return !targetWindow || !itemWindow || (itemWindow.from < targetWindow.to && targetWindow.from < itemWindow.to)
-  })) {
-    blockers.push('match.sameShift')
-  }
+  const conflict = employeeSlotConflict(employee.id, assignment, slot)
+  const busy = employeeBusyDuring(employee.id, assignment)
+  if (conflict?.sameShift) blockers.push('match.sameShift')
+  else if (conflict || busy) blockers.push('match.overlap')
+  else facts.push('match.noOverlap')
   const sickLeaves = sickLeavesOverlappingShift(employee.id, assignment, slot)
   if (sickLeaves.some(item => Number(item.absencePercent) >= 100)) blockers.push('match.sick')
   else if (sickLeaves.length) warnings.push('match.partialSick')
@@ -10721,7 +10718,7 @@ function employeeMatchForSlot(employee, assignment, slot, evidence) {
     warnings,
     facts,
     qualificationBlockers: qualification.blockers,
-    available: !overlap && !busy,
+    available: !conflict && !busy,
     clientExperienceCount: client.count,
     departmentExperienceCount: department.count,
     lastWorkedAtClient: client.last || null,
@@ -10845,22 +10842,107 @@ function slotCoverageWindowIso(assignment, slot) {
   return { from: slot.coverageFrom, to: slot.coverageTo || shiftEndTimestamp(assignment) || slot.coverageFrom }
 }
 
-// Den konkrete overlappende vakten (eller null) - delt av matching og den
-// endelige revalideringen, så det aldri finnes to overlappsmotorer (§28, §76).
-function employeeOverlappingAssignment(employeeId, assignment, slot = null) {
+// === ÉN kanonisk konfliktregel (P0 bemanningsintegritet) ===
+// En ansatt kan ALDRI stå på to aktive bemanningsplasser med fysisk
+// overlappende dekningsintervall - globalt på tvers av vakter, og OGSÅ inne i
+// samme vakt. Den eneste plassen som hoppes over er målplassen selv; alle
+// andre plasser på samme vakt sjekkes på reelt tidsvindu (coverageFrom/To for
+// erstatterplasser, vaktvinduet ellers). Kant-i-kant (08-12 / 12-16) er
+// gyldig; 08-13 / 12-16 blokkeres. Kandidatmatching, direktetildeling, kø-
+// bekreftelse, erstatterforlengelse og dialoglagring leser ALLE denne ene
+// regelen - den endelige skrivesjekken er autoritativ, aldri svakere enn UI.
+function employeeSlotConflict(employeeId, assignment, slot = null) {
   const target = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
-  if (!target) return null
-  return collection('assignments').find(item => {
-    if (item.id === assignment.id || item.status === 'cancelled' || !item.date) return false
-    // Dekningintervallet gjelder BEGGE veier: en ansatt på en erstatterplass
-    // er kun opptatt i plassens eget vindu - aldri hele den lange vakten.
-    const employeeSlots = staffingSlotsFor(item).filter(entry => entry.employeeId === employeeId && entry.status !== 'cancelled')
-    if (!employeeSlots.length) return false
-    return employeeSlots.some(entry => {
+  if (!target || !employeeId) return null
+  for (const item of collection('assignments')) {
+    if (item.status === 'cancelled' || !item.date) continue
+    const sameShift = item.id === assignment.id
+    for (const entry of staffingSlotsFor(item)) {
+      if (entry.employeeId !== employeeId || entry.status === 'cancelled') continue
+      if (sameShift && slot && String(entry.id) === String(slot.id)) continue
+      // Dekningintervallet gjelder BEGGE veier: en ansatt på en erstatterplass
+      // er kun opptatt i plassens eget vindu - aldri hele den lange vakten.
       const window = slotCoverageWindowIso(item, entry) ?? assignmentTimeWindowIso(item)
-      return window && window.from < target.to && target.from < window.to
-    })
-  }) ?? null
+      if (window && window.from < target.to && target.from < window.to) return { assignment: item, slot: entry, window, sameShift }
+    }
+  }
+  return null
+}
+
+// Den konkrete overlappende vakten (eller null) - avledet av den ene regelen,
+// så det aldri finnes to overlappsmotorer (§28, §76).
+function employeeOverlappingAssignment(employeeId, assignment, slot = null) {
+  return employeeSlotConflict(employeeId, assignment, slot)?.assignment ?? null
+}
+
+// Målplassen må fortsatt være ledig i skriveøyeblikket: en foreldet dialog
+// (plassen ble bemannet/kansellert/fjernet i mellomtiden) skal aldri
+// overskrive en allerede bemannet plass. Returnerer feilnøkkel eller null.
+function slotUnavailableReason(assignment, slot, employeeId) {
+  if (!assignment || !slot || !staffingSlotsFor(assignment).some(entry => String(entry.id) === String(slot.id))) return 'staffing.slotAlreadyStaffed'
+  if (slot.status === 'cancelled') return 'staffing.slotAlreadyStaffed'
+  if (slot.employeeId && slot.employeeId !== employeeId) return 'staffing.slotAlreadyStaffed'
+  return null
+}
+
+// Én plass -> én ansatt -> én kanonisk timeliste: finnes det en aktiv timeliste
+// på plassen som tilhører en ANNEN ansatt, er det en integritetskonflikt som
+// aldri løses stille ved gjenbruk eller omdirigering av lønn.
+function timesheetIdentityConflict(assignment, slot, employeeId) {
+  const existing = timesheetForSlot(assignment.id, slot.id)
+  return existing && existing.employeeId && existing.employeeId !== employeeId ? existing : null
+}
+
+// Avledet integritetsrevisjon (ingen persistert modell): alle par av aktive
+// plasser der samme ansatt har fysisk overlappende dekning. Hver berørt plass
+// klassifiseres som trygg oppryddingskandidat (ingen levert/godkjent
+// timeliste, ingen snapshot, ingen erstatter-/sykerelasjon, ingen aktivitet)
+// eller manuell gjennomgang. Ingenting muteres her.
+function staffingIntegrityConflicts() {
+  const entries = []
+  for (const assignment of collection('assignments')) {
+    if (assignment.status === 'cancelled' || !assignment.date) continue
+    for (const slot of staffingSlotsFor(assignment)) {
+      if (!slot.employeeId || slot.status === 'cancelled') continue
+      const window = slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)
+      if (window) entries.push({ assignment, slot, window })
+    }
+  }
+  const conflicts = []
+  for (let i = 0; i < entries.length; i += 1) {
+    for (let j = i + 1; j < entries.length; j += 1) {
+      const a = entries[i]
+      const b = entries[j]
+      if (a.slot.employeeId !== b.slot.employeeId) continue
+      if (a.window.from < b.window.to && b.window.from < a.window.to) conflicts.push({ employeeId: a.slot.employeeId, a, b })
+    }
+  }
+  return conflicts
+}
+
+function staffingIntegrityConflictKeys() {
+  const keys = new Set()
+  for (const conflict of staffingIntegrityConflicts()) {
+    keys.add(`${conflict.a.assignment.id}|${conflict.a.slot.id}`)
+    keys.add(`${conflict.b.assignment.id}|${conflict.b.slot.id}`)
+  }
+  return keys
+}
+
+function staffingIntegrityAudit() {
+  const classify = ({ assignment, slot }) => {
+    const reasons = []
+    const timesheets = collection('slotTimesheets').filter(item => item.assignmentId === assignment.id && String(item.slotId) === String(slot.id))
+    if (timesheets.some(item => ['submitted', 'approved', 'needs_correction'].includes(item.status))) reasons.push('timesheet_in_flow')
+    if (timesheets.some(item => timesheetHasActivity(item))) reasons.push('worked_time_edits')
+    if (timesheets.some(item => item.calculationSnapshot || (item.approvalVersions ?? []).length)) reasons.push('calculation_snapshot')
+    if (sickLeavesCollection().some(item => item.finalized?.lines?.some(line => line.assignmentId === assignment.id))) reasons.push('payroll_history')
+    if ((collection('invoiceReports') ?? []).some(report => JSON.stringify(report).includes(`"slotId":${JSON.stringify(slot.id)}`))) reasons.push('invoice_history')
+    if (slot.replacementForSlotId || slot.replacementForSickLeaveId || slot.replacementForAbsenceId || slot.workedUntil) reasons.push('replacement_or_sickness')
+    if (absencesCollection().some(item => absenceIsActive(item) && item.assignmentId === assignment.id && String(item.slotId) === String(slot.id))) reasons.push('absence')
+    return { assignmentId: assignment.id, slotId: slot.id, employeeId: slot.employeeId, window: { ...(slotCoverageWindowIso(assignment, slot) ?? assignmentTimeWindowIso(assignment)) }, classification: reasons.length ? 'manual_review' : 'safe_cleanup_candidate', reasons }
+  }
+  return staffingIntegrityConflicts().map(conflict => ({ employeeId: conflict.employeeId, a: classify(conflict.a), b: classify(conflict.b) }))
 }
 
 function employeeAssignedElsewhereDuring(employeeId, assignment, slot = null) {
@@ -10877,14 +10959,17 @@ function employeeUnavailableFor(employeeId, assignment) {
 }
 
 // Menneskelig forklaring på overlappen: periode + hvor personen er opptatt.
-function employeeOverlapInfo(employeeId, assignment) {
-  const other = employeeOverlappingAssignment(employeeId, assignment)
-  if (!other) return null
-  const end = shiftEndTimestamp(other) ?? ''
-  const [endDate, endTime] = end.split('T')
-  const period = `${formatDate(other.date)} ${other.startTime ?? ''} – ${endDate ? formatDate(endDate) : ''} ${endTime ?? ''}`.trim()
-  const context = [record('clients', other.clientId)?.name, other.departmentId ? label(record('departments', other.departmentId)?.name) : ''].filter(Boolean).join(' · ')
-  return { assignment: other, period, context }
+function employeeOverlapInfo(employeeId, assignment, slot = null) {
+  const conflict = employeeSlotConflict(employeeId, assignment, slot)
+  if (!conflict) return null
+  const other = conflict.assignment
+  const [startDate, startTime] = conflict.window.from.split('T')
+  const [endDate, endTime] = conflict.window.to.split('T')
+  const period = `${formatDate(startDate)} ${startTime ?? ''} – ${endDate ? formatDate(endDate) : ''} ${endTime ?? ''}`.trim()
+  const context = conflict.sameShift
+    ? t('match.sameShift')
+    : [record('clients', other.clientId)?.name, other.departmentId ? label(record('departments', other.departmentId)?.name) : ''].filter(Boolean).join(' · ')
+  return { assignment: other, slot: conflict.slot, sameShift: conflict.sameShift, period, context }
 }
 
 function slotForEmployee(assignment, employeeId) {
@@ -10923,6 +11008,9 @@ function reconcileSlotEmployees(assignment) {
     if (slots.some(slot => slot.employeeId === employeeId && slot.status !== 'cancelled')) continue
     const open = slots.find(slot => slot.status === 'open')
     if (!open) break
+    // Samme kanoniske konfliktregel som alle andre skrivestier: en ansatt
+    // med overlappende plass (annen vakt eller samme vakt) skrives aldri inn.
+    if (employeeSlotConflict(employeeId, assignment, open)) continue
     open.employeeId = employeeId
     open.status = 'assigned'
   }
@@ -11628,9 +11716,13 @@ function timesheetForSlot(assignmentId, slotId) {
   return collection('slotTimesheets').find(item => item.assignmentId === assignmentId && String(item.slotId) === String(slotId) && !item.voided && !item.superseded) ?? null
 }
 
-// Idempotent: finnes den aktive timelisten, gjenbrukes den. Aldri duplikater.
+// Idempotent: finnes den aktive timelisten for SAMME ansatt, gjenbrukes den.
+// Aldri duplikater - og aldri stille gjenbruk av en annen ansatts timeliste:
+// eier-mismatch er en integritetskonflikt som skrivestiene skal ha avvist før
+// de kommer hit (timesheetIdentityConflict); her opprettes/gjenbrukes ingenting.
 function ensureTimesheetForSlot(assignment, slot) {
   const existing = timesheetForSlot(assignment.id, slot.id)
+  if (existing && existing.employeeId && slot.employeeId && existing.employeeId !== slot.employeeId) return null
   if (existing) return existing
   const created = {
     id: nextNumericSlotId(),
@@ -13482,11 +13574,25 @@ function timesheetPayrollBasis(period = null) {
   const lines = []
   const blocked = []
   const weekTally = new Map()
+  // Avledet integritetsvern (P0): plasser der samme ansatt har overlappende
+  // dekning, og timelister hvis eier avviker fra plassens, BLOKKERES synlig
+  // for manuell korrigering - aldri stille dedup av lønnsrader. Beskytter
+  // eksisterende dårlige data til oppryddingen er gjort; ingen ny modell.
+  const integrityConflicts = staffingIntegrityConflictKeys()
 
   for (const { timesheet, snapshot } of approved) {
     const assignment = record('assignments', snapshot.assignmentId)
     const employee = record('employees', snapshot.employeeId)
     const trace = { timesheetId: timesheet.id, assignmentId: snapshot.assignmentId, slotId: snapshot.slotId, employeeId: snapshot.employeeId }
+    if (integrityConflicts.has(`${snapshot.assignmentId}|${snapshot.slotId}`)) {
+      blocked.push({ ...trace, date: snapshot.plannedDate, employee, assignment, reasonKey: 'staffing.integrityConflict' })
+      continue
+    }
+    const slot = assignment ? slotById(assignment, snapshot.slotId) : null
+    if (slot?.employeeId && slot.employeeId !== snapshot.employeeId) {
+      blocked.push({ ...trace, date: snapshot.plannedDate, employee, assignment, reasonKey: 'timesheets.identityConflict' })
+      continue
+    }
     const resolution = assignment && employee ? resolveCompensation(employee, assignment, snapshot.plannedDate) : { ok: false, reason: 'missing_context' }
     if (!resolution.ok) {
       // Godkjent arbeid uten lønnsoppslag er et blokkert avvik - aldri stille
@@ -17128,12 +17234,16 @@ function actionHandlers(target = null) {
       const slot = assignment ? slotById(assignment, state.slotAction?.slotId) : null
       const employee = record('employees', state.draft.assignEmployeeId)
       if (!assignment || !slot || !employee || assignment.status === 'cancelled') return
+      // Stale-vern: målplassen må fortsatt være ledig i skriveøyeblikket.
+      const unavailable = slotUnavailableReason(assignment, slot, employee.id)
+      if (unavailable) { state.formError = unavailable; render(); return }
       const blocker = finalAssignmentBlocker(employee, assignment, slot)
       if (blocker) {
-        const overlap = employeeOverlapInfo(employee.id, assignment)
+        const overlap = employeeOverlapInfo(employee.id, assignment, slot)
         state.formError = blocker === 'staffing.replaceBusy' && overlap ? { key: 'staffing.overlapBlocked', values: { name: employee.name, period: overlap.period } } : blocker
         render(); return
       }
+      if (timesheetIdentityConflict(assignment, slot, employee.id)) { state.formError = 'timesheets.identityConflict'; render(); return }
       slot.employeeId = employee.id
       slot.status = 'assigned'
       // Valgfri funksjon på plassen (§13): tomt valg betyr Ingen (null).
@@ -17414,7 +17524,9 @@ function actionHandlers(target = null) {
         }
         const original = staffingSlotsFor(assignment).find(slot => String(slot.id) === String(entry.slotId))
         if (original) {
-          if (entry.handling === 'reopened' && !original.employeeId && original.status === 'open') {
+          // Gjeninnsetting går gjennom samme konfliktregel: har originalen
+          // fått en overlappende plass i mellomtiden, forblir plassen åpen.
+          if (entry.handling === 'reopened' && !original.employeeId && original.status === 'open' && !employeeSlotConflict(item.employeeId, assignment, original) && !timesheetIdentityConflict(assignment, original, item.employeeId)) {
             original.employeeId = item.employeeId
             original.status = 'assigned'
           }
@@ -17596,6 +17708,7 @@ function actionHandlers(target = null) {
       const slot = assignment ? slotById(assignment, target?.dataset?.slotId) : null
       const employee = record('employees', target?.dataset?.employeeId)
       if (!assignment || !slot || !employee || slot.employeeId) return
+      if (slotUnavailableReason(assignment, slot, employee.id)) { showToast('staffing.slotAlreadyStaffed', {}); return }
       // Full kanonisk revalidering mot NØYAKTIG dette dekningintervallet -
       // kant-i-kant med egen forrige replacement er aldri overlapp.
       const blocker = finalAssignmentBlocker(employee, assignment, slot)
@@ -17603,6 +17716,7 @@ function actionHandlers(target = null) {
         showToast('sick.extendBlocked', { name: employee.name })
         return
       }
+      if (timesheetIdentityConflict(assignment, slot, employee.id)) { showToast('timesheets.identityConflict', {}); return }
       slot.employeeId = employee.id
       slot.status = 'assigned'
       syncAssignmentStaffing(assignment)
@@ -17838,7 +17952,10 @@ function actionHandlers(target = null) {
       if (!assignment || !slot || !queue.length || assignment.status === 'cancelled') { state.formError = 'common.required'; render(); return }
       const channel = String(state.draft.channel ?? 'email')
       // Bytte via forespørsel: den sittende går til historikken, samme plass (§38).
+      // Den sittendes timeliste frigis (voides urørt / avløses med aktivitet) -
+      // den skal aldri stille gjenbrukes av den som overtar plassen.
       if (slot.employeeId) {
+        releaseSlotTimesheet(assignment, slot)
         logAssignmentEvent(assignment, { type: 'employee_removed', slotId: slot.id, employeeId: slot.employeeId })
         slot.employeeId = null
       }
@@ -17901,8 +18018,11 @@ function actionHandlers(target = null) {
       if (!assignment || !slot || !request || assignment.status === 'cancelled') return
       // Full revalidering rett før tildeling: feiler den, forblir plassen
       // avventende og ja-svaret står historisk (§21, §56).
+      const unavailable = slotUnavailableReason(assignment, slot, employee.id)
+      if (unavailable) { showToast(unavailable, {}); return }
       const blocker = finalAssignmentBlocker(employee, assignment, slot)
       if (blocker) { showToast(blocker, {}); return }
+      if (timesheetIdentityConflict(assignment, slot, employee.id)) { showToast('timesheets.identityConflict', {}); return }
       slot.employeeId = employee.id
       slot.status = 'assigned'
       syncAssignmentStaffing(assignment)
@@ -18136,6 +18256,8 @@ function actionHandlers(target = null) {
       if (activeTimesheet && ['submitted', 'approved', 'needs_correction'].includes(activeTimesheet.status)) {
         state.formError = 'timesheets.replaceBlocked'; render(); return
       }
+      // Selve plassen revalideres mot dens eget vindu rett før skriving.
+      if (employeeSlotConflict(nextId, assignment, replacedSlot)) { state.formError = 'staffing.replaceBusy'; render(); return }
       if (activeTimesheet && timesheetHasActivity(activeTimesheet)) activeTimesheet.superseded = true
       replacedSlot.employeeId = nextId
       replacedSlot.status = 'assigned'
@@ -18163,13 +18285,18 @@ function actionHandlers(target = null) {
         else showToast(blocker, {})
         return
       }
-      // Direktetildeling fyller en konkret åpen plass (§16).
+      // Direktetildeling fyller en konkret åpen plass (§16) - revalidert mot
+      // NØYAKTIG den plassen med samme kanoniske regel, ikke bare vakten.
       const openSlot = slotForEmployee(assignment, employeeId) ? null : openStaffingSlots(assignment)[0]
       if (slotForEmployee(assignment, employeeId)) return
       if (!openSlot) return
+      if (slotUnavailableReason(assignment, openSlot, employeeId) || employeeSlotConflict(employeeId, assignment, openSlot)) { showToast('staffing.slotAlreadyStaffed', {}); return }
+      if (timesheetIdentityConflict(assignment, openSlot, employeeId)) { showToast('timesheets.identityConflict', {}); return }
       openSlot.employeeId = employeeId
       openSlot.status = 'assigned'
       syncAssignmentStaffing(assignment)
+      // Én plass -> én ansatt -> én kanonisk timeliste, også via kandidatlisten.
+      ensureTimesheetForSlot(assignment, openSlot)
       state.requestRecipients = state.requestRecipients.filter(id => id !== employeeId)
       persist(); render(); showToast('crud.updated', { name: record('employees', employeeId).name })
     },
@@ -19873,6 +20000,9 @@ window.__workmaticPreview = {
   timesheetDeviation: id => { const t = collection('slotTimesheets').find(item => item.id === id); return t ? JSON.parse(JSON.stringify(timesheetDeviation(t))) : null },
   classifyShiftChange: (before, after) => JSON.parse(JSON.stringify(classifyShiftChange(before, after))),
   staffingSlots: assignmentId => JSON.parse(JSON.stringify(staffingSlotsFor(record('assignments', assignmentId)))),
+  // P0 bemanningsintegritet: den ene konfliktregelen og den avledede revisjonen.
+  slotConflict: (employeeId, assignmentId, slotId = null) => { const assignment = record('assignments', assignmentId); const conflict = assignment ? employeeSlotConflict(employeeId, assignment, slotId === null ? null : slotById(assignment, slotId)) : null; return conflict ? { assignmentId: conflict.assignment.id, slotId: conflict.slot.id, sameShift: conflict.sameShift, window: { ...conflict.window } } : null },
+  staffingIntegrityAudit: () => JSON.parse(JSON.stringify(staffingIntegrityAudit())),
   openSlots: assignmentId => JSON.parse(JSON.stringify(openStaffingSlots(record('assignments', assignmentId)))),
   premiumRulesFor: (paySystemId, date = null) => premiumRulesForPaySystem(paySystemId, date),
   overtimeRulesFor: (paySystemId, date = null) => overtimeRulesForPaySystem(paySystemId, date),
