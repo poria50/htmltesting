@@ -4245,6 +4245,11 @@ const copy = {
     'staffing.overlapBlocked': '{name} er allerede satt opp på en annen vakt som overlapper denne perioden ({period}).',
     'staffing.replaceBusy': 'Den valgte ansatte har en overlappende vakt og kan ikke tildeles.',
     'staffing.slotAlreadyStaffed': 'Plassen er allerede bemannet. Oppdater vakten og prøv igjen.',
+    'integrity.title': 'Bemanningsintegritet',
+    'integrity.slot': 'Plass',
+    'integrity.summary': '{safe} trygge duplikater · {manual} til manuell gjennomgang',
+    'integrity.cleanupSafe': 'Rydd {count} trygge duplikater',
+    'integrity.cleanupDone': '{count} duplikater ryddet - {manual} står til manuell gjennomgang',
     'staffing.integrityConflict': 'Samme ansatt står på overlappende bemanningsplasser – krever manuell korrigering før lønn',
     'timesheets.identityConflict': 'Timelisten tilhører en annen ansatt enn plassen – integritetskonflikt, krever manuell korrigering',
     'staffing.requestBody': 'Hei,\n\nVi har en ledig vakt hos {client}.\n\nDato: {date}\nTid: {time}\nAvdeling: {department}\n\nEr du tilgjengelig og interessert?',
@@ -5365,7 +5370,7 @@ copy.en = {
   'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
   'staffing.originalPeriod': 'Original live-in period', 'staffing.totalPayable': 'Total payable', 'staffing.sickCompensation': 'Sick compensation',
   'staffing.busy': 'Busy', 'staffing.overlapBlocked': '{name} is already assigned to another shift that overlaps this period ({period}).',
-  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.', 'staffing.slotAlreadyStaffed': 'The position is already staffed. Refresh the shift and try again.', 'staffing.integrityConflict': 'The same employee occupies overlapping staffing positions – requires manual correction before payroll', 'timesheets.identityConflict': 'The timesheet belongs to a different employee than the position – integrity conflict, requires manual correction',
+  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.', 'staffing.slotAlreadyStaffed': 'The position is already staffed. Refresh the shift and try again.', 'integrity.title': 'Staffing integrity', 'integrity.slot': 'Position', 'integrity.summary': '{safe} safe duplicates · {manual} for manual review', 'integrity.cleanupSafe': 'Clean {count} safe duplicates', 'integrity.cleanupDone': '{count} duplicates cleaned - {manual} remain for manual review', 'staffing.integrityConflict': 'The same employee occupies overlapping staffing positions – requires manual correction before payroll', 'timesheets.identityConflict': 'The timesheet belongs to a different employee than the position – integrity conflict, requires manual correction',
   'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
   'staffing.noAvailable': 'No available employees match this shift.',
   'staffing.sendByMessage': 'Send request as message',
@@ -10929,6 +10934,35 @@ function staffingIntegrityConflictKeys() {
   return keys
 }
 
+// Kontrollert opprydding (P1): kun konfliktpar der BEGGE plasser er trygge
+// kandidater. Den tidligst opprettede/laveste plassen beholder tildelingen;
+// duplikatets relasjon frigis (plassen selv består som bemanningsbehov), og
+// KUN en urørt, aktivitetsløs timeliste på duplikatet voides. Alt annet
+// (manual_review) muteres aldri her. Returnerer telling for rapportering.
+function cleanupSafeStaffingConflicts() {
+  let cleaned = 0
+  let manual = 0
+  const released = new Set()
+  for (const pair of staffingIntegrityAudit()) {
+    if (pair.a.classification !== 'safe_cleanup_candidate' || pair.b.classification !== 'safe_cleanup_candidate') { manual += 1; continue }
+    const keyOf = entry => `${entry.assignmentId}|${entry.slotId}`
+    if (released.has(keyOf(pair.a)) || released.has(keyOf(pair.b))) continue
+    const [keep, duplicate] = [pair.a, pair.b].sort((x, y) => String(x.assignmentId).localeCompare(String(y.assignmentId), undefined, { numeric: true }) || Number(x.slotId) - Number(y.slotId))
+    const assignment = record('assignments', duplicate.assignmentId)
+    const slot = assignment ? slotById(assignment, duplicate.slotId) : null
+    if (!slot || slot.employeeId !== pair.employeeId) continue
+    const timesheet = timesheetForSlot(assignment.id, slot.id)
+    if (timesheet && !timesheetHasActivity(timesheet)) timesheet.voided = true
+    logAssignmentEvent(assignment, { type: 'integrity_cleanup', slotId: slot.id, employeeId: slot.employeeId, keptAssignmentId: keep.assignmentId, keptSlotId: keep.slotId })
+    slot.employeeId = null
+    slot.status = 'open'
+    syncAssignmentStaffing(assignment)
+    released.add(keyOf(duplicate))
+    cleaned += 1
+  }
+  return { cleaned, manual }
+}
+
 function staffingIntegrityAudit() {
   const classify = ({ assignment, slot }) => {
     const reasons = []
@@ -11653,10 +11687,78 @@ function timesheetInvalidAbsenceMinutes(timesheet) {
     .reduce((sum, item) => sum + absenceMinutesFor(item), 0)
 }
 
-// Totalt betalbart for én timeliste: frisk plan + sykekomponent (§10-§11),
-// minus ugyldig generelt fravær (§17) - planen selv røres aldri (§23).
+// === ÉN kanonisk beregning av betalbare ARBEIDEDE minutter (P1) ===
+// Timelister-UI, godkjenningssnapshotet, lønnsgrunnlaget og fakturagrunnlaget
+// leser alle denne ene beregningen - aldri egen lønnsmatematikk. Regel: det
+// registrerte arbeidsvinduet (faktisk start->slutt når registrert, ellers
+// planen), minus ugyldig/ubetalt fravær som faktisk overlapper vinduet (klippet
+// til vinduet), minus pause (trekkes fra slutten, som før). Resultatet er de
+// betalbare SEGMENTENE - tilleggsmotoren vurderer kun disse intervallene.
+// Medlever beholder sin fryste betalingsplan (egne helpers) og røres ikke her.
+function timesheetWorkedWindowIso(timesheet, source = timesheet) {
+  if (!timesheet?.plannedDate) return null
+  const registered = Boolean(source.actualStart && source.actualEnd)
+  const start = registered ? source.actualStart : timesheet.plannedStart
+  const end = registered ? source.actualEnd : timesheet.plannedEnd
+  if (!start || !end) return null
+  const span = timeSpanMinutes(start, end, timesheet.endNextDay)
+  if (span === null || span <= 0) return null
+  const from = `${timesheet.plannedDate}T${start}`
+  const to = `${isoAddDays(timesheet.plannedDate, end <= start || timesheet.endNextDay ? 1 : 0)}T${end}`
+  return { from, to: to > from ? to : from, registered, breakMinutes: Math.max(0, Number(registered ? source.actualBreakMinutes : timesheet.plannedBreakMinutes) || 0) }
+}
+
+function timesheetPayableSegments(timesheet, source = timesheet) {
+  const window = timesheetWorkedWindowIso(timesheet, source)
+  if (!window) return []
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (assignment?.liveInSnapshot) return [{ from: window.from, to: window.to }]
+  const invalid = absencesForSlot(timesheet.assignmentId, timesheet.slotId)
+    .filter(item => item.status === 'invalid' && item.employeeId === timesheet.employeeId && item.absenceStartAt && item.absenceEndAt)
+    .map(item => ({ from: item.absenceStartAt, to: item.absenceEndAt }))
+    .sort((a, b) => a.from.localeCompare(b.from))
+  let segments = [{ from: window.from, to: window.to }]
+  for (const gap of invalid) {
+    segments = segments.flatMap(segment => {
+      if (gap.to <= segment.from || gap.from >= segment.to) return [segment]
+      const parts = []
+      if (gap.from > segment.from) parts.push({ from: segment.from, to: gap.from })
+      if (gap.to < segment.to) parts.push({ from: gap.to, to: segment.to })
+      return parts
+    })
+  }
+  // Pausen trekkes fra slutten av det siste segmentet (bevarer dagens semantikk).
+  let breakLeft = window.breakMinutes
+  for (let i = segments.length - 1; i >= 0 && breakLeft > 0; i -= 1) {
+    const length = isoMinutesBetween(segments[i].from, segments[i].to)
+    const cut = Math.min(length, breakLeft)
+    breakLeft -= cut
+    if (cut >= length) segments.splice(i, 1)
+    else segments[i] = { from: segments[i].from, to: isoAddMinutes(segments[i].to, -cut) }
+  }
+  return segments
+}
+
+function isoAddMinutes(iso, minutes) {
+  const date = new Date(`${iso}:00Z`)
+  date.setUTCMinutes(date.getUTCMinutes() + minutes)
+  return date.toISOString().slice(0, 16)
+}
+
+function payableWorkedMinutesFor(timesheet, source = timesheet) {
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (assignment?.liveInSnapshot) return timesheetPlannedMinutes(timesheet)
+  return timesheetPayableSegments(timesheet, source).reduce((sum, segment) => sum + isoMinutesBetween(segment.from, segment.to), 0)
+}
+
+// Totalt betalbart for én timeliste: kanoniske betalbare arbeidede minutter +
+// sykekomponent (medlever, §10-§11). Ugyldig fravær er allerede trukket i den
+// kanoniske beregningen (§17) - planen selv røres aldri (§23). Medlever
+// beholder frisk plan + syk - ugyldig som før.
 function timesheetPayableMinutes(timesheet) {
-  return Math.max(0, timesheetPlannedMinutes(timesheet) + timesheetSickMinutes(timesheet) - timesheetInvalidAbsenceMinutes(timesheet))
+  const assignment = record('assignments', timesheet.assignmentId)
+  if (assignment?.liveInSnapshot) return Math.max(0, timesheetPlannedMinutes(timesheet) + timesheetSickMinutes(timesheet) - timesheetInvalidAbsenceMinutes(timesheet))
+  return payableWorkedMinutesFor(timesheet) + timesheetSickMinutes(timesheet)
 }
 
 // §25: en helt syk originalvakt har ingen frisk del å registrere - den
@@ -13565,6 +13667,40 @@ function pendingPayrollTimesheets() {
 // Lønnslinjene fra godkjent faktisk tid. Samme beregningsprimitiv som resten av
 // motoren: resolver -> grunnlønn -> tillegg (mot faktisk intervall) -> overtid,
 // med den ukentlige akkumulatoren per ansatt på tvers av klienter (§13).
+// Tillegg på de betalbare SEGMENTENE (P1): samme motor (premiumsFor) kjøres
+// per segment med segmentets egen dato/start/lengde, og linjene slås sammen
+// per regel. Ett segment = nøyaktig dagens kall. Faste vakttillegg
+// (fixed_shift, 0 timer) telles én gang - aldri per segment. Tid utenfor
+// segmentene (ugyldig fravær) gir aldri tillegg.
+function premiumsForSegments(paySystemId, segments, rate, functionId = null) {
+  const runs = segments
+    .map(segment => ({ segment, hours: isoMinutesBetween(segment.from, segment.to) / 60 }))
+    .filter(entry => entry.hours > 0)
+    .map(entry => premiumsFor(paySystemId, entry.segment.from.slice(0, 10), entry.segment.from.slice(11, 16), entry.hours, rate, functionId, false))
+  if (runs.length === 1) return runs[0]
+  if (!runs.length) return { amount: 0, applied: [], blocked: [], considered: [], baseReplacement: 0 }
+  const merged = new Map()
+  for (const run of runs) {
+    for (const match of run.applied) {
+      const key = String(match.rule.id)
+      const fixedOnce = match.rule.method === 'fixed_shift'
+      if (!merged.has(key)) { merged.set(key, { ...match, hours: match.hours, amount: match.amount }); continue }
+      if (fixedOnce) continue
+      const current = merged.get(key)
+      current.hours += match.hours
+      current.amount += match.amount
+    }
+  }
+  const applied = [...merged.values()]
+  return {
+    amount: applied.reduce((sum, match) => sum + match.amount, 0),
+    applied,
+    blocked: runs.flatMap(run => run.blocked),
+    considered: runs[0].considered,
+    baseReplacement: Math.min(segments.reduce((sum, segment) => sum + isoMinutesBetween(segment.from, segment.to) / 60, 0) * rate, runs.reduce((sum, run) => sum + (run.baseReplacement || 0), 0))
+  }
+}
+
 function timesheetPayrollBasis(period = null) {
   const approved = approvedPayrollTimesheets(period)
     .sort((a, b) => (a.snapshot.plannedDate === b.snapshot.plannedDate
@@ -13610,10 +13746,17 @@ function timesheetPayrollBasis(period = null) {
       blocked.push({ ...trace, date: snapshot.plannedDate, employee, assignment, reasonKey: 'medlever.needsReview' })
       continue
     }
+    // P1: timene er de FRYSTE betalbare arbeidede minuttene fra den kanoniske
+    // beregningen (samme tall som Timelister viste og godkjente). Eldre
+    // snapshotter uten frosset verdi leses som før (faktisk spenn - pause) -
+    // historikk rekalkuleres aldri.
+    const frozenSegments = !liveIn && Array.isArray(snapshot.payableSegments) ? snapshot.payableSegments : null
     const spanMinutes = timeSpanMinutes(snapshot.actualStart, snapshot.actualEnd, timesheet.endNextDay)
     const hours = liveIn
       ? (liveIn.override ? liveIn.override.paidHours : liveIn.totalPaidHours)
-      : Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(snapshot.actualBreakMinutes) || 0)) / 60
+      : frozenSegments
+        ? (Number(snapshot.payableWorkedMinutes) || 0) / 60
+        : Math.max(0, (spanMinutes ?? 0) - Math.max(0, Number(snapshot.actualBreakMinutes) || 0)) / 60
     // Grunn-timesatsen kommer fra godkjenningssnapshotet når den ble frosset
     // der (nye godkjenninger); eldre snapshotter uten frosset sats leser som
     // før den løpende resolusjonen (backward compatibility).
@@ -13622,7 +13765,9 @@ function timesheetPayrollBasis(period = null) {
     // Funksjonen kommer fra godkjenningssnapshotet - aldri fra plassens
     // nåværende verdi - så senere endringer ikke rører godkjent grunnlag (§29).
     // Medlever: kun funksjonstillegg anvendes automatisk (§34-§35).
-    const premium = premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate, snapshot.functionId ?? null, liveIn ? ((liveIn.segments?.length ?? 0) || Number(assignment?.liveInSnapshot?.days) || true) : false)
+    const premium = frozenSegments
+      ? premiumsForSegments(resolution.tariffId, frozenSegments, rate, snapshot.functionId ?? null)
+      : premiumsFor(resolution.tariffId, snapshot.plannedDate, snapshot.actualStart, hours, rate, snapshot.functionId ?? null, liveIn ? ((liveIn.segments?.length ?? 0) || Number(assignment?.liveInSnapshot?.days) || true) : false)
 
     // Medlever-timene er en avtalt døgnkompensasjon (§33): de mates ALDRI inn i
     // daglige/ukentlige overtidsregler, og forurenser heller ikke ukesakkumulatoren
@@ -13778,9 +13923,20 @@ function timesheetPayrollSection() {
   const pendingRows = basis.pending.map(timesheetBlockerRow).join('')
   const rows = basis.lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}</td><td>${line.sourceType === 'sick_leave_compensation' ? `<span class="tag warning">${t('sick.title')}</span>` : timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td><strong>${formatMoney(displayNok(line.ordinaryAmount) + displayNok(line.premiumAmount) + displayNok(line.overtimeAmount))}</strong></td><td><span class="muted">${line.sourceType === 'sick_leave_compensation' ? t('sick.source') : t('payrollBasis.source')}</span></td></tr>`)
   // Blokkeringen sier hva som mangler OG hvor det rettes: avdelingen (§12).
-  const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span></div>`).join('')
+  // Integritetskonflikter (P1) oppgir eksakt Vakt-ID, plass og intervall for
+  // manuell gjennomgang; trygge duplikater kan ryddes kontrollert herfra.
+  const integrityDetail = item => ['staffing.integrityConflict', 'timesheets.identityConflict'].includes(item.reasonKey) && item.assignment
+    ? (() => { const slot = slotById(item.assignment, item.slotId); const window = slot ? (slotCoverageWindowIso(item.assignment, slot) ?? assignmentTimeWindowIso(item.assignment)) : null; return ` · ${t('staffing.assignmentId')} ${relationLink('job-detail', item.assignment.id, String(item.assignment.id))} · ${t('integrity.slot')} ${escapeHtml(String(item.slotId))}${window ? ` · ${escapeHtml(window.from.replace('T', ' '))} – ${escapeHtml(window.to.replace('T', ' '))}` : ''}` })()
+    : ''
+  const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${integrityDetail(item)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span></div>`).join('')
+  const audit = staffingIntegrityAudit()
+  const safePairs = audit.filter(pair => pair.a.classification === 'safe_cleanup_candidate' && pair.b.classification === 'safe_cleanup_candidate')
+  const manualPairs = audit.filter(pair => !safePairs.includes(pair))
+  const integrityCard = audit.length
+    ? `<div class="banner ${manualPairs.length ? 'warning' : 'info'}">${icon('bell')}<span><strong>${t('integrity.title')}:</strong> ${t('integrity.summary', { safe: safePairs.length, manual: manualPairs.length })}${manualPairs.map(pair => ` · ${escapeHtml(record('employees', pair.employeeId)?.name ?? pair.employeeId)}: ${t('staffing.assignmentId')} ${escapeHtml(String(pair.a.assignmentId))}/${escapeHtml(String(pair.a.slotId))} ↔ ${escapeHtml(String(pair.b.assignmentId))}/${escapeHtml(String(pair.b.slotId))} (${escapeHtml([...new Set([...pair.a.reasons, ...pair.b.reasons])].join(', '))})`).join('')}${safePairs.length ? ` <button type="button" class="button small" data-action="cleanup-staffing-integrity">${t('integrity.cleanupSafe', { count: safePairs.length })}</button>` : ''}</span></div>`
+    : ''
   const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'shifts.basePay', 'comp.tables.premium', 'comp.payroll.overtime', 'payrollBasis.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
-  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('payrollBasis.title')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${blockedRows}${pendingRows}${table_}</article>`
+  return `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('payrollBasis.title')}</h2><span class="tag info">${basis.lines.length}</span></div>${chips}${integrityCard}${blockedRows}${pendingRows}${table_}</article>`
 }
 
 function payrollReport(form) {
@@ -16503,6 +16659,18 @@ function approveTimesheetRecord(timesheet) {
             ? { resolvedAnnualBasisType: resolution.annualBasisType ?? 'standard', resolvedAnnualHoursBasis: resolution.annualHoursBasis ?? null, resolvedBaseRate: resolution.baseRate }
             : {}
         })(),
+        // P1: betalbare ARBEIDEDE minutter fryses fra den ene kanoniske
+        // beregningen (arbeidsvindu - ugyldig fravær - pause) sammen med de
+        // betalbare segmentene tilleggene skal vurderes på. Lønn leser disse -
+        // aldri egen matematikk. Medlever: null (egen fryst betalingsplan).
+        ...(() => {
+          if (assignment?.liveInSnapshot) return { payableWorkedMinutes: null, payableSegments: null, invalidAbsenceMinutes: 0 }
+          const segments = timesheetPayableSegments(timesheet)
+          const payable = segments.reduce((sum, segment) => sum + isoMinutesBetween(segment.from, segment.to), 0)
+          const window = timesheetWorkedWindowIso(timesheet)
+          const worked = window ? Math.max(0, isoMinutesBetween(window.from, window.to) - window.breakMinutes) : 0
+          return { payableWorkedMinutes: payable, payableSegments: segments, invalidAbsenceMinutes: Math.max(0, worked - payable) }
+        })(),
         approvedAt: timesheet.approvedAt,
         approvedBy: timesheet.approvedBy
       }
@@ -18271,6 +18439,15 @@ function actionHandlers(target = null) {
       closeDialog()
       showToast('crud.updated', { name: next.name })
     },
+    // P1 kontrollert opprydding: kun par der BEGGE plasser er trygge
+    // kandidater ryddes; alt med økonomi/flyt/historikk står urørt til manuell
+    // gjennomgang og lønnen forblir blokkert der.
+    'cleanup-staffing-integrity': () => {
+      const result = cleanupSafeStaffingConflicts()
+      if (result.cleaned) persist()
+      render()
+      showToast('integrity.cleanupDone', { count: result.cleaned, manual: result.manual })
+    },
     'assign-employee-direct': () => {
       const assignment = record('assignments', target?.dataset?.id)
       const employeeId = target?.dataset?.employeeId
@@ -20003,6 +20180,9 @@ window.__workmaticPreview = {
   // P0 bemanningsintegritet: den ene konfliktregelen og den avledede revisjonen.
   slotConflict: (employeeId, assignmentId, slotId = null) => { const assignment = record('assignments', assignmentId); const conflict = assignment ? employeeSlotConflict(employeeId, assignment, slotId === null ? null : slotById(assignment, slotId)) : null; return conflict ? { assignmentId: conflict.assignment.id, slotId: conflict.slot.id, sameShift: conflict.sameShift, window: { ...conflict.window } } : null },
   staffingIntegrityAudit: () => JSON.parse(JSON.stringify(staffingIntegrityAudit())),
+  cleanupStaffingIntegrity: () => { const result = cleanupSafeStaffingConflicts(); if (result.cleaned) persist(); render(); return result },
+  // P1: den kanoniske beregningen av betalbare arbeidede minutter/segmenter.
+  payableSegments: (assignmentId, slotId) => { const t = timesheetForSlot(assignmentId, slotId); return t ? JSON.parse(JSON.stringify(timesheetPayableSegments(t))) : [] },
   openSlots: assignmentId => JSON.parse(JSON.stringify(openStaffingSlots(record('assignments', assignmentId)))),
   premiumRulesFor: (paySystemId, date = null) => premiumRulesForPaySystem(paySystemId, date),
   overtimeRulesFor: (paySystemId, date = null) => overtimeRulesForPaySystem(paySystemId, date),
