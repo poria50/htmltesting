@@ -13811,7 +13811,11 @@ function renderPayrollEmployee() {
   const period = `${formatDate(state.payrollForm.startDate)} – ${formatDate(state.payrollForm.endDate)}`
   const actions = `${button('common.back', 'back-payroll', 'secondary', 'arrow-left')}<button type="button" class="button secondary" data-route="employee-detail" data-id="${employee.id}">${icon('id-card')}${t('employees.detail')}</button><button type="button" class="button secondary" data-route="timesheets">${icon('calendar')}${t('comp.payroll.viewTimesheets')}</button>`
 
-  const header = `<article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${escapeHtml(employee.name)}</h2><p>${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())} · ${lab(employee.profession)} · ${escapeHtml(period)}</p></div>${person ? (view.pending === 0 ? approvalTag(true) : '') : `<span class="tag">${t('comp.payroll.noEntries')}</span>`}</div></article>`
+  // Denne detaljsiden hører til den HISTORISKE legacy-rapporten (samme
+  // syntetiske kilde) - merkes tydelig; den kanoniske ansattvisningen er
+  // skuffen fra lønnslisten, som leser det godkjente grunnlaget.
+  const legacyBanner = `<div class="banner info">${icon('file')}<span><strong>${t('financial.legacyReport')}</strong> · ${t('financial.legacyReportHelp')}</span></div>`
+  const header = `${legacyBanner}<article class="card" style="margin-bottom:16px"><div class="card-header"><div><h2>${escapeHtml(employee.name)}</h2><p>${escapeHtml(String(employee.employeeNumber ?? employee.id).toUpperCase())} · ${lab(employee.profession)} · ${escapeHtml(period)}</p></div>${person ? (view.pending === 0 ? approvalTag(true) : '') : `<span class="tag">${t('comp.payroll.noEntries')}</span>`}</div></article>`
   const metrics = [
     [t('comp.payroll.registeredHours'), formatHours(view.hours)],
     [t('comp.payroll.basePay'), formatMoney(view.ordinaryAmount)],
@@ -13890,29 +13894,65 @@ function renderPayroll() {
 function employeeDrawer(employeeId) {
   const employee = record('employees', employeeId)
   if (!employee) return ''
-  const report = payrollReport(state.payrollForm)
-  const person = report.byEmployee.find(row => row.employee.id === employeeId)
-  const lines = report.lines.filter(line => line.employee.id === employeeId)
-  const contextualRates = [...new Set(lines.map(line => line.rate))]
+  // KANONISK kilde (duplikatfiksen): ÉN rad per godkjent timeliste -
+  // identiteten er timesheet.id (via det kanoniske lønnsgrunnlaget), aldri
+  // dato/tid/beløp. Den syntetiske legacy-rapporten genererte ukemønstre per
+  // (oppdrag x ansatt) og ganget dermed radene med antall oppdrag - den leses
+  // ikke lenger her. Sykekompensasjon vises som egne, merkede linjer.
+  // To reelt ulike vakter med identisk dato/tid/beløp forblir to rader.
+  const scope = { ...state.payrollForm }
+  const lines = timesheetPayrollBasis().lines.filter(line => line.employeeId === employeeId && blockerMatchesFinancialScope(line, scope))
+  const contextualRates = [...new Set(lines.filter(line => line.sourceType !== 'sick_leave_compensation').map(line => line.rate))]
   const facts = [
-    [t('comp.payroll.employeeNumber'), employee.id.toUpperCase()],
+    [t('comp.payroll.employeeNumber'), String(employee.employeeNumber ?? employee.id).toUpperCase()],
     [t('comp.payroll.title'), label(employee.profession)],
     [t('employees.payByAssignment'), contextualRates.length ? contextualRates.map(rate => `${formatMoney(rate, 2)}/${t('comp.ui.hoursShort')}`).join(' · ') : t('common.none')],
     [t('comp.payroll.employedSince'), employee.start ? formatDate(employee.start) : '']
   ]
   const factGrid = `<div class="grid cols-2">${facts.map(([labelText, value]) => `<div class="field"><label>${labelText}</label><input value="${escapeHtml(value)}" readonly></div>`).join('')}</div>`
 
-  if (!person) {
-    return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('comp.payroll.noShiftsInPeriod')}</h3></div>`)
+  const drawerFooter = `<button type="button" class="button secondary" data-route="employee-detail" data-id="${employee.id}">${icon('id-card')}${t('employees.detail')}</button><button type="button" class="button" data-action="export-employee">${icon('file')}${t('comp.payroll.exportEmployee')}</button>`
+
+  if (!lines.length) {
+    // Tom periode: seksjonen og eksporten består, men uten summeringsstriper -
+    // og uten en eneste syntetisk rad.
+    const emptyCard = `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('comp.payroll.fullTimesheet')}</h3><span class="tag info">0</span></div><div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('comp.payroll.noShiftsInPeriod')}</h3></div></article>`
+    return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${emptyCard}`, drawerFooter)
   }
 
-  const summary = `<div class="summary-strip">${[[t('comp.payroll.hours'), formatHours(person.hours)], [t('comp.payroll.overtime'), formatHours(person.overtimeHours)], [t('comp.payroll.shiftCount'), String(person.shifts)], [t('comp.payroll.toPayroll'), formatMoney(person.total)]].map(([labelText, value]) => `<div class="summary-item"><span>${labelText}</span><strong>${value}</strong></div>`).join('')}</div>`
+  // Alle tall avledes av NØYAKTIG samme kanoniske linjesett - ingen egen
+  // pengeberegning i skuffen (§6): grunnlagets ferdigberegnede beløp brukes.
+  const totals = lines.reduce((sum, line) => ({
+    hours: sum.hours + (Number(line.hours) || 0),
+    overtimeHours: sum.overtimeHours + (Number(line.overtimeHours) || 0),
+    ordinaryAmount: sum.ordinaryAmount + (Number(line.ordinaryAmount) || 0),
+    premiumAmount: sum.premiumAmount + (Number(line.premiumAmount) || 0),
+    overtimeAmount: sum.overtimeAmount + (Number(line.overtimeAmount) || 0),
+    total: sum.total + (Number(line.total) || 0)
+  }), { hours: 0, overtimeHours: 0, ordinaryAmount: 0, premiumAmount: 0, overtimeAmount: 0, total: 0 })
+  const workedCount = lines.filter(line => line.sourceType !== 'sick_leave_compensation').length
+  const summary = `<div class="summary-strip">${[[t('comp.payroll.hours'), formatHours(totals.hours)], [t('comp.payroll.overtime'), formatHours(totals.overtimeHours)], [t('comp.payroll.shiftCount'), String(workedCount)], [t('comp.payroll.toPayroll'), formatMoney(totals.total)]].map(([labelText, value]) => `<div class="summary-item"><span>${labelText}</span><strong>${value}</strong></div>`).join('')}</div>`
   const period = `<p class="field-help">${t('comp.invoicing.fromDate')} ${formatDate(state.payrollForm.startDate)} — ${t('comp.invoicing.toDate')} ${formatDate(state.payrollForm.endDate)}</p>`
-  const postings = `<article class="card"><h3>${t('comp.payroll.workedAt')}</h3>${person.postings.map(posting => `<div class="file-row"><div class="file-name"><strong>${posting.clientId ? relationLink('client-detail', posting.clientId, posting.clientName) : escapeHtml(posting.clientName)}</strong><span>${escapeHtml(posting.departmentLabel)}</span></div><span class="muted">${posting.shifts} ${t('comp.payroll.shifts')} · ${formatHours(posting.hours)} · ${formatMoney(posting.total)}</span></div>`).join('')}</article>`
-  const head = ['comp.payroll.date', 'comp.payroll.client', 'comp.invoicing.department', 'comp.tables.start', 'comp.tables.end', 'comp.payroll.hours', 'comp.payroll.overtime', 'comp.payroll.ordinaryPay', 'comp.payroll.overtimePay', 'comp.invoicing.premiums', 'comp.payroll.toPayroll', 'common.status']
-  const timesheet = `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('comp.payroll.fullTimesheet')}</h3><span class="tag info">${lines.length}</span></div><div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${lines.map(line => `<tr><td>${formatDate(line.date)}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${line.department ? lab(line.department.name) : ''}</td><td>${escapeHtml(line.start)}</td><td>${escapeHtml(line.end)}</td><td>${formatHours(line.hours)}</td><td>${formatHours(line.overtimeHours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td><strong>${formatMoney(line.total)}</strong></td><td>${approvalTag(line.approved)}</td></tr>`).join('')}</tbody><tfoot><tr class="row-total"><td colspan="5"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatHours(person.hours)}</strong></td><td>${formatHours(person.overtimeHours)}</td><td>${formatMoney(person.ordinaryAmount)}</td><td>${formatMoney(person.overtimeAmount)}</td><td>${formatMoney(person.premiumAmount)}</td><td><strong>${formatMoney(person.total)}</strong></td><td></td></tr></tfoot></table></div></article>`
-  const footer = `<button type="button" class="button secondary" data-route="employee-detail" data-id="${employee.id}">${icon('id-card')}${t('employees.detail')}</button><button type="button" class="button" data-action="export-employee">${icon('file')}${t('comp.payroll.exportEmployee')}</button>`
-  return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${summary}${period}${postings}${timesheet}`, footer)
+  const postingMap = new Map()
+  for (const line of lines) {
+    const key = `${line.client?.id ?? 'none'}|${line.department?.id ?? 'none'}`
+    if (!postingMap.has(key)) postingMap.set(key, { clientId: line.client?.id ?? null, clientName: line.client?.name ?? t('common.none'), departmentLabel: line.department ? label(line.department.name) : t('common.none'), shifts: 0, hours: 0, total: 0 })
+    const posting = postingMap.get(key)
+    posting.shifts += 1
+    posting.hours += Number(line.hours) || 0
+    posting.total += Number(line.total) || 0
+  }
+  const postings = `<article class="card"><h3>${t('comp.payroll.workedAt')}</h3>${[...postingMap.values()].map(posting => `<div class="file-row"><div class="file-name"><strong>${posting.clientId ? relationLink('client-detail', posting.clientId, posting.clientName) : escapeHtml(posting.clientName)}</strong><span>${escapeHtml(posting.departmentLabel)}</span></div><span class="muted">${posting.shifts} ${t('comp.payroll.shifts')} · ${formatHours(posting.hours)} · ${formatMoney(posting.total)}</span></div>`).join('')}</article>`
+  const head = ['comp.payroll.date', 'comp.payroll.client', 'comp.invoicing.department', 'staffing.assignmentId', 'comp.tables.start', 'comp.tables.end', 'comp.payroll.hours', 'comp.payroll.overtime', 'comp.payroll.ordinaryPay', 'comp.payroll.overtimePay', 'comp.invoicing.premiums', 'comp.payroll.toPayroll', 'common.status']
+  const rows = lines.map(line => {
+    const sick = line.sourceType === 'sick_leave_compensation'
+    const timeCells = sick
+      ? `<td colspan="2"><span class="tag warning">${t('sick.title')}</span></td>`
+      : `<td>${escapeHtml(line.actualStart ?? '')}</td><td>${escapeHtml(line.actualEnd ?? '')}</td>`
+    return `<tr><td>${formatDate(line.date)}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${line.department ? lab(line.department.name) : ''}</td><td>${line.assignmentId ? relationLink('job-detail', line.assignmentId, String(line.assignmentId)) : '—'}</td>${timeCells}<td>${formatHours(line.hours)}</td><td>${formatHours(line.overtimeHours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td><strong>${formatMoney(line.total)}</strong></td><td>${sick ? `<span class="muted">${t('sick.source')}</span>` : approvalTag(true)}</td></tr>`
+  })
+  const timesheet = `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('comp.payroll.fullTimesheet')}</h3><span class="tag info">${lines.length}</span></div><div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody><tfoot><tr class="row-total"><td colspan="6"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatHours(totals.hours)}</strong></td><td>${formatHours(totals.overtimeHours)}</td><td>${formatMoney(totals.ordinaryAmount)}</td><td>${formatMoney(totals.overtimeAmount)}</td><td>${formatMoney(totals.premiumAmount)}</td><td><strong>${formatMoney(totals.total)}</strong></td><td></td></tr></tfoot></table></div></article>`
+  return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${summary}${period}${postings}${timesheet}`, drawerFooter)
 }
 
 function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
