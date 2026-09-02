@@ -4042,6 +4042,8 @@ const copy = {
     'timesheets.queueEmpty.awaiting': 'Ingen timelister venter på godkjenning i valgt periode.',
     'timesheets.queueEmpty.approved': 'Ingen godkjente timelister i valgt periode.',
     'timesheets.queueSummary': '{action} krever handling · {awaiting} venter på godkjenning · {approved} godkjent',
+    'timesheets.queueSummaryAbsences': '(herav {count} fravær til vurdering)',
+    'timesheets.queueActionAbsences': '{count} fravær venter på vurdering og behandles i «Fravær til behandling» nedenfor.',
     'timesheets.reopenedStatus': 'Gjenåpnet for korrigering',
     'timesheets.bulkApprove': 'Godkjenn valgte ({count})',
     'timesheets.bulkConfirm': 'Godkjenne {count} timelister?',
@@ -5189,7 +5191,7 @@ copy.en = {
   'timesheets.sendBackTitle': 'Send back timesheet',
   'timesheets.comment': 'Comment',
   'timesheets.approver': 'Approver',
-  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'timesheets.queue.all': 'All', 'timesheets.queue.action': 'Action required', 'timesheets.queue.awaiting': 'Awaiting approval', 'timesheets.queue.approved': 'Approved', 'timesheets.reported': 'Reported', 'timesheets.noDeviation': 'No deviation', 'timesheets.queueEmpty.action': 'No timesheets require action in the selected period.', 'timesheets.queueEmpty.awaiting': 'No timesheets are awaiting approval in the selected period.', 'timesheets.queueEmpty.approved': 'No approved timesheets in the selected period.', 'timesheets.queueSummary': '{action} require action · {awaiting} awaiting approval · {approved} approved', 'timesheets.reopenedStatus': 'Reopened for correction', 'timesheets.bulkApprove': 'Approve selected ({count})', 'timesheets.bulkConfirm': 'Approve {count} timesheets?', 'timesheets.bulkDone': '{count} timesheets approved', 'timesheets.bulkAborted': 'The approval was aborted: {name} is no longer valid for bulk approval. No timesheets were changed.', 'timesheets.bulkDeviation': 'Deviation requires review', 'timesheets.bulkIneligible': 'Cannot be bulk approved', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
+  'timesheets.noApprover': 'No approver configured', 'timesheets.configureApprover': 'Configure approver', 'timesheets.correct': 'Correct timesheet', 'timesheets.reviewAction': 'Review', 'timesheets.queue.all': 'All', 'timesheets.queue.action': 'Action required', 'timesheets.queue.awaiting': 'Awaiting approval', 'timesheets.queue.approved': 'Approved', 'timesheets.reported': 'Reported', 'timesheets.noDeviation': 'No deviation', 'timesheets.queueEmpty.action': 'No timesheets require action in the selected period.', 'timesheets.queueEmpty.awaiting': 'No timesheets are awaiting approval in the selected period.', 'timesheets.queueEmpty.approved': 'No approved timesheets in the selected period.', 'timesheets.queueSummary': '{action} require action · {awaiting} awaiting approval · {approved} approved', 'timesheets.queueSummaryAbsences': '(including {count} absences for review)', 'timesheets.queueActionAbsences': '{count} absences are awaiting review and are handled in "Absences for review" below.', 'timesheets.reopenedStatus': 'Reopened for correction', 'timesheets.bulkApprove': 'Approve selected ({count})', 'timesheets.bulkConfirm': 'Approve {count} timesheets?', 'timesheets.bulkDone': '{count} timesheets approved', 'timesheets.bulkAborted': 'The approval was aborted: {name} is no longer valid for bulk approval. No timesheets were changed.', 'timesheets.bulkDeviation': 'Deviation requires review', 'timesheets.bulkIneligible': 'Cannot be bulk approved', 'readiness.waiting': 'Waiting', 'readiness.action': 'Action required', 'readiness.blocked': 'Blocked', 'payrollBasis.oneAwaiting': '1 timesheet awaiting approval', 'payrollBasis.manyAwaiting': '{count} timesheets awaiting approval',
   'timesheets.reopen': 'Reopen timesheet',
   'timesheets.reopenTitle': 'Reopen timesheet',
   'timesheets.reopenWarning': 'This timesheet is approved and locked. Reopening preserves the previous approval and is recorded in the history.',
@@ -12055,9 +12057,18 @@ function timesheetQueueRow(timesheet, { selectable = false } = {}) {
 function timesheetQueueSection(rows) {
   const categories = rows.map(item => ({ item, category: timesheetQueueCategory(item) }))
   const count = key => categories.filter(entry => entry.category === key).length
-  const counts = { all: rows.length, action: count('action'), awaiting: count('awaiting'), approved: count('approved') }
+  // Fravær som venter på vurdering er en EGEN kanonisk modell (aldri en
+  // timelistestatus), men det er en handling på denne siden: «Krever handling»
+  // teller derfor alle aksjonerbare saker i aktivt scope - timelister som
+  // krever korrigering/mangler godkjenner PLUSS ventende fravær. Fraværskøen
+  // deler nøyaktig samme filtre (absenceQueueRows), og «Til godkjenning»/
+  // «Godkjent» gjelder fortsatt kun timelister. Ren avledning, ingen ny state.
+  const pendingAbsences = absenceQueueRows('pending').length
+  const timesheetAction = count('action')
+  const counts = { all: rows.length, action: timesheetAction + pendingAbsences, awaiting: count('awaiting'), approved: count('approved') }
   // Kompakt operativt sammendrag (§14) - alltid fra det SCOPEDE utvalget.
-  const summary = `<p class="field-help" style="margin:8px 0 0">${t('timesheets.queueSummary', { action: counts.action, awaiting: counts.awaiting, approved: counts.approved })}</p>`
+  const absenceNote = pendingAbsences ? ` ${t('timesheets.queueSummaryAbsences', { count: pendingAbsences })}` : ''
+  const summary = `<p class="field-help" style="margin:8px 0 0">${t('timesheets.queueSummary', { action: counts.action, awaiting: counts.awaiting, approved: counts.approved })}${absenceNote}</p>`
   const tab = ['all', 'action', 'awaiting', 'approved'].includes(state.timesheetQueueTab) ? state.timesheetQueueTab : 'all'
   const tabs = `<div class="tabs" style="margin-top:8px">${['all', 'action', 'awaiting', 'approved'].map(key => `<button class="tab ${tab === key ? 'is-active' : ''}" data-action="timesheet-queue-tab" data-value="${key}">${t(`timesheets.queue.${key}`)} ${counts[key]}</button>`).join('')}</div>`
   if (tab === 'all') return { header: `${summary}${tabs}`, body: null }
@@ -12069,10 +12080,15 @@ function timesheetQueueSection(rows) {
     ? `<button type="button" class="button small" data-action="open-bulk-approve">${t('timesheets.bulkApprove', { count: selectedCount })}</button>`
     : ''
   const headers = [...(selectable ? [''] : []), 'jobs.employee', 'shifts.name', 'common.date', 'rel.client', 'rel.department', 'timesheets.planned', 'timesheets.reported', 'timesheets.deviation', 'common.status', 'common.actions']
-  const body = inTab.length
+  // I handlingsfanen pekes det på fraværskøen når den bidrar til tellingen -
+  // fraværene behandles der, aldri som timelisterader.
+  const absenceBanner = tab === 'action' && pendingAbsences
+    ? `<div class="banner info" style="margin-top:12px">${icon('bell')}<span>${t('timesheets.queueActionAbsences', { count: pendingAbsences })}</span></div>`
+    : ''
+  const table_ = inTab.length
     ? `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${t(`timesheets.queue.${tab}`)}</h2><span class="tag info">${inTab.length}</span>${bulkAction ? `<div style="margin-left:auto">${bulkAction}</div>` : ''}</div><div class="table-scroller"><table><thead><tr>${headers.map(key => `<th scope="col">${key ? t(key) : ''}</th>`).join('')}</tr></thead><tbody>${inTab.map(item => timesheetQueueRow(item, { selectable })).join('')}</tbody></table></div></article>`
     : `<div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t(`timesheets.queueEmpty.${tab}`)}</h3></div>`
-  return { header: `${summary}${tabs}`, body }
+  return { header: `${summary}${tabs}`, body: `${absenceBanner}${table_}` }
 }
 
 function renderTimesheets() {
