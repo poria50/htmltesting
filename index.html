@@ -10395,12 +10395,45 @@ function computeSickLines(record, workedLines, blocked) {
     const hours = round2(compensableHours * share)
     const amount = round2(hours * basis.rate)
     if (amount <= 0) continue
-    result.push(sickLine(record, employee, assignment, hours, basis.rate, amount, worked?.hours ?? 0, basis.plannedHours))
+    const premium = sickIntervalPremiums(record, assignment, item.slotId, basis, hours)
+    result.push(sickLine(record, employee, assignment, hours, basis.rate, amount, worked?.hours ?? 0, basis.plannedHours, premium))
   }
   return result
 }
 
-function sickLine(record, employee, assignment, hours, rate, amount, workedHours = 0, plannedHours = null) {
+// Ordinære tillegg ved betalbart sykefravær: den ansatte beholder de
+// tilleggene den PLANLAGTE vakten ville gitt i sykefraværsintervallet - kveld/
+// natt, ordinært helgetillegg (ukedagsregel), funksjonstillegg fra den
+// opprinnelige bemanningsplassen og øvrige tidsregler. Én motor: premiumsFor
+// på det faktiske sykeintervallet (start + betalbare timer), aldri en egen
+// sykdomstilleggsmotor. Kun helligdags-/datofamilien filtreres bort - den
+// forutsetter faktisk oppmøte på datoen og utbetales ikke ved sykdom.
+// Overtid berøres ikke. Fryste finalized-linjer leses uendret (§41).
+function sickIntervalPremiums(record, assignment, slotId, basis, hours) {
+  const paySystemId = basis.resolution?.tariffId
+  if (!paySystemId || !(hours > 0)) return { amount: 0, lines: [], excluded: [] }
+  const shiftStartAt = `${assignment.date}T${assignment.startTime}`
+  const shiftEndAt = `${assignmentEndDate(assignment)}T${assignment.endTime}`
+  // Sykeintervallet avgrenses til vaktvinduet; uten presist intervall gjelder
+  // hele den planlagte vakten.
+  const precise = record.sickStartAt && record.sickEndAt && record.sickEndAt > shiftStartAt && record.sickStartAt < shiftEndAt
+  const startAt = precise ? (record.sickStartAt > shiftStartAt ? record.sickStartAt : shiftStartAt) : shiftStartAt
+  const endAt = precise ? (record.sickEndAt < shiftEndAt ? record.sickEndAt : shiftEndAt) : shiftEndAt
+  // Tilleggene vurderes aldri utenfor selve sykeintervallet: timene begrenses
+  // til intervallets lengde (delvis fravær), start er intervallets start.
+  const intervalHours = Math.max(0, (Date.parse(`${endAt}:00Z`) - Date.parse(`${startAt}:00Z`)) / 3600000)
+  const premiumHours = round2(Math.min(hours, intervalHours || hours))
+  const functionId = slotById(assignment, slotId)?.functionId ?? null
+  const premium = premiumsFor(paySystemId, startAt.slice(0, 10), startAt.slice(11, 16), premiumHours, basis.rate, functionId, Boolean(basis.liveIn))
+  const familyOf = rule => rule.family || (rule.type === 'holiday' ? 'date' : 'time')
+  const toLine = match => ({ ruleId: match.rule.id, name: match.rule.name, family: familyOf(match.rule), method: match.rule.method, value: Number(match.rule.amount) || 0, unit: match.rule.unit ?? null, hours: match.hours, amount: match.amount, functionId: match.rule.functionId ?? null })
+  const kept = premium.applied.filter(match => familyOf(match.rule) !== 'date')
+  const excluded = premium.applied.filter(match => familyOf(match.rule) === 'date')
+  return { amount: round2(kept.reduce((sum, match) => sum + match.amount, 0)), lines: kept.map(toLine), excluded: excluded.map(toLine), intervalStart: startAt }
+}
+
+function sickLine(record, employee, assignment, hours, rate, amount, workedHours = 0, plannedHours = null, premium = { amount: 0, lines: [], excluded: [] }) {
+  const total = round2(amount + (premium.amount || 0))
   return {
     sourceType: 'sick_leave_compensation',
     sickLeaveId: record.id,
@@ -10415,12 +10448,15 @@ function sickLine(record, employee, assignment, hours, rate, amount, workedHours
     hours,
     rate,
     ordinaryAmount: amount,
-    premiumAmount: 0,
+    premiumAmount: premium.amount || 0,
+    premiumLines: premium.lines ?? [],
     overtimeHours: 0,
     overtimeAmount: 0,
-    total: amount,
+    total,
     // Full sporbarhet (§37): beslutning, metode, grunnlag og hvem som avgjorde.
     sickTrace: {
+      premiumIntervalStart: premium.intervalStart ?? null,
+      excludedPremiumLines: premium.excluded ?? [],
       period: `${record.startDate}–${record.endDate}`,
       absencePercent: record.absencePercent,
       validity: record.validityStatus,
@@ -10441,8 +10477,8 @@ function sickLine(record, employee, assignment, hours, rate, amount, workedHours
         return {
           clientCoveragePercent: shares ? shares.client : null,
           agencyCoveragePercent: shares ? shares.contractor : null,
-          clientShareAmount: shares ? round2(amount * shares.client / 100) : null,
-          agencyShareAmount: shares ? round2(amount * shares.contractor / 100) : null
+          clientShareAmount: shares ? round2(total * shares.client / 100) : null,
+          agencyShareAmount: shares ? round2(total * shares.contractor / 100) : null
         }
       })()
     }
