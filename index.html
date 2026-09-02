@@ -2757,7 +2757,7 @@ const state = {
   shiftPlanFilters: { clientId: '', departmentId: '', type: '', search: '' },
   shiftPlanAnchor: '',
   reportForm: { clientId: 'c1', startDate: '2026-08-01', endDate: '2026-08-31', departmentId: '' },
-  invoiceReportForm: { clientId: 'c1', departmentId: '', fromDate: '2026-08-01', toDate: '2026-08-31' },
+  invoiceReportForm: { clientId: '', departmentId: '', ...(() => { const now = new Date(); const y = now.getUTCFullYear(); const m = now.getUTCMonth(); const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate(); const mm = String(m + 1).padStart(2, '0'); return { fromDate: `${y}-${mm}-01`, toDate: `${y}-${mm}-${String(last).padStart(2, '0')}` } })() },
   invoiceReportView: null,
   timesheetEmployee: null,
   timesheetMonthStatusFilter: '',
@@ -2765,7 +2765,8 @@ const state = {
   timesheetQueueTab: 'all',
   timesheetBulkSelection: [],
   invoicingDetailed: false,
-  payrollForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
+  payrollForm: (() => { const now = new Date(); const y = now.getUTCFullYear(); const m = now.getUTCMonth(); const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate(); const mm = String(m + 1).padStart(2, '0'); return { startDate: `${y}-${mm}-01`, endDate: `${y}-${mm}-${String(last).padStart(2, '0')}` } })(),
+  legacyForm: { startDate: '2026-08-01', endDate: '2026-08-31' },
   payrollFilters: { search: '', clientId: '', departmentId: '' },
   payrollDetailed: false,
   requestRecipients: [],
@@ -3225,7 +3226,7 @@ const copy = {
     'staffing.event.replacement_extended': 'Erstatter forlenget',
     'staffing.event.replacement_kept_after_delete': 'Erstatter beholdt etter sletting',
     'staffing.event.sick_leave_deleted': 'Sykefravær slettet',
-    'invoiceReport.title': 'Fakturagrunnlag',
+    'invoiceReport.title': 'Fakturarapport',
     'invoiceReport.draft': 'Utkast',
     'invoiceReport.final': 'Ferdigstilt',
     'invoiceReport.draftId': 'UTKAST',
@@ -3585,7 +3586,7 @@ const copy = {
     'employees.approvedBy': 'Godkjent av',
     'employees.approvalDate': 'Godkjenningsdato',
     'employees.approveSeniority': 'Godkjenn ansiennitet',
-    'employees.payByAssignment': 'Lønn per oppdrag',
+    'employees.payByAssignment': 'Lønn per vakt',
     'employees.payBasis': 'Lønnsgrunnlag',
     'employees.educationCompetence': 'Utdanning og kompetanse',
     'employees.competence': 'Kompetanse',
@@ -3598,7 +3599,7 @@ const copy = {
     'employees.licenceExpired': 'Utløpt',
     'employees.archivedSalary': 'Arkivert lønnshistorikk',
     'employees.workedFor': 'Jobbet hos',
-    'employees.payPerAssignment': 'Lønn beregnes per oppdrag',
+    'employees.payPerAssignment': 'Lønn beregnes per vakt',
     'employees.educationLevel': 'Utdanningsnivå',
     'employees.approvedPaySeniority': 'Godkjent lønnsansiennitet',
     'employees.seniorityDate': 'Ansiennitetsdato',
@@ -4018,10 +4019,10 @@ const copy = {
     'invoicing.missingClient': 'Virksomhet mangler',
   'payrollBasis.title': 'Lønnsgrunnlag fra godkjente timelister',
     'payrollBasis.ready': 'Til lønn',
-    'payrollBasis.blocked': 'Lønnsgrunnlag mangler',
+    'payrollBasis.blocked': 'Blokkert',
     'payrollBasis.pending': 'Venter på godkjent timeliste',
     'payrollBasis.waiting': 'Venter på godkjent timeliste',
-    'payrollBasis.missing': 'Lønnsgrunnlag mangler',
+    'payrollBasis.missing': 'Lønnsoppsett mangler',
     'payrollBasis.actualTime': 'Faktisk tid',
     'payrollBasis.approvedHours': 'Godkjente timer',
     'payrollBasis.total': 'Til lønn',
@@ -4043,7 +4044,7 @@ const copy = {
     'timesheets.status.needs_correction': 'Sendt tilbake – krever korrigering',
     'timesheets.filterActive': 'Viser timelister med status',
     'timesheets.emptyFiltered': 'Ingen timelister i denne statusen',
-    'staffing.slotLabel': 'Plass {number}',
+    'staffing.slotLabel': 'Bemanningsplass {number}',
     'staffing.slotOpen': 'Ledig',
     'staffing.slotAssigned': 'Tildelt',
     'staffing.cannotShrink': 'Antall ansatte kan ikke settes lavere enn antall bemannede plasser.',
@@ -4177,7 +4178,22 @@ const copy = {
     'medlever.overrideRequired': 'Medlever-avviket krever betalte timer og begrunnelse før godkjenning',
     'sick.openCase': 'Åpne sykefravær',
     'integrity.title': 'Bemanningsintegritet',
-    'integrity.slot': 'Plass',
+    'integrity.blockedTitle': 'Integritetskonflikt',
+    'sick.blockedTitle': 'Sykefravær krever vurdering',
+    'payroll.customPeriod': 'Egendefinert periode',
+    'invoiceReport.selectClient': 'Velg virksomhet',
+    'invoiceReport.clientRequired': 'Velg en virksomhet før fakturarapporten kan ferdigstilles eller eksporteres.',
+    'setup.title': 'Oppsett mangler – flyten stopper i Lønn før dette er på plass',
+    'setup.noClients': 'Ingen virksomhet er opprettet.',
+    'setup.createClient': 'Opprett virksomhet',
+    'setup.noPaySystems': 'Ingen lønnssystem er opprettet – lønn kan ikke beregnes.',
+    'setup.createPaySystem': 'Opprett lønnssystem',
+    'setup.departmentsWithoutPaySystem': '{count} avdeling(er) mangler lønnssystem.',
+    'setup.departmentsWithoutApprover': '{count} avdeling(er) mangler godkjenner (avdelingsleder eller aktiv kontaktperson).',
+    'setup.openDepartment': 'Åpne avdeling',
+    'setup.noEmployees': 'Ingen ansatte er opprettet.',
+    'setup.createEmployee': 'Opprett ansatt',
+    'integrity.slot': 'Bemanningsplass',
     'integrity.summary': '{safe} trygge duplikater · {manual} til manuell gjennomgang',
     'integrity.cleanupSafe': 'Rydd {count} trygge duplikater',
     'integrity.cleanupDone': '{count} duplikater ryddet - {manual} står til manuell gjennomgang',
@@ -4595,7 +4611,7 @@ copy.en = {
   'sick.correction': 'Correction',
   'sick.shiftPeriod': 'Shift period', 'sick.scope': 'The sick leave applies to', 'sick.scope.full': 'The whole shift', 'sick.scope.partial': 'Part of the shift', 'sick.scopeRequired': 'Choose whether the sick leave applies to the whole shift or part of it', 'sick.sickFrom': 'Sick from', 'sick.sickTo': 'Sick until', 'sick.intervalOutsideShift': 'The sick leave must fall within the shift start and end', 'sick.worked': 'Worked', 'sick.workedUntil': 'Worked until', 'sick.replacementFrom': 'Replacement needed from', 'sick.fromShiftStart': 'shift start', 'sick.dayWorked': 'Worked', 'sick.dayNotCovered': 'Not covered', 'sick.alreadyRegistered': 'Already registered sick leave', 'sick.nextLiveInDay': 'Next live-in day', 'sick.noNextLiveInDay': 'No more live-in days in this shift', 'sick.deleteAction': 'Delete sick leave', 'sick.deleteConfirmBody': 'The sick leave {period} is deleted and no longer affects staffing, coverage, payroll or invoicing. The history is kept.', 'sick.deleteReplacementWarning': 'A replacement is already assigned ({names}). The replacement is kept - review the staffing manually after deleting.', 'sick.deleteLocked': 'Cannot be deleted directly after approval. Use a correction.', 'sick.deleted': 'The sick leave was deleted', 'sick.deletedTag': 'Deleted', 'sick.extendReplacement': 'Extend {name}', 'sick.extendBlocked': '{name} cannot be extended because of another shift in this period.', 'staffing.replacementFor': 'Replacement for {name}', 'staffing.replacementSlot': 'Replacement need', 'staffing.previousReplacement': 'Previous replacement', 'sick.event.sick_leave_deleted': 'Sick leave deleted',
   'staffing.event.employee_sick_partial': 'Partial sick leave registered', 'staffing.event.replacement_extended': 'Replacement extended', 'staffing.event.replacement_kept_after_delete': 'Replacement kept after deletion', 'staffing.event.sick_leave_deleted': 'Sick leave deleted',
-  'invoiceReport.title': 'Invoice basis', 'invoiceReport.draft': 'Draft', 'invoiceReport.final': 'Finalized', 'invoiceReport.draftId': 'DRAFT', 'invoiceReport.allDepartments': 'All departments', 'invoiceReport.quantity': 'Quantity', 'invoiceReport.payrollCost': 'Payroll cost', 'invoiceReport.invoicePrice': 'Invoice price', 'invoiceReport.startAt': 'Start date-time', 'invoiceReport.endAt': 'End date-time', 'invoiceReport.remark': 'Remark', 'invoiceReport.ordinary': 'Ordinary', 'invoiceReport.clientShare': 'Client share', 'invoiceReport.notBilled': 'Not billed', 'invoiceReport.replacementFor': 'Replacement for {name}', 'invoiceReport.replacementForLabel': 'Replacement for', 'invoiceReport.approvedShifts': 'Approved shifts', 'invoiceReport.workedHours': 'Worked hours', 'invoiceReport.exportCsv': 'Export CSV', 'invoiceReport.exportPdf': 'Export PDF', 'invoiceReport.finalize': 'Finalize invoice basis', 'invoiceReport.finalized': 'Finalized invoice bases', 'invoiceReport.finalizedToast': 'Invoice basis {id} was finalized', 'invoiceReport.blockedToast': '{count} deviations must be resolved before finalizing', 'invoiceReport.emptyToast': 'No invoice lines in the selected period', 'invoiceReport.csvReady': 'The CSV export is ready', 'invoiceReport.net': 'Net invoice amount', 'invoiceReport.reportId': 'Report ID', 'invoiceReport.backToDraft': 'Back to draft', 'invoiceReport.sickSection': 'Sick leave / replacement', 'invoiceReport.lineDetail': 'Invoice line', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
+  'invoiceReport.title': 'Invoice report', 'invoiceReport.draft': 'Draft', 'invoiceReport.final': 'Finalized', 'invoiceReport.draftId': 'DRAFT', 'invoiceReport.allDepartments': 'All departments', 'invoiceReport.quantity': 'Quantity', 'invoiceReport.payrollCost': 'Payroll cost', 'invoiceReport.invoicePrice': 'Invoice price', 'invoiceReport.startAt': 'Start date-time', 'invoiceReport.endAt': 'End date-time', 'invoiceReport.remark': 'Remark', 'invoiceReport.ordinary': 'Ordinary', 'invoiceReport.clientShare': 'Client share', 'invoiceReport.notBilled': 'Not billed', 'invoiceReport.replacementFor': 'Replacement for {name}', 'invoiceReport.replacementForLabel': 'Replacement for', 'invoiceReport.approvedShifts': 'Approved shifts', 'invoiceReport.workedHours': 'Worked hours', 'invoiceReport.exportCsv': 'Export CSV', 'invoiceReport.exportPdf': 'Export PDF', 'invoiceReport.finalize': 'Finalize invoice basis', 'invoiceReport.finalized': 'Finalized invoice bases', 'invoiceReport.finalizedToast': 'Invoice basis {id} was finalized', 'invoiceReport.blockedToast': '{count} deviations must be resolved before finalizing', 'invoiceReport.emptyToast': 'No invoice lines in the selected period', 'invoiceReport.csvReady': 'The CSV export is ready', 'invoiceReport.net': 'Net invoice amount', 'invoiceReport.reportId': 'Report ID', 'invoiceReport.backToDraft': 'Back to draft', 'invoiceReport.sickSection': 'Sick leave / replacement', 'invoiceReport.lineDetail': 'Invoice line', 'sick.markInvalid': 'Mark as invalid', 'sick.legacyPending': 'Legacy registration',
   'sick.event.sick_leave_validated': 'Validity set', 'sick.event.documentation_registered': 'Absence basis registered', 'sick.event.documentation_changed': 'Absence basis changed',
   'staffing.finalCheckSick': 'The employee has registered 100% sick leave in this period',
   'sick.medleverReview': 'Live-in sick leave requires manual review of the basis',
@@ -4805,8 +4821,8 @@ copy.en = {
   'employees.approvedBy': 'Approved by',
   'employees.approvalDate': 'Approval date',
   'employees.approveSeniority': 'Approve seniority',
-  'employees.payByAssignment': 'Pay by assignment',
-  'employees.payBasis': 'Pay basis',
+  'employees.payByAssignment': 'Pay per shift',
+  'employees.payBasis': 'Payroll basis',
   'employees.educationCompetence': 'Education and competence',
   'employees.competence': 'Competence',
   'employees.licences': 'Licences and certificates',
@@ -4818,7 +4834,7 @@ copy.en = {
   'employees.licenceExpired': 'Expired',
   'employees.archivedSalary': 'Archived salary history',
   'employees.workedFor': 'Worked for',
-  'employees.payPerAssignment': 'Pay is calculated per assignment',
+  'employees.payPerAssignment': 'Pay is calculated per shift',
   'employees.educationLevel': 'Education level',
   'employees.approvedPaySeniority': 'Approved pay seniority',
   'employees.seniorityDate': 'Seniority date',
@@ -4937,7 +4953,7 @@ copy.en = {
   'staffing.shiftLength': 'Shift duration',
   'staffing.paidTime': 'Paid time',
   'staffing.basePay': 'Base pay',
-  'staffing.payBasisTotal': 'Pay basis',
+  'staffing.payBasisTotal': 'Payroll basis',
   'staffing.markup': 'Markup',
   'staffing.priceExVat': 'Price excl. VAT',
   'staffing.vat': 'VAT',
@@ -5158,14 +5174,14 @@ copy.en = {
   'invoicing.missingVat': 'VAT configuration missing',
   'invoicing.missingClient': 'Business missing',
   'payrollBasis.title': 'Payroll basis from approved timesheets',
-  'payrollBasis.ready': 'Payroll total',
-  'payrollBasis.blocked': 'Payroll basis missing',
+  'payrollBasis.ready': 'To payroll',
+  'payrollBasis.blocked': 'Blocked',
   'payrollBasis.pending': 'Waiting for approved timesheet',
   'payrollBasis.waiting': 'Waiting for approved timesheet',
-  'payrollBasis.missing': 'Payroll basis missing',
+  'payrollBasis.missing': 'Pay setup missing',
   'payrollBasis.actualTime': 'Actual time',
   'payrollBasis.approvedHours': 'Approved hours',
-  'payrollBasis.total': 'Payroll total',
+  'payrollBasis.total': 'To payroll',
   'payrollBasis.source': 'Source: Approved timesheet',
   'timesheets.one': 'Timesheet',
   'timesheets.perShift': 'Timesheets per shift',
@@ -5184,7 +5200,7 @@ copy.en = {
   'timesheets.status.needs_correction': 'Returned – correction required',
   'timesheets.filterActive': 'Showing timesheets with status',
   'timesheets.emptyFiltered': 'No timesheets in this status',
-  'staffing.slotLabel': 'Position {number}',
+  'staffing.slotLabel': 'Staffing position {number}',
   'staffing.slotOpen': 'Open',
   'staffing.slotAssigned': 'Assigned',
   'staffing.cannotShrink': 'The number of employees cannot be lower than the number of staffed positions.',
@@ -5300,7 +5316,7 @@ copy.en = {
   'staffing.hasRegisteredWork': 'This employee has registered work on this shift.',
   'staffing.originalPeriod': 'Original live-in period', 'staffing.totalPayable': 'Total payable', 'staffing.sickCompensation': 'Sick compensation',
   'staffing.busy': 'Busy', 'staffing.overlapBlocked': '{name} is already assigned to another shift that overlaps this period ({period}).',
-  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.', 'staffing.slotAlreadyStaffed': 'The position is already staffed. Refresh the shift and try again.', 'legacy.title': 'Historical reports (legacy)', 'legacy.desc': 'Generated by the older model and kept as history – not a source for payroll, timesheets or invoicing.', 'legacy.link': 'Historical report (legacy)', 'absence.pendingBlocksApproval': 'Pending absence must be reviewed before the timesheet can be approved', 'medlever.overrideRequired': 'The live-in deviation requires paid hours and a reason before approval', 'sick.openCase': 'Open sick leave', 'integrity.title': 'Staffing integrity', 'integrity.slot': 'Position', 'integrity.summary': '{safe} safe duplicates · {manual} for manual review', 'integrity.cleanupSafe': 'Clean {count} safe duplicates', 'integrity.cleanupDone': '{count} duplicates cleaned - {manual} remain for manual review', 'staffing.integrityConflict': 'The same employee occupies overlapping staffing positions – requires manual correction before payroll', 'timesheets.identityConflict': 'The timesheet belongs to a different employee than the position – integrity conflict, requires manual correction',
+  'staffing.replaceBusy': 'The chosen employee has an overlapping shift and cannot be assigned.', 'staffing.slotAlreadyStaffed': 'The position is already staffed. Refresh the shift and try again.', 'legacy.title': 'Historical reports (legacy)', 'legacy.desc': 'Generated by the older model and kept as history – not a source for payroll, timesheets or invoicing.', 'legacy.link': 'Historical report (legacy)', 'absence.pendingBlocksApproval': 'Pending absence must be reviewed before the timesheet can be approved', 'medlever.overrideRequired': 'The live-in deviation requires paid hours and a reason before approval', 'sick.openCase': 'Open sick leave', 'integrity.title': 'Staffing integrity', 'integrity.blockedTitle': 'Integrity conflict', 'sick.blockedTitle': 'Sick leave requires review', 'payroll.customPeriod': 'Custom period', 'invoiceReport.selectClient': 'Select business', 'invoiceReport.clientRequired': 'Select a business before the invoice report can be finalized or exported.', 'setup.title': 'Setup missing – the flow stops in Payroll until this is in place', 'setup.noClients': 'No business has been created.', 'setup.createClient': 'Create business', 'setup.noPaySystems': 'No pay system has been created – pay cannot be calculated.', 'setup.createPaySystem': 'Create pay system', 'setup.departmentsWithoutPaySystem': '{count} department(s) have no pay system.', 'setup.departmentsWithoutApprover': '{count} department(s) have no approver (department manager or active contact).', 'setup.openDepartment': 'Open department', 'setup.noEmployees': 'No employees have been created.', 'setup.createEmployee': 'Create employee', 'integrity.slot': 'Staffing position', 'integrity.summary': '{safe} safe duplicates · {manual} for manual review', 'integrity.cleanupSafe': 'Clean {count} safe duplicates', 'integrity.cleanupDone': '{count} duplicates cleaned - {manual} remain for manual review', 'staffing.integrityConflict': 'The same employee occupies overlapping staffing positions – requires manual correction before payroll', 'timesheets.identityConflict': 'The timesheet belongs to a different employee than the position – integrity conflict, requires manual correction',
   'staffing.requestBody': 'Hi,\n\nWe have an available shift at {client}.\n\nDate: {date}\nTime: {time}\nDepartment: {department}\n\nAre you available and interested?',
   'staffing.noAvailable': 'No available employees match this shift.',
   'staffing.sendByMessage': 'Send request as message',
@@ -6520,7 +6536,7 @@ const workforceCopy = {
     'shifts.pageDesc': 'Administrer vaktmaler og kontroller registrert arbeidstid.',
     'page.timesheets.desc': 'Kontroller og godkjenn registrert arbeidstid',
     'dashboard.overview': 'Oversikt',
-    'dashboard.scheduledJobs': 'Planlagte oppdrag',
+    'dashboard.scheduledJobs': 'Planlagte vakter',
     'dashboard.reports': 'Rapporter',
     'dashboard.scheduledDesc': 'Kommende oppdrag og bemanningsbehov',
     'dashboard.reportsDesc': 'Nøkkeltall for arbeidstid og godkjenning',
@@ -6553,7 +6569,7 @@ const workforceCopy = {
     'shifts.relationshipTrace': 'Ansatt → Oppdrag → Virksomhet → Tariff → Lønnstabell → Sats',
     'shifts.validOnDate': 'Gyldig på vaktdato',
     'shifts.salaryTableMatch': 'Lønnstabell-treff',
-    'shifts.job': 'Oppdrag',
+    'shifts.job': 'Vakt',
     'shifts.planned': 'Planlagt',
     'shifts.completed': 'Fullført',
     'shifts.invalidTime': 'Sluttid må være etter starttid.',
@@ -6634,7 +6650,7 @@ const workforceCopy = {
     'shifts.pageDesc': 'Manage shift templates and review registered working time.',
     'page.timesheets.desc': 'Review and approve registered working time',
     'dashboard.overview': 'Overview',
-    'dashboard.scheduledJobs': 'Scheduled jobs',
+    'dashboard.scheduledJobs': 'Scheduled shifts',
     'dashboard.reports': 'Reports',
     'dashboard.scheduledDesc': 'Upcoming jobs and staffing needs',
     'dashboard.reportsDesc': 'Key figures for working time and approval',
@@ -6667,7 +6683,7 @@ const workforceCopy = {
     'shifts.relationshipTrace': 'Employee → Assignment → Business → Tariff → Salary table → Rate',
     'shifts.validOnDate': 'Effective on shift date',
     'shifts.salaryTableMatch': 'Salary-table match',
-    'shifts.job': 'Job',
+    'shifts.job': 'Shift',
     'shifts.planned': 'Planned',
     'shifts.completed': 'Completed',
     'shifts.invalidTime': 'End time must be after start time.',
@@ -7208,7 +7224,7 @@ function nextAssignmentNumber() {
   return `OPP-${String(highest + 1).padStart(6, '0')}`
 }
 function assignmentLabel(item) {
-  return label(item?.name) || item?.assignmentNumber || ''
+  return label(item?.name) || (item?.id ? `${t('staffing.assignmentId')} ${item.id}` : '')
 }
 function assignmentEmployeeIds(draft, editingId) {
   const existing = record('assignments', editingId)?.employeeIds ?? []
@@ -7920,7 +7936,7 @@ function renderDashboard() {
   const deviations = criticalDeviations()
   const deviationRows = deviations.map(item => `<div class="file-row"><div class="file-name"><strong>${t(item.key)}</strong><span>${escapeHtml(item.context)}</span></div><button type="button" class="button ghost small" ${item.id ? `data-route="${item.route}" data-id="${item.id}"` : `data-action="dashboard-go-${item.route}"`}>${t('common.view')}</button></div>`).join('')
   const deviationCard = `<article class="card" style="margin-bottom:16px"><div class="card-header"><h2>${t('dashboard.deviations')}</h2><span class="tag ${deviations.length ? 'warning' : 'success'}">${deviations.length}</span></div>${deviations.length ? deviationRows : `<p class="muted">${t('dashboard.noDeviations')}</p>`}</article>`
-  return `<section><div class="page dashboard-nav-wrap">${dashboardNavigation()}</div><div class="page dashboard-page">${pageHeading('dashboard.actionTitle', 'page.dashboard.desc')}${metrics}${upcomingCard}${deviationCard}<div class="dashboard-charts">${chart(t('dashboard.byDepartment'), staffingChart)}</div></div></section>`
+  return `<section><div class="page dashboard-nav-wrap">${dashboardNavigation()}${setupBanner()}</div><div class="page dashboard-page">${pageHeading('dashboard.actionTitle', 'page.dashboard.desc')}${metrics}${upcomingCard}${deviationCard}<div class="dashboard-charts">${chart(t('dashboard.byDepartment'), staffingChart)}</div></div></section>`
 }
 function renderClients() {
   const query = state.filters.search.trim().toLocaleLowerCase()
@@ -8622,7 +8638,7 @@ function renderStaffing() {
     ? shiftYearOverview()
     : state.shiftView === 'calendar' ? shiftCalendar(visible) : shiftListTable(visible)
   const more = state.shiftMoreFilters ? shiftMoreFilterControls() : ''
-  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${shiftRangeNavigator()}${viewTabs}${searchToolbar(shiftFilterControls())}${more}${shiftFilterChips()}${content}</section>`
+  return `<section class="page">${pageHeading('nav.staffing', 'page.staffing.desc', button('staffing.new', 'create-assignment', '', 'plus'))}${setupBanner()}${shiftRangeNavigator()}${viewTabs}${searchToolbar(shiftFilterControls())}${more}${shiftFilterChips()}${content}</section>`
 }
 function renderJobDetail() {
   const assignment = record('assignments', state.selected.assignment)
@@ -11077,7 +11093,7 @@ function weekday(iso) {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 }
 function formatHours(value) {
-  return `${formatNumber(value, 1)} ${t('comp.ui.hoursShort')}`
+  return formatHoursMinutes(Math.round((Number(value) || 0) * 60))
 }
 function minutes(time) {
   const [hour, minute] = String(time).split(':').map(Number)
@@ -11540,7 +11556,8 @@ function invoiceReportStatusLabel(row) {
 }
 function buildInvoiceReport(form = state.invoiceReportForm) {
   const period = { startDate: form.fromDate, endDate: form.toDate }
-  const matches = line => (!form.clientId || String(line.client?.id ?? line.clientId) === String(form.clientId))
+  const clientValid = Boolean(record('clients', form.clientId))
+  const matches = line => clientValid && String(line.client?.id ?? line.clientId) === String(form.clientId)
     && (!form.departmentId || String(line.department?.id ?? '') === String(form.departmentId))
   const basis = timesheetInvoiceBasis(period)
   const rows = basis.lines.filter(matches).map(line => invoiceReportRow(line, true))
@@ -11565,6 +11582,7 @@ function buildInvoiceReport(form = state.invoiceReportForm) {
   const client = record('clients', form.clientId)
   const department = form.departmentId ? record('departments', form.departmentId) : null
   const inScope = item => {
+    if (!clientValid) return false
     const assignment = record('assignments', item.assignmentId) ?? item.assignment ?? null
     const date = item.date ?? item.plannedDate ?? assignment?.date ?? ''
     if (form.clientId && String(assignment?.clientId ?? item.client?.id ?? '') !== String(form.clientId)) return false
@@ -11637,11 +11655,17 @@ function invoiceReportPrintDocument(view) {
   const html = ['<', '!DOCTYPE html>'].join('') + docTag('html', ` lang="${state.locale}"`, headPart + bodyPart)
   return { fileName, html }
 }
+function invoiceScope() {
+  return { startDate: state.invoiceReportForm?.fromDate ?? '', endDate: state.invoiceReportForm?.toDate ?? '', clientId: state.invoiceReportForm?.clientId ?? '', departmentId: state.invoiceReportForm?.departmentId ?? '' }
+}
 function timesheetInvoiceSection() {
   const raw = timesheetInvoiceBasis()
-  const scope = { startDate: state.invoiceReportForm?.fromDate ?? '', endDate: state.invoiceReportForm?.toDate ?? '', clientId: state.invoiceReportForm?.clientId ?? '', departmentId: state.invoiceReportForm?.departmentId ?? '' }
+  const scope = invoiceScope()
+  const scopedLines = raw.lines.filter(line => blockerMatchesFinancialScope(line, scope))
   const basis = {
     ...raw,
+    lines: scopedLines,
+    totals: { ...raw.totals, hours: scopedLines.reduce((sum, line) => sum + (Number(line.hours) || 0), 0) },
     priceBlocked: raw.priceBlocked.filter(item => blockerMatchesFinancialScope(item, scope)),
     payBlocked: raw.payBlocked.filter(item => blockerMatchesFinancialScope(item, scope)),
     pending: raw.pending.filter(item => timesheetMatchesFinancialScope(item, scope))
@@ -11666,7 +11690,7 @@ function timesheetInvoiceSection() {
   const rows = displayRows.map(({ line, pay, commission, vat, net, gross }) => `<tr><td>${formatDate(line.date)}</td><td>${relationLink('employee-detail', line.employee?.id, line.employee?.name ?? '')}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${lab(line.department?.name ?? '')}${line.department?.departmentNumber ? ` <span class="muted">· ${t('departments.numberShort')} ${escapeHtml(String(line.department.departmentNumber))}</span>` : ''}</td><td>${line.sourceType === 'sick_leave_compensation' ? `<span class="tag warning">${t('sick.invoiceTag')}</span> <span class="muted">${formatPercent(line.sickTrace?.absencePercent ?? 0, 0)} · ${t('sick.cost.client').split(' ')[0]} ${formatPercent(line.sickTrace?.clientCoveragePercent ?? 0, 0)} / ${t('sick.cost.contractor')} ${formatPercent(line.sickTrace?.agencyCoveragePercent ?? 0, 0)}</span>` : timeRangeLabel(line.actualStart, line.actualEnd, line.endNextDay)}</td><td>${formatHours(line.hours)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(commission)}</td><td>${formatMoney(net)}</td><td>${formatMoney(vat)}</td><td><strong>${formatMoney(gross)}</strong></td><td><span class="muted">${line.sourceType === 'sick_leave_compensation' ? t('sick.invoiceNote') : t('payrollBasis.source')}</span></td></tr>`)
   const blockedBanners = [
     ...basis.priceBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('invoicing.priceMissing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${item.reasons.map(key => t(key)).join(' · ')}${item.client ? ` · ${relationLink('client-detail', item.client.id, item.client.name)}` : ''}</span></div>`),
-    ...basis.payBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span>${blockerActionButton(item)}</div>`)
+    ...basis.payBlocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t(blockerTitleKey(item))}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span>${blockerActionButton(item)}</div>`)
   ].join('')
   const pendingRows = basis.pending.map(timesheetBlockerRow).join('')
   const table_ = basis.lines.length ? table(['financial.workDate', 'jobs.employee', 'rel.client', 'rel.department', 'payrollBasis.actualTime', 'payrollBasis.approvedHours', 'comp.invoicing.payBasis', 'invoicing.markup', 'invoicing.net', 'invoicing.vatLabel', 'invoicing.total', 'common.status'], rows) : `<p class="muted">${t('payrollBasis.waiting')}</p>`
@@ -11767,27 +11791,37 @@ function invoiceReportSection() {
   const form = state.invoiceReportForm
   const openedFinal = state.invoiceReportView ? invoiceReportsCollection().find(item => String(item.id) === String(state.invoiceReportView)) : null
   const view = openedFinal ? invoiceReportView(openedFinal) : buildInvoiceReport(form)
+  const clientValid = Boolean(openedFinal) || Boolean(record('clients', form.clientId))
   const clientChoices = collection('clients').map(item => `<option value="${item.id}"${String(form.clientId) === String(item.id) ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')
   const departmentChoices = collection('departments').filter(item => String(item.clientId) === String(form.clientId)).map(item => `<option value="${item.id}"${String(form.departmentId) === String(item.id) ? ' selected' : ''}>${lab(item.name)}</option>`).join('')
   const filters = `<article class="card"><div class="card-header"><h2>${t('invoiceReport.title')}</h2><span class="tag ${view.status === 'final' ? 'success' : 'info'}">${t(view.status === 'final' ? 'invoiceReport.final' : 'invoiceReport.draft')}</span></div><div class="grid cols-2">
-    <div class="field"><label>${t('rel.client')} *</label><select data-invoice-filter="clientId">${clientChoices}</select></div>
+    <div class="field"><label>${t('rel.client')} *</label><select data-invoice-filter="clientId"><option value=""${record('clients', form.clientId) ? '' : ' selected'}>${t('invoiceReport.selectClient')}</option>${clientChoices}</select></div>
     <div class="field"><label>${t('rel.department')}</label><select data-invoice-filter="departmentId"><option value=""${form.departmentId ? '' : ' selected'}>${t('invoiceReport.allDepartments')}</option>${departmentChoices}</select></div>
     <div class="field"><label>${t('sick.from')} *</label><input type="date" data-invoice-filter="fromDate" value="${escapeHtml(form.fromDate)}"></div>
     <div class="field"><label>${t('sick.to')} *</label><input type="date" data-invoice-filter="toDate" value="${escapeHtml(form.toDate)}"></div>
-  </div><div class="form-actions" style="margin-top:8px">${openedFinal ? `<button type="button" class="button secondary small" data-action="close-invoice-report-view">${t('invoiceReport.backToDraft')}</button>` : ''}<button type="button" class="button secondary small" data-action="export-invoice-report-csv"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}>${t('invoiceReport.exportCsv')}</button><button type="button" class="button secondary small" data-action="export-invoice-report-pdf"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}>${t('invoiceReport.exportPdf')}</button>${openedFinal ? '' : `<button type="button" class="button small" data-action="finalize-invoice-report">${t('invoiceReport.finalize')}</button>`}</div>${view.reportId && view.status === 'final' ? `<p class="field-help">${t('invoiceReport.reportId')}: <strong>${escapeHtml(view.reportId)}</strong></p>` : ''}</article>`
+  </div><div class="form-actions" style="margin-top:8px">${openedFinal ? `<button type="button" class="button secondary small" data-action="close-invoice-report-view">${t('invoiceReport.backToDraft')}</button>` : ''}<button type="button" class="button secondary small" data-action="export-invoice-report-csv"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}${clientValid ? '' : ' disabled'}>${t('invoiceReport.exportCsv')}</button><button type="button" class="button secondary small" data-action="export-invoice-report-pdf"${openedFinal ? ` data-id="${openedFinal.id}"` : ''}${clientValid ? '' : ' disabled'}>${t('invoiceReport.exportPdf')}</button>${openedFinal ? '' : `<button type="button" class="button small" data-action="finalize-invoice-report"${clientValid ? '' : ' disabled'}>${t('invoiceReport.finalize')}</button>`}</div>${clientValid ? '' : `<p class="field-help">${t('invoiceReport.clientRequired')}</p>`}${view.reportId && view.status === 'final' ? `<p class="field-help">${t('invoiceReport.reportId')}: <strong>${escapeHtml(view.reportId)}</strong></p>` : ''}</article>`
+  const shown = view.rows.map(row => {
+    const pay = row.billed ? displayNok(row.payrollCost) : 0
+    const premium = row.billed ? displayNok(row.premiumAmount) : 0
+    const markup = row.billed ? displayNok(row.markupAmount) : 0
+    const vat = row.billed ? displayNok(row.vatAmount) : 0
+    const net = pay + markup
+    return { row, pay, premium, markup, vat, net, total: net + vat }
+  })
+  const shownTotals = shown.reduce((sum, item) => ({ pay: sum.pay + item.pay, premium: sum.premium + item.premium, markup: sum.markup + item.markup, vat: sum.vat + item.vat, net: sum.net + item.net, total: sum.total + item.total }), { pay: 0, premium: 0, markup: 0, vat: 0, net: 0, total: 0 })
   const cards = [
     [t('invoiceReport.approvedShifts'), String(view.summary.approvedShifts)],
     [t('invoiceReport.workedHours'), formatHoursMinutes(view.summary.workedMinutes)],
-    [t('invoiceReport.payrollCost'), formatMoney(view.totals.payrollCost)],
-    [t('staffing.markup'), formatMoney(view.totals.markupAmount)],
-    [t('invoiceReport.net'), formatMoney(view.totals.netAmount)],
-    [t('staffing.vat'), formatMoney(view.totals.vatAmount)],
-    [t('staffing.totalInclVat'), formatMoney(view.totals.totalAmount)]
+    [t('invoiceReport.payrollCost'), formatMoney(shownTotals.pay)],
+    [t('staffing.markup'), formatMoney(shownTotals.markup)],
+    [t('invoiceReport.net'), formatMoney(shownTotals.net)],
+    [t('staffing.vat'), formatMoney(shownTotals.vat)],
+    [t('staffing.totalInclVat'), formatMoney(shownTotals.total)]
   ]
   const summaryCards = `<div class="stats-grid" style="margin-top:16px">${cards.map(([labelText, value]) => `<article class="stat-card"><span class="stat-label">${labelText}</span><strong class="stat-value">${value}</strong></article>`).join('')}</div>`
   const stamp = iso => iso && iso.includes('T') ? `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}` : ''
-  const rows = view.rows.map((row, index) => `<tr class="${row.billed ? '' : 'muted'}"><td><button class="row-link" data-action="open-invoice-line" data-index="${index}"${openedFinal ? ` data-report-id="${openedFinal.id}"` : ''}>${escapeHtml(row.employeeName)}</button></td><td>${escapeHtml(row.shiftName)}</td><td>${escapeHtml(row.quantityLabel)}</td><td>${formatMoney(row.payrollCost)}</td><td>${formatMoney(row.premiumAmount)}</td><td>${formatMoney(row.markupAmount)}</td><td>${formatMoney(row.netAmount)}</td><td>${stamp(row.startAt)}</td><td>${stamp(row.endAt)}</td><td>${escapeHtml(invoiceReportStatusLabel(row))}</td></tr>`)
-  const totalRow = `<tr class="row-total"><td colspan="3"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatMoney(view.totals.payrollCost)}</strong></td><td>${formatMoney(view.totals.premiumAmount)}</td><td>${formatMoney(view.totals.markupAmount)}</td><td><strong>${formatMoney(view.totals.netAmount)}</strong></td><td colspan="3"></td></tr>`
+  const rows = shown.map(({ row, pay, premium, markup, net }, index) => `<tr class="${row.billed ? '' : 'muted'}"><td><button class="row-link" data-action="open-invoice-line" data-index="${index}"${openedFinal ? ` data-report-id="${openedFinal.id}"` : ''}>${escapeHtml(row.employeeName)}</button></td><td>${escapeHtml(row.shiftName)}</td><td>${escapeHtml(row.quantityLabel)}</td><td>${formatMoney(pay)}</td><td>${formatMoney(premium)}</td><td>${formatMoney(markup)}</td><td>${formatMoney(net)}</td><td>${stamp(row.startAt)}</td><td>${stamp(row.endAt)}</td><td>${escapeHtml(invoiceReportStatusLabel(row))}</td></tr>`)
+  const totalRow = `<tr class="row-total"><td colspan="3"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatMoney(shownTotals.pay)}</strong></td><td>${formatMoney(shownTotals.premium)}</td><td>${formatMoney(shownTotals.markup)}</td><td><strong>${formatMoney(shownTotals.net)}</strong></td><td colspan="3"></td></tr>`
   const table = `<article class="card" style="margin-top:16px"><div class="table-scroller"><table><thead><tr>${['jobs.employee', 'shifts.name', 'invoiceReport.quantity', 'invoiceReport.payrollCost', 'premiumDisplay.total', 'staffing.markup', 'invoiceReport.invoicePrice', 'invoiceReport.startAt', 'invoiceReport.endAt', 'invoiceReport.remark'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}${totalRow}</tbody></table></div>${view.rows.length ? '' : `<p class="muted">${t('rel.none')}</p>`}</article>`
   const finals = invoiceReportsCollection().filter(item => String(item.snapshot?.meta?.clientId ?? '') === String(form.clientId))
   const finalList = finals.length
@@ -11812,7 +11846,7 @@ function legacyInvoiceReportMarkup() {
 }
 function renderInvoicing() {
   const legacyLink = `<p class="field-help" style="margin-top:16px"><button type="button" class="button ghost small" data-route="legacy-reports" data-tab="legacy-invoicing">${icon('file')}${t('legacy.link')}</button></p>`
-  return `<section class="page">${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc')}${invoiceReportSection()}${timesheetInvoiceSection()}${legacyLink}</section>`
+  return `<section class="page">${pageHeading('comp.pages.invoicingTitle', 'comp.pages.invoicingDesc')}${setupBanner()}${invoiceReportSection()}${timesheetInvoiceSection()}${legacyLink}</section>`
 }
 function shiftApproved(iso, form) {
   return iso < addDays(form.endDate, -6)
@@ -12019,9 +12053,17 @@ function timesheetBlockerRow(timesheet) {
       : `<button type="button" class="button secondary small" data-action="open-slot-timesheet" data-id="${timesheet.assignmentId}" data-slot-id="${timesheet.slotId}">${t(view.actionKey)}</button>`
   return `<div class="banner ${view.tone}">${icon('bell')}<span><strong>${t(view.severityKey)}:</strong> ${escapeHtml(view.employee?.name ?? '')} · ${t('staffing.assignmentId')} ${escapeHtml(String(timesheet.assignmentId))} · ${timesheet.plannedDate ? formatDate(timesheet.plannedDate) : '—'}${context ? ` · ${escapeHtml(context)}` : ''} · ${t(view.titleKey)}${view.approver ? ` · ${t('timesheets.approver')}: ${escapeHtml(view.approver.name)}` : ''}</span>${action}</div>`
 }
+function payrollScope({ includeSearch = false } = {}) {
+  return { ...state.payrollForm, clientId: state.payrollFilters.clientId, departmentId: state.payrollFilters.departmentId, ...(includeSearch ? { search: state.payrollFilters.search } : {}) }
+}
+function blockerTitleKey(item) {
+  if (item.sickLeaveId) return 'sick.blockedTitle'
+  if (['staffing.integrityConflict', 'timesheets.identityConflict'].includes(item.reasonKey)) return 'integrity.blockedTitle'
+  return 'payrollBasis.missing'
+}
 function timesheetPayrollSection() {
   const raw = timesheetPayrollBasis()
-  const scope = { ...state.payrollForm, ...state.payrollFilters }
+  const scope = payrollScope({ includeSearch: true })
   const basis = {
     ...raw,
     lines: raw.lines.filter(line => blockerMatchesFinancialScope(line, scope)),
@@ -12039,7 +12081,7 @@ function timesheetPayrollSection() {
   const integrityDetail = item => ['staffing.integrityConflict', 'timesheets.identityConflict'].includes(item.reasonKey) && item.assignment
     ? (() => { const slot = slotById(item.assignment, item.slotId); const window = slot ? (slotCoverageWindowIso(item.assignment, slot) ?? assignmentTimeWindowIso(item.assignment)) : null; return ` · ${t('staffing.assignmentId')} ${relationLink('job-detail', item.assignment.id, String(item.assignment.id))} · ${t('integrity.slot')} ${escapeHtml(String(item.slotId))}${window ? ` · ${escapeHtml(window.from.replace('T', ' '))} – ${escapeHtml(window.to.replace('T', ' '))}` : ''}` })()
     : ''
-  const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t('payrollBasis.missing')}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${integrityDetail(item)}${item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span>${blockerActionButton(item)}</div>`).join('')
+  const blockedRows = basis.blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t(blockerTitleKey(item))}:</strong> ${escapeHtml(item.employee?.name ?? '')} · ${formatDate(item.date)} · ${t(item.reasonKey)}${integrityDetail(item)}${blockerTitleKey(item) === 'payrollBasis.missing' && item.assignment?.departmentId ? ` · ${relationLink('department-detail', item.assignment.departmentId, `${t('payrollBasis.fixAtDepartment')}: ${label(record('departments', item.assignment.departmentId)?.name ?? '')}`)}` : ''}</span>${blockerActionButton(item)}</div>`).join('')
   const audit = staffingIntegrityAudit()
   const safePairs = audit.filter(pair => pair.a.classification === 'safe_cleanup_candidate' && pair.b.classification === 'safe_cleanup_candidate')
   const manualPairs = audit.filter(pair => !safePairs.includes(pair))
@@ -12116,7 +12158,19 @@ function payrollShiftTable(report) {
   const body = rows.length ? rows.join('') : `<tr><td colspan="${head.length}"><p class="muted">${t('comp.payroll.noShiftsInPeriod')}</p></td></tr>`
   return `<div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`
 }
+function monthRange(offset) {
+  const now = new Date()
+  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1))
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0))
+  const iso = date => date.toISOString().slice(0, 10)
+  const locale = state.locale === 'nb' ? 'nb-NO' : 'en-GB'
+  const text = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)
+  return { value: `${iso(first)}|${iso(last)}`, label: text.charAt(0).toLocaleUpperCase() + text.slice(1) }
+}
 function payrollPeriods() {
+  return Array.from({ length: 13 }, (_, index) => monthRange(1 - index))
+}
+function legacyPeriods() {
   return [
     ['2026-08-01|2026-08-31', 'demo.month.august'],
     ['2026-07-01|2026-07-31', 'demo.month.july'],
@@ -12147,7 +12201,9 @@ function payrollFilterControls() {
     ? `<select data-payroll-filter="departmentId" aria-label="${t('timesheets.department')}"><option value=""${departmentId ? '' : ' selected'}>${t('timesheets.allDepartments')}</option>${collection('departments').filter(item => item.clientId === clientId).map(item => `<option value="${item.id}"${departmentId === item.id ? ' selected' : ''}>${lab(item.name)}</option>`).join('')}</select>`
     : `<select data-payroll-filter="departmentId" aria-label="${t('timesheets.department')}" disabled><option value="">${t('timesheets.selectClientFirst')}</option></select>`
   const period = `${state.payrollForm.startDate}|${state.payrollForm.endDate}`
-  const periodSelect = `<select data-payroll-filter="period" aria-label="${t('comp.payroll.period')}">${payrollPeriods().map(([value, key]) => `<option value="${value}"${period === value ? ' selected' : ''}>${t(key)}</option>`).join('')}</select>`
+  const periods = payrollPeriods()
+  const custom = periods.some(item => item.value === period) ? '' : `<option value="" selected>${t('payroll.customPeriod')}</option>`
+  const periodSelect = `<select data-payroll-filter="period" aria-label="${t('comp.payroll.period')}">${custom}${periods.map(item => `<option value="${item.value}"${period === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select>`
   return `<div class="toolbar"><div class="search-control"><span>${icon('search')}</span><input type="search" data-payroll-filter="search" value="${escapeHtml(search)}" placeholder="${t('comp.payroll.searchEmployees')}" aria-label="${t('comp.payroll.searchEmployees')}"></div><div class="toolbar-group"><select data-payroll-filter="clientId" aria-label="${t('timesheets.client')}"><option value=""${clientId ? '' : ' selected'}>${t('timesheets.allClients')}</option>${clientChoices}</select>${departmentSelect}${periodSelect}</div></div>`
 }
 function payrollEmployeeTable(report) {
@@ -12182,7 +12238,7 @@ function payrollEmployeeTabs(active) {
   return `<div class="tabs">${tabs.map(([name, key]) => `<button class="tab ${active === name ? 'is-active' : ''}" data-tab="${name}">${t(key)}</button>`).join('')}</div>`
 }
 function payrollEmployeeCanonical(employeeId) {
-  const scope = { ...state.payrollForm, clientId: state.payrollFilters.clientId, departmentId: state.payrollFilters.departmentId }
+  const scope = payrollScope()
   const basis = timesheetPayrollBasis()
   return {
     lines: basis.lines.filter(line => line.employeeId === employeeId && blockerMatchesFinancialScope(line, scope)),
@@ -12282,7 +12338,7 @@ function renderPayrollEmployee() {
   return `<section class="page">${pageHeading('comp.payroll.employeeBasis', 'comp.pages.payrollDesc', actions)}${header}${warning}${cards}${payrollEmployeeTabs(tab)}${body}</section>`
 }
 function payrollEmployeeSummary(basis) {
-  const scope = { ...state.payrollForm, clientId: state.payrollFilters.clientId, departmentId: state.payrollFilters.departmentId }
+  const scope = payrollScope()
   const people = new Map()
   const ensure = employee => {
     if (!employee) return null
@@ -12313,10 +12369,17 @@ function payrollEmployeeSummary(basis) {
 function renderPayroll() {
   const basis = timesheetPayrollBasis()
   const legacyLink = `<p class="field-help" style="margin-top:16px"><button type="button" class="button ghost small" data-route="legacy-reports">${icon('file')}${t('legacy.link')}</button></p>`
-  return `<section class="page">${pageHeading('comp.pages.payrollTitle', 'comp.pages.payrollDesc', button('comp.payroll.exportCsv', 'export-payroll', 'secondary', 'file'))}<article class="card" style="margin-bottom:16px"><div class="grid cols-2">${payrollPeriodFields()}</div>${payrollFilterControls()}</article>${timesheetPayrollSection()}${payrollEmployeeSummary(basis)}${legacyLink}</section>`
+  return `<section class="page">${pageHeading('comp.pages.payrollTitle', 'comp.pages.payrollDesc', button('comp.payroll.exportCsv', 'export-payroll', 'secondary', 'file'))}${setupBanner()}<article class="card" style="margin-bottom:16px"><div class="grid cols-2">${payrollPeriodFields()}</div>${payrollFilterControls()}</article>${timesheetPayrollSection()}${payrollEmployeeSummary(basis)}${legacyLink}</section>`
+}
+function legacyPeriodFields() {
+  return `<div class="field"><label for="l-startDate">${t('comp.invoicing.fromDate')}</label><input id="l-startDate" type="date" data-legacy-field="startDate" value="${escapeHtml(state.legacyForm.startDate)}"></div><div class="field"><label for="l-endDate">${t('comp.invoicing.toDate')}</label><input id="l-endDate" type="date" data-legacy-field="endDate" value="${escapeHtml(state.legacyForm.endDate)}"></div>`
+}
+function legacyPeriodSelect() {
+  const period = `${state.legacyForm.startDate}|${state.legacyForm.endDate}`
+  return `<div class="toolbar"><div class="toolbar-group"><select data-legacy-field="period" aria-label="${t('comp.payroll.period')}">${legacyPeriods().map(([value, key]) => `<option value="${value}"${period === value ? ' selected' : ''}>${t(key)}</option>`).join('')}</select></div></div>`
 }
 function legacyPayrollReportMarkup() {
-  const report = payrollReport(state.payrollForm)
+  const report = payrollReport(state.legacyForm)
   const detailed = state.payrollDetailed
   const basisExplanation = `<article class="card payroll-basis-card"><div><h2>${t('comp.payroll.contextualBasis')}</h2><p>${t('comp.payroll.contextualBasisHelp')}</p></div><div class="relationship-trace">${t('shifts.relationshipTrace')}</div></article>`
   const metrics = [
@@ -12325,9 +12388,9 @@ function legacyPayrollReportMarkup() {
     [t('comp.payroll.payrollTotal'), formatMoney(report.totals.total), `${t('comp.invoicing.premiums')} ${formatMoney(report.totals.premiumAmount)}`],
     [t('comp.payroll.pendingApproval'), String(report.totals.pending), t('comp.payroll.pendingNote')]
   ]
-  const selection = `<article class="card"><div class="card-header"><h2>${t('comp.payroll.selection')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-payroll-detail"${detailed ? ' checked' : ''}><span>${t('comp.payroll.showShifts')}</span></label></div><div class="grid cols-2">${payrollPeriodFields()}</div><p class="field-help">${t('comp.payroll.agencyNote')}</p></article>`
+  const selection = `<article class="card"><div class="card-header"><h2>${t('comp.payroll.selection')}</h2><label class="checkbox-row"><input type="checkbox" data-action="toggle-payroll-detail"${detailed ? ' checked' : ''}><span>${t('comp.payroll.showShifts')}</span></label></div><div class="grid cols-2">${legacyPeriodFields()}</div><p class="field-help">${t('comp.payroll.agencyNote')}</p></article>`
   const table = `<article class="card" style="margin-top:16px"><div class="card-header"><h2>${detailed ? t('comp.payroll.shiftList') : t('comp.payroll.perEmployee')}</h2><span class="tag info">${detailed ? report.lines.length : payrollEmployeeRows(report).length}</span></div><p class="field-help">${t('comp.payroll.clickHint')}</p>${detailed ? payrollShiftTable(report) : payrollEmployeeTable(report)}</article>`
-  return `${payrollFilterControls()}${basisExplanation}${selection}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}`
+  return `${legacyPeriodSelect()}${basisExplanation}${selection}<div class="stats-grid" style="margin-top:16px">${metrics.map(([title, value, note]) => `<article class="stat-card"><span class="stat-label">${title}</span><strong class="stat-value">${value}</strong><span class="muted">${note}</span></article>`).join('')}</div>${table}`
 }
 function renderLegacyReports() {
   const tab = state.activeTab === 'legacy-invoicing' ? 'legacy-invoicing' : 'legacy-payroll'
@@ -12339,8 +12402,8 @@ function renderLegacyReports() {
 function employeeDrawer(employeeId) {
   const employee = record('employees', employeeId)
   if (!employee) return ''
-  const scope = { ...state.payrollForm }
-  const lines = timesheetPayrollBasis().lines.filter(line => line.employeeId === employeeId && blockerMatchesFinancialScope(line, scope))
+  const { lines, blocked, pending } = payrollEmployeeCanonical(employeeId)
+  const alerts = `${pending.length ? `<div class="banner warning">${icon('bell')}${t('comp.payroll.awaitingCount', { count: pending.length })}</div>` : ''}${blocked.map(item => `<div class="banner warning">${icon('bell')}<span><strong>${t(blockerTitleKey(item))}:</strong> ${formatDate(item.date)} · ${t(item.reasonKey)}</span>${blockerActionButton(item)}</div>`).join('')}`
   const contextualRates = [...new Set(lines.filter(line => line.sourceType !== 'sick_leave_compensation').map(line => line.rate))]
   const facts = [
     [t('comp.payroll.employeeNumber'), String(employee.employeeNumber ?? employee.id).toUpperCase()],
@@ -12352,7 +12415,7 @@ function employeeDrawer(employeeId) {
   const drawerFooter = `<button type="button" class="button secondary" data-route="employee-detail" data-id="${employee.id}">${icon('id-card')}${t('employees.detail')}</button><button type="button" class="button" data-action="export-employee">${icon('file')}${t('comp.payroll.exportEmployee')}</button>`
   if (!lines.length) {
     const emptyCard = `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('comp.payroll.fullTimesheet')}</h3><span class="tag info">0</span></div><div class="empty-state"><span class="empty-icon">${icon('calendar')}</span><h3>${t('comp.payroll.noShiftsInPeriod')}</h3></div></article>`
-    return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${emptyCard}`, drawerFooter)
+    return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${alerts}${emptyCard}`, drawerFooter)
   }
   const totals = lines.reduce((sum, line) => ({
     hours: sum.hours + (Number(line.hours) || 0),
@@ -12384,7 +12447,7 @@ function employeeDrawer(employeeId) {
     return `<tr><td>${formatDate(line.date)}</td><td>${escapeHtml(line.client?.name ?? '')}</td><td>${line.department ? lab(line.department.name) : ''}</td><td>${line.assignmentId ? relationLink('job-detail', line.assignmentId, String(line.assignmentId)) : '—'}</td>${timeCells}<td>${formatHours(line.hours)}</td><td>${formatHours(line.overtimeHours)}</td><td>${formatMoney(line.ordinaryAmount)}</td><td>${formatMoney(line.overtimeAmount)}</td><td>${formatMoney(line.premiumAmount)}</td><td><strong>${formatMoney(line.total)}</strong></td><td>${sick ? `<span class="muted">${t('sick.source')}</span>` : approvalTag(true)}</td></tr>`
   })
   const timesheet = `<article class="card" style="margin-top:16px"><div class="card-header"><h3>${t('comp.payroll.fullTimesheet')}</h3><span class="tag info">${lines.length}</span></div><div class="table-scroller"><table><thead><tr>${head.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody><tfoot><tr class="row-total"><td colspan="6"><strong>${t('comp.invoicing.total')}</strong></td><td><strong>${formatHours(totals.hours)}</strong></td><td>${formatHours(totals.overtimeHours)}</td><td>${formatMoney(totals.ordinaryAmount)}</td><td>${formatMoney(totals.overtimeAmount)}</td><td>${formatMoney(totals.premiumAmount)}</td><td><strong>${formatMoney(totals.total)}</strong></td><td></td></tr></tfoot></table></div></article>`
-  return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${summary}${period}${postings}${timesheet}`, drawerFooter)
+  return drawerShell(employee.name, t('comp.payroll.employeeCard'), `${factGrid}${alerts}${summary}${period}${postings}${timesheet}`, drawerFooter)
 }
 function rateExplanationDrawer(employeeId, assignmentId, date, shiftId = null) {
   const employee = record('employees', employeeId)
@@ -12668,6 +12731,23 @@ function unresolvedSickLeaves() {
     })
   })
 }
+function setupChecklist() {
+  const items = []
+  if (!collection('clients').length) items.push({ key: 'setup.noClients', route: 'clients', actionKey: 'setup.createClient' })
+  if (!collection('tariffs').length) items.push({ key: 'setup.noPaySystems', route: 'financial', actionKey: 'setup.createPaySystem' })
+  const departments = collection('departments').filter(item => item.status !== 'archived')
+  const withoutPay = departments.filter(item => !item.paySystemId)
+  if (withoutPay.length) items.push({ key: 'setup.departmentsWithoutPaySystem', count: withoutPay.length, route: 'department-detail', id: withoutPay[0].id, actionKey: 'setup.openDepartment' })
+  const withoutApprover = departments.filter(item => !timesheetApprover({ departmentId: item.id, clientId: item.clientId }))
+  if (withoutApprover.length) items.push({ key: 'setup.departmentsWithoutApprover', count: withoutApprover.length, route: 'department-detail', id: withoutApprover[0].id, actionKey: 'setup.openDepartment' })
+  if (collection('clients').length && !collection('employees').length) items.push({ key: 'setup.noEmployees', route: 'employees', actionKey: 'setup.createEmployee' })
+  return items
+}
+function setupBanner() {
+  const items = setupChecklist()
+  if (!items.length) return ''
+  return `<div class="banner warning setup-banner" style="margin-bottom:16px">${icon('bell')}<div><strong>${t('setup.title')}</strong><ul style="margin:6px 0 0;padding-left:18px">${items.map(item => `<li>${t(item.key, { count: item.count ?? 0 })} <button type="button" class="button small" data-route="${item.route}"${item.id ? ` data-id="${escapeHtml(String(item.id))}"` : ''}>${t(item.actionKey)}</button></li>`).join('')}</ul></div></div>`
+}
 function dashboardActionCounts() {
   const slots = activeStaffingSlots()
   const sheets = activeSlotTimesheets()
@@ -12681,8 +12761,8 @@ function dashboardActionCounts() {
     timesheetsToApprove: sheets.filter(item => item.status === 'submitted').length,
     absencesToReview: absencesCollection().filter(item => absenceIsActive(item) && item.status === 'pending').length,
     timesheetsToCorrect: sheets.filter(item => item.status === 'needs_correction').length,
-    payrollBlocked: payroll.blocked.length,
-    invoiceBlocked: invoice.priceBlocked.length + invoice.payBlocked.length
+    payrollBlocked: payroll.blocked.filter(item => blockerMatchesFinancialScope(item, payrollScope({ includeSearch: true }))).length,
+    invoiceBlocked: [...invoice.priceBlocked, ...invoice.payBlocked].filter(item => blockerMatchesFinancialScope(item, invoiceScope())).length
   }
 }
 function upcomingAssignments(limit = 8) {
@@ -12808,7 +12888,7 @@ function auditEntries() {
         actor: event.actor ?? event.confirmedBy ?? event.assignedBy ?? '',
         entityType: 'assignment',
         entityId: assignment.id,
-        entityLabel: assignment.assignmentNumber ?? assignmentLabel(assignment),
+        entityLabel: assignmentLabel(assignment),
         eventType: event.type,
         labelKey: `staffing.event.${event.type}`,
         employeeId: event.employeeId ?? null,
@@ -13659,7 +13739,7 @@ function slotTimesheetDialog() {
     : ''
   const approvalGate = timesheet.status === 'submitted' ? timesheetApprovalBlocker(timesheet) : null
   const gateBanner = approvalGate ? `<div class="banner warning">${icon('bell')}<span><strong>${t('readiness.blocked')}:</strong> ${t(approvalGate.reasonKey)}</span></div>` : ''
-  const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${escapeHtml(assignment?.assignmentNumber ?? '')} · ${lab(record('departments', assignment?.departmentId)?.name ?? '')}</p>${gateBanner}${lockBanner}${correctionBanner}${liveInInfo}${coverageLine}${summarySection}${absenceSection}${approverLine}<div class="grid cols-2">${planned}${actual}</div>${deviationRow}${liveInReview}${history}`
+  const body = `${formError()}<p class="field-help">${escapeHtml(employee?.name ?? '')} · ${t('staffing.assignmentId')} ${escapeHtml(String(assignment?.id ?? ''))} · ${lab(record('departments', assignment?.departmentId)?.name ?? '')}</p>${gateBanner}${lockBanner}${correctionBanner}${liveInInfo}${coverageLine}${summarySection}${absenceSection}${approverLine}<div class="grid cols-2">${planned}${actual}</div>${deviationRow}${liveInReview}${history}`
   let actions = ''
   if (editable) actions = `<button class="button secondary" data-action="save-slot-timesheet">${t('common.save')}</button><button class="button" data-action="submit-slot-timesheet">${t('timesheets.submit')}</button>`
   else if (timesheet.status === 'submitted') {
@@ -14308,6 +14388,7 @@ function actionHandlers(target = null) {
     'dashboard-filter-slots': () => { state.shiftFilters.staffing = String(target?.dataset?.status ?? ''); navigate('staffing') },
     'dashboard-filter-timesheets': () => {
       const status = String(target?.dataset?.status ?? '')
+      state.timesheetEmployee = null
       state.timesheetFilters.month = ''
       state.timesheetMonthTouched = true
       state.timesheetBulkSelection = []
@@ -14320,13 +14401,13 @@ function actionHandlers(target = null) {
       }
       navigate('timesheets')
     },
-    'dashboard-open-absences': () => { state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; state.absenceStatusFilter = 'pending'; navigate('timesheets') },
+    'dashboard-open-absences': () => { state.timesheetEmployee = null; state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; state.absenceStatusFilter = 'pending'; navigate('timesheets') },
     'dashboard-open-payroll': () => navigate('payroll'),
     'dashboard-open-invoicing': () => navigate('invoicing'),
     'dashboard-open-absence': () => navigate('absence'),
     'dashboard-go-payroll': () => navigate('payroll'),
     'dashboard-go-invoicing': () => navigate('invoicing'),
-    'dashboard-go-timesheets': () => { state.slotTimesheetFilter = 'submitted'; state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; navigate('timesheets') },
+    'dashboard-go-timesheets': () => { state.timesheetEmployee = null; state.slotTimesheetFilter = 'submitted'; state.timesheetFilters.month = ''; state.timesheetMonthTouched = true; navigate('timesheets') },
     'clear-slot-timesheet-filter': () => { state.slotTimesheetFilter = ''; render() },
     'clients-status-filter': () => { const value = target?.dataset?.status; if (value) { state.filters.status = value; render() } },
     'shift-plan-prev': () => { state.shiftPlanAnchor = shiftPlanShiftMonth(-1); state.planScroll = { left: 0, top: state.planScroll.top }; render() },
@@ -14484,6 +14565,7 @@ function actionHandlers(target = null) {
     'open-invoice-report': () => { state.invoiceReportView = target?.dataset?.id ?? null; render() },
     'close-invoice-report-view': () => { state.invoiceReportView = null; render() },
     'finalize-invoice-report': () => {
+      if (!record('clients', state.invoiceReportForm.clientId)) { showToast('invoiceReport.clientRequired', {}); return }
       const view = buildInvoiceReport(state.invoiceReportForm)
       if (view.blocked || view.pending) { showToast('invoiceReport.blockedToast', { count: view.blocked + view.pending }); return }
       if (!view.rows.length) { showToast('invoiceReport.emptyToast', {}); return }
@@ -16901,6 +16983,18 @@ function captureCompareAgainst(element) {
   render()
   return true
 }
+function captureLegacyField(element) {
+  const name = element.dataset?.legacyField
+  if (!name) return false
+  if (name === 'period') {
+    const [startDate, endDate] = String(element.value).split('|')
+    if (startDate && endDate) state.legacyForm = { ...state.legacyForm, startDate, endDate }
+  } else {
+    state.legacyForm[name] = element.value
+  }
+  render()
+  return true
+}
 function capturePayrollField(element) {
   const name = element.dataset?.payrollField
   if (!name) return false
@@ -16932,6 +17026,7 @@ document.addEventListener('change', event => {
   if (captureAssignEmployee(event.target)) { render(); return }
   if (captureReportField(event.target)) return
   if (capturePayrollField(event.target)) return
+  if (captureLegacyField(event.target)) return
   if (captureCompareAgainst(event.target)) return
   if (event.target.dataset?.field) {
     handleDraftFieldChange(event.target.dataset.field, event.target.type === 'checkbox' ? event.target.checked : event.target.value)
